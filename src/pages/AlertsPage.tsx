@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, AlertTriangle, Clock, CheckCircle, Calendar, RefreshCw, User } from 'lucide-react'
+import { Bell, CheckCircle, RefreshCw, User } from 'lucide-react'
 
 const mockAlerts = [
   { id: '1', customerName: 'יוסי כהן', customerId: '1', trackType: 'פריים', daysLeft: 32, status: 'פתוח', amount: 300000, interestRate: 6.0 },

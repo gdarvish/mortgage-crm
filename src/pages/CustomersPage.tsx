@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Filter, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Search, Filter, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
+import type { Customer } from '@/types/database'
 
 const statusColors: Record<string, string> = {
   'ליד': 'bg-blue-100 text-blue-700',
@@ -14,45 +16,84 @@ const statusColors: Record<string, string> = {
 
 const statuses = ['הכל', 'ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'סגירה']
 
-const mockCustomers = [
-  { id: '1', first_name: 'יוסי', last_name: 'כהן', id_number: '012345678', phone: '050-1234567', status: 'מסמכים', lead_source: 'הפניה', monthly_income: 18000, loan_amount: 900000, created_at: '2026-03-15' },
-  { id: '2', first_name: 'שרה', last_name: 'לוי', id_number: '023456789', phone: '052-2345678', status: 'הגשה', lead_source: 'פייסבוק', monthly_income: 22000, loan_amount: 1300000, created_at: '2026-03-10' },
-  { id: '3', first_name: 'דוד', last_name: 'אברהם', id_number: '034567890', phone: '054-3456789', status: 'סגירה', lead_source: 'אתר', monthly_income: 25000, loan_amount: 1800000, created_at: '2026-02-28' },
-  { id: '4', first_name: 'רחל', last_name: 'מזרחי', id_number: '045678901', phone: '050-4567890', status: 'אישור', lead_source: 'הפניה', monthly_income: 15000, loan_amount: 750000, created_at: '2026-03-20' },
-  { id: '5', first_name: 'מוטי', last_name: 'פרץ', id_number: '056789012', phone: '053-5678901', status: 'ליד', lead_source: 'וואטסאפ', monthly_income: 20000, loan_amount: 1200000, created_at: '2026-04-01' },
-  { id: '6', first_name: 'אסתר', last_name: 'גולד', id_number: '067890123', phone: '058-6789012', status: 'ליד', lead_source: 'טלפון', monthly_income: 12000, loan_amount: 800000, created_at: '2026-04-02' },
-  { id: '7', first_name: 'יעקב', last_name: 'שמעון', id_number: '078901234', phone: '050-7890123', status: 'פגישה', lead_source: 'פייסבוק', monthly_income: 30000, loan_amount: 1500000, created_at: '2026-03-25' },
-  { id: '8', first_name: 'נועה', last_name: 'ברק', id_number: '089012345', phone: '052-8901234', status: 'מסמכים', lead_source: 'הפניה', monthly_income: 16000, loan_amount: 1100000, created_at: '2026-03-18' },
-  { id: '9', first_name: 'אמיר', last_name: 'חדד', id_number: '090123456', phone: '054-9012345', status: 'הגשה', lead_source: 'אתר', monthly_income: 19000, loan_amount: 950000, created_at: '2026-03-05' },
-  { id: '10', first_name: 'ליאת', last_name: 'דיין', id_number: '001234567', phone: '050-0123456', status: 'פגישה', lead_source: 'וואטסאפ', monthly_income: 14000, loan_amount: 600000, created_at: '2026-03-28' },
-]
-
-type SortField = 'name' | 'created_at' | 'loan_amount'
+type SortField = 'name' | 'created_at' | 'monthly_income'
 
 export default function CustomersPage() {
   const navigate = useNavigate()
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('הכל')
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortAsc, setSortAsc] = useState(false)
   const [showNewModal, setShowNewModal] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [newCustomer, setNewCustomer] = useState({
+    first_name: '', last_name: '', id_number: '', phone: '', email: '', lead_source: '',
+  })
 
-  const filtered = mockCustomers
-    .filter(c => {
-      const matchSearch = !search ||
-        `${c.first_name} ${c.last_name}`.includes(search) ||
-        c.phone.includes(search) ||
-        c.id_number.includes(search)
-      const matchStatus = statusFilter === 'הכל' || c.status === statusFilter
-      return matchSearch && matchStatus
-    })
-    .sort((a, b) => {
-      let cmp = 0
-      if (sortField === 'name') cmp = `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
-      else if (sortField === 'created_at') cmp = a.created_at.localeCompare(b.created_at)
-      else if (sortField === 'loan_amount') cmp = (a.loan_amount || 0) - (b.loan_amount || 0)
-      return sortAsc ? cmp : -cmp
-    })
+  const fetchCustomers = useCallback(async () => {
+    setLoading(true)
+    let query = supabase
+      .from('customers')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (statusFilter !== 'הכל') {
+      query = query.eq('status', statusFilter)
+    }
+    if (search) {
+      query = query.or(
+        `first_name.ilike.%${search}%,last_name.ilike.%${search}%,phone.ilike.%${search}%,id_number.ilike.%${search}%`
+      )
+    }
+
+    const { data, error } = await query
+    if (error) {
+      console.error('Error fetching customers:', error)
+    } else {
+      setCustomers((data || []) as Customer[])
+    }
+    setLoading(false)
+  }, [statusFilter, search])
+
+  useEffect(() => {
+    fetchCustomers()
+  }, [fetchCustomers])
+
+  const handleCreateCustomer = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newCustomer.first_name || !newCustomer.last_name) return
+
+    setSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+
+    const { error } = await supabase
+      .from('customers')
+      .insert({
+        ...newCustomer,
+        user_id: user?.id,
+        status: 'ליד',
+      })
+
+    if (error) {
+      console.error('Error creating customer:', error)
+      alert('שגיאה ביצירת לקוח: ' + error.message)
+    } else {
+      setShowNewModal(false)
+      setNewCustomer({ first_name: '', last_name: '', id_number: '', phone: '', email: '', lead_source: '' })
+      fetchCustomers()
+    }
+    setSaving(false)
+  }
+
+  const sorted = [...customers].sort((a, b) => {
+    let cmp = 0
+    if (sortField === 'name') cmp = `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
+    else if (sortField === 'created_at') cmp = (a.created_at || '').localeCompare(b.created_at || '')
+    else if (sortField === 'monthly_income') cmp = (a.monthly_income || 0) - (b.monthly_income || 0)
+    return sortAsc ? cmp : -cmp
+  })
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortAsc(!sortAsc)
@@ -68,7 +109,7 @@ export default function CustomersPage() {
     <div className="animate-fade-in space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">לקוחות</h1>
+        <h1 className="text-2xl font-bold text-gray-900">לקוחות ({customers.length})</h1>
         <button
           onClick={() => setShowNewModal(true)}
           className="inline-flex items-center gap-2 bg-[#1a4f8a] text-white px-4 py-2 rounded-lg hover:bg-[#143d6b] transition-colors"
@@ -111,55 +152,64 @@ export default function CustomersPage() {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-right p-3 text-sm font-medium text-gray-600 cursor-pointer" onClick={() => handleSort('name')}>
-                  <div className="flex items-center gap-1">שם <SortIcon field="name" /></div>
-                </th>
-                <th className="text-right p-3 text-sm font-medium text-gray-600">ת.ז</th>
-                <th className="text-right p-3 text-sm font-medium text-gray-600">טלפון</th>
-                <th className="text-right p-3 text-sm font-medium text-gray-600">סטטוס</th>
-                <th className="text-right p-3 text-sm font-medium text-gray-600">מקור</th>
-                <th className="text-right p-3 text-sm font-medium text-gray-600 cursor-pointer" onClick={() => handleSort('loan_amount')}>
-                  <div className="flex items-center gap-1">סכום <SortIcon field="loan_amount" /></div>
-                </th>
-                <th className="text-right p-3 text-sm font-medium text-gray-600 cursor-pointer" onClick={() => handleSort('created_at')}>
-                  <div className="flex items-center gap-1">תאריך <SortIcon field="created_at" /></div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((customer) => (
-                <tr
-                  key={customer.id}
-                  onClick={() => navigate(`/customers/${customer.id}`)}
-                  className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
-                >
-                  <td className="p-3 font-medium text-gray-900">{customer.first_name} {customer.last_name}</td>
-                  <td className="p-3 text-gray-600 text-sm" dir="ltr">{customer.id_number}</td>
-                  <td className="p-3 text-gray-600 text-sm" dir="ltr">{customer.phone}</td>
-                  <td className="p-3">
-                    <span className={`text-xs px-2 py-1 rounded-full ${statusColors[customer.status] || 'bg-gray-100 text-gray-600'}`}>
-                      {customer.status}
-                    </span>
-                  </td>
-                  <td className="p-3 text-gray-600 text-sm">{customer.lead_source}</td>
-                  <td className="p-3 text-gray-600 text-sm">{formatCurrency(customer.loan_amount)}</td>
-                  <td className="p-3 text-gray-500 text-sm">{formatDate(customer.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {filtered.length === 0 && (
+        {loading ? (
           <div className="p-12 text-center">
-            <Filter size={48} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500">לא נמצאו לקוחות</p>
-            <p className="text-sm text-gray-400 mt-1">נסה לשנות את החיפוש או הפילטרים</p>
+            <Loader2 size={32} className="mx-auto text-[#1a4f8a] animate-spin mb-3" />
+            <p className="text-gray-500">טוען לקוחות...</p>
           </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-right p-3 text-sm font-medium text-gray-600 cursor-pointer" onClick={() => handleSort('name')}>
+                      <div className="flex items-center gap-1">שם <SortIcon field="name" /></div>
+                    </th>
+                    <th className="text-right p-3 text-sm font-medium text-gray-600">ת.ז</th>
+                    <th className="text-right p-3 text-sm font-medium text-gray-600">טלפון</th>
+                    <th className="text-right p-3 text-sm font-medium text-gray-600">סטטוס</th>
+                    <th className="text-right p-3 text-sm font-medium text-gray-600">מקור</th>
+                    <th className="text-right p-3 text-sm font-medium text-gray-600 cursor-pointer" onClick={() => handleSort('monthly_income')}>
+                      <div className="flex items-center gap-1">הכנסה <SortIcon field="monthly_income" /></div>
+                    </th>
+                    <th className="text-right p-3 text-sm font-medium text-gray-600 cursor-pointer" onClick={() => handleSort('created_at')}>
+                      <div className="flex items-center gap-1">תאריך <SortIcon field="created_at" /></div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((customer) => (
+                    <tr
+                      key={customer.id}
+                      onClick={() => navigate(`/customers/${customer.id}`)}
+                      className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
+                    >
+                      <td className="p-3 font-medium text-gray-900">{customer.first_name} {customer.last_name}</td>
+                      <td className="p-3 text-gray-600 text-sm" dir="ltr">{customer.id_number || '—'}</td>
+                      <td className="p-3 text-gray-600 text-sm" dir="ltr">{customer.phone || '—'}</td>
+                      <td className="p-3">
+                        <span className={`text-xs px-2 py-1 rounded-full ${statusColors[customer.status] || 'bg-gray-100 text-gray-600'}`}>
+                          {customer.status}
+                        </span>
+                      </td>
+                      <td className="p-3 text-gray-600 text-sm">{customer.lead_source || '—'}</td>
+                      <td className="p-3 text-gray-600 text-sm">{customer.monthly_income ? formatCurrency(customer.monthly_income) : '—'}</td>
+                      <td className="p-3 text-gray-500 text-sm">{formatDate(customer.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {sorted.length === 0 && (
+              <div className="p-12 text-center">
+                <Filter size={48} className="mx-auto text-gray-300 mb-3" />
+                <p className="text-gray-500">לא נמצאו לקוחות</p>
+                <p className="text-sm text-gray-400 mt-1">לחץ "לקוח חדש" כדי להוסיף את הלקוח הראשון</p>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -168,34 +218,64 @@ export default function CustomersPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowNewModal(false)}>
           <div className="bg-white rounded-2xl w-full max-w-lg p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-bold text-gray-900 mb-4">לקוח חדש</h2>
-            <form className="space-y-3">
+            <form onSubmit={handleCreateCustomer} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">שם פרטי</label>
-                  <input className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">שם פרטי *</label>
+                  <input
+                    value={newCustomer.first_name}
+                    onChange={(e) => setNewCustomer({ ...newCustomer, first_name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none"
+                    required
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">שם משפחה</label>
-                  <input className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">שם משפחה *</label>
+                  <input
+                    value={newCustomer.last_name}
+                    onChange={(e) => setNewCustomer({ ...newCustomer, last_name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none"
+                    required
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">ת.ז</label>
-                  <input className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none" dir="ltr" />
+                  <input
+                    value={newCustomer.id_number}
+                    onChange={(e) => setNewCustomer({ ...newCustomer, id_number: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none"
+                    dir="ltr"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
-                  <input className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none" dir="ltr" />
+                  <input
+                    value={newCustomer.phone}
+                    onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none"
+                    dir="ltr"
+                  />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
-                <input type="email" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none" dir="ltr" />
+                <input
+                  type="email"
+                  value={newCustomer.email}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none"
+                  dir="ltr"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">מקור הגעה</label>
-                <select className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none bg-white">
+                <select
+                  value={newCustomer.lead_source}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, lead_source: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none bg-white"
+                >
                   <option value="">בחר...</option>
                   <option>הפניה</option>
                   <option>פייסבוק</option>
@@ -206,7 +286,12 @@ export default function CustomersPage() {
                 </select>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="submit" className="flex-1 bg-[#1a4f8a] text-white py-2 rounded-lg hover:bg-[#143d6b] transition-colors">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 bg-[#1a4f8a] text-white py-2 rounded-lg hover:bg-[#143d6b] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {saving && <Loader2 size={16} className="animate-spin" />}
                   שמור
                 </button>
                 <button type="button" onClick={() => setShowNewModal(false)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition-colors">

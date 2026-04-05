@@ -1,68 +1,20 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, TrendingUp, UserPlus, DollarSign, Bell, CheckSquare, Clock, AlertTriangle } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
+import {
+  Users, TrendingUp, UserPlus, DollarSign, Bell, CheckSquare,
+  Clock, AlertTriangle, Loader2,
+} from 'lucide-react'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  PieChart, Pie, Cell, ResponsiveContainer,
+} from 'recharts'
 import { formatCurrency } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
+import type { Customer, Task, Alert } from '@/types/database'
 
 const COLORS = ['#1a4f8a', '#2563a8', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6']
-
-// Mock data
-const summaryCards = [
-  { label: 'לקוחות פעילים', value: 47, icon: Users, color: '#1a4f8a' },
-  { label: 'עסקאות החודש', value: 5, icon: TrendingUp, color: '#22c55e' },
-  { label: 'לידים חדשים', value: 12, icon: UserPlus, color: '#f59e0b' },
-  { label: 'הכנסה חודשית', value: 34500, icon: DollarSign, color: '#8b5cf6', isCurrency: true },
-]
-
-const mockAlerts = [
-  { id: '1', customerName: 'יוסי כהן', trackType: 'פריים', daysLeft: 32, customerId: '1' },
-  { id: '2', customerName: 'שרה לוי', trackType: 'קל"צ', daysLeft: 78, customerId: '2' },
-  { id: '3', customerName: 'דוד אברהם', trackType: 'משתנה צמודה', daysLeft: 145, customerId: '3' },
-  { id: '4', customerName: 'רחל מזרחי', trackType: 'קל"ב', daysLeft: 55, customerId: '4' },
-]
-
-const mockTasks = [
-  { id: '1', title: 'להתקשר ליוסי כהן - מסמכים חסרים', priority: 'גבוהה', customerName: 'יוסי כהן', done: false },
-  { id: '2', title: 'לשלוח הצעת תמהיל לשרה לוי', priority: 'בינונית', customerName: 'שרה לוי', done: false },
-  { id: '3', title: 'פגישה עם דוד אברהם - 14:00', priority: 'דחופה', customerName: 'דוד אברהם', done: false },
-  { id: '4', title: 'להגיש תיק לבנק לאומי - רחל מזרחי', priority: 'גבוהה', customerName: 'רחל מזרחי', done: true },
-]
-
-const pipelineStages = [
-  { name: 'ליד', customers: [
-    { name: 'מוטי פרץ', amount: 1200000, days: 3 },
-    { name: 'אסתר גולד', amount: 800000, days: 1 },
-  ]},
-  { name: 'פגישה', customers: [
-    { name: 'יעקב שמעון', amount: 1500000, days: 5 },
-  ]},
-  { name: 'מסמכים', customers: [
-    { name: 'יוסי כהן', amount: 900000, days: 12 },
-    { name: 'נועה ברק', amount: 1100000, days: 7 },
-  ]},
-  { name: 'הגשה', customers: [
-    { name: 'שרה לוי', amount: 1300000, days: 4 },
-  ]},
-  { name: 'אישור', customers: [
-    { name: 'רחל מזרחי', amount: 750000, days: 2 },
-  ]},
-  { name: 'סגירה', customers: [
-    { name: 'דוד אברהם', amount: 1800000, days: 1 },
-  ]},
-]
-
-const monthlyDeals = [
-  { month: 'ינו', deals: 3 }, { month: 'פבר', deals: 5 }, { month: 'מרץ', deals: 4 },
-  { month: 'אפר', deals: 7 }, { month: 'מאי', deals: 6 }, { month: 'יונ', deals: 4 },
-  { month: 'יול', deals: 8 }, { month: 'אוג', deals: 3 }, { month: 'ספט', deals: 6 },
-  { month: 'אוק', deals: 5 }, { month: 'נוב', deals: 7 }, { month: 'דצמ', deals: 5 },
-]
-
-const sourceData = [
-  { name: 'הפניה', value: 35 }, { name: 'פייסבוק', value: 20 },
-  { name: 'אתר', value: 15 }, { name: 'וואטסאפ', value: 12 },
-  { name: 'טלפון', value: 10 }, { name: 'אחר', value: 8 },
-]
+const statusOrder = ['ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'סגירה']
+const hebrewMonths = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ']
 
 function getAlertColor(days: number) {
   if (days < 60) return { bg: 'bg-red-50', text: 'text-red-700', badge: 'bg-red-100 text-red-700' }
@@ -79,12 +31,151 @@ function getPriorityColor(priority: string) {
   }
 }
 
+interface DashboardAlert extends Alert {
+  customer_name?: string
+  track_type?: string
+}
+
+interface DashboardTask extends Task {
+  customer_name?: string
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const [tasks, setTasks] = useState(mockTasks)
+  const [loading, setLoading] = useState(true)
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [tasks, setTasks] = useState<DashboardTask[]>([])
+  const [alerts, setAlerts] = useState<DashboardAlert[]>([])
+  const [commissionTotal, setCommissionTotal] = useState(0)
 
-  const toggleTask = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+
+    const [customersRes, tasksRes, alertsRes, commissionsRes] = await Promise.all([
+      supabase.from('customers').select('*').order('created_at', { ascending: false }),
+      supabase.from('tasks').select('*').neq('status', 'הושלמה').order('due_date', { ascending: true }).limit(10),
+      supabase.from('alerts').select('*').eq('status', 'פתוח').order('days_until_end', { ascending: true }).limit(10),
+      supabase.from('commissions').select('amount').eq('status', 'שולם'),
+    ])
+
+    if (customersRes.data) setCustomers(customersRes.data as Customer[])
+
+    if (tasksRes.data) {
+      const taskCustomerIds = tasksRes.data.filter(t => t.customer_id).map(t => t.customer_id)
+      let customerMap: Record<string, string> = {}
+      if (taskCustomerIds.length > 0) {
+        const { data: taskCustomers } = await supabase
+          .from('customers')
+          .select('id, first_name, last_name')
+          .in('id', taskCustomerIds)
+        if (taskCustomers) {
+          customerMap = Object.fromEntries(
+            taskCustomers.map(c => [c.id, `${c.first_name} ${c.last_name}`])
+          )
+        }
+      }
+      setTasks(tasksRes.data.map(t => ({
+        ...t,
+        customer_name: t.customer_id ? customerMap[t.customer_id] : undefined,
+      })) as DashboardTask[])
+    }
+
+    if (alertsRes.data && alertsRes.data.length > 0) {
+      const alertCustomerIds = alertsRes.data.map(a => a.customer_id)
+      const alertTrackIds = alertsRes.data.filter(a => a.loan_track_id).map(a => a.loan_track_id)
+
+      const [custRes, trackRes] = await Promise.all([
+        supabase.from('customers').select('id, first_name, last_name').in('id', alertCustomerIds),
+        alertTrackIds.length > 0
+          ? supabase.from('loan_tracks').select('id, type').in('id', alertTrackIds)
+          : Promise.resolve({ data: [] }),
+      ])
+
+      const custMap: Record<string, string> = {}
+      if (custRes.data) custRes.data.forEach(c => { custMap[c.id] = `${c.first_name} ${c.last_name}` })
+      const trackMap: Record<string, string> = {}
+      if (trackRes.data) trackRes.data.forEach(t => { trackMap[t.id] = t.type || '—' })
+
+      setAlerts(alertsRes.data.map(a => ({
+        ...a,
+        customer_name: custMap[a.customer_id] || 'לא ידוע',
+        track_type: a.loan_track_id ? (trackMap[a.loan_track_id] || '—') : '—',
+      })) as DashboardAlert[])
+    }
+
+    if (commissionsRes.data) {
+      setCommissionTotal(commissionsRes.data.reduce((sum, c) => sum + (c.amount || 0), 0))
+    }
+
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  const toggleTask = async (id: string) => {
+    const { error } = await supabase.from('tasks').update({ status: 'הושלמה' }).eq('id', id)
+    if (!error) {
+      setTasks(prev => prev.filter(t => t.id !== id))
+    }
+  }
+
+  // Compute summary data from real customers
+  const now = new Date()
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const activeCustomers = customers.length
+  const dealsThisMonth = customers.filter(c => c.status === 'סגירה' && c.created_at >= thisMonthStart).length
+  const newLeads = customers.filter(c => c.status === 'ליד' && c.created_at >= thisMonthStart).length
+
+  const summaryCards = [
+    { label: 'לקוחות פעילים', value: activeCustomers, icon: Users, color: '#1a4f8a' },
+    { label: 'עסקאות החודש', value: dealsThisMonth, icon: TrendingUp, color: '#22c55e' },
+    { label: 'לידים חדשים', value: newLeads, icon: UserPlus, color: '#f59e0b' },
+    { label: 'עמלות ששולמו', value: commissionTotal, icon: DollarSign, color: '#8b5cf6', isCurrency: true },
+  ]
+
+  // Pipeline from real data
+  const pipelineStages = statusOrder.map(status => ({
+    name: status,
+    customers: customers
+      .filter(c => c.status === status)
+      .slice(0, 5)
+      .map(c => ({
+        id: c.id,
+        name: `${c.first_name} ${c.last_name}`,
+        days: Math.max(0, Math.floor((Date.now() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24))),
+      })),
+  }))
+
+  // Source pie chart
+  const sourceCounts: Record<string, number> = {}
+  customers.forEach(c => {
+    const source = c.lead_source || 'אחר'
+    sourceCounts[source] = (sourceCounts[source] || 0) + 1
+  })
+  const sourceData = Object.entries(sourceCounts)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+
+  // Monthly chart — last 12 months
+  const monthlyDeals: { month: string; deals: number }[] = []
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59)
+    const count = customers.filter(c => {
+      const cd = new Date(c.created_at)
+      return cd >= d && cd <= monthEnd
+    }).length
+    monthlyDeals.push({ month: hebrewMonths[d.getMonth()], deals: count })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 size={32} className="text-[#1a4f8a] animate-spin" />
+      </div>
+    )
   }
 
   return (
@@ -115,23 +206,25 @@ export default function DashboardPage() {
             <h2 className="font-semibold text-gray-900">התראות מסלולים</h2>
           </div>
           <div className="divide-y divide-gray-50">
-            {mockAlerts.map((alert) => {
-              const colors = getAlertColor(alert.daysLeft)
+            {alerts.length === 0 ? (
+              <div className="p-8 text-center text-gray-400 text-sm">אין התראות פתוחות</div>
+            ) : alerts.map((alert) => {
+              const colors = getAlertColor(alert.days_until_end || 999)
               return (
                 <div
                   key={alert.id}
-                  onClick={() => navigate(`/customers/${alert.customerId}`)}
+                  onClick={() => navigate(`/customers/${alert.customer_id}`)}
                   className={`p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors ${colors.bg}`}
                 >
                   <div className="flex items-center gap-3">
                     <AlertTriangle size={16} className={colors.text} />
                     <div>
-                      <p className="font-medium text-gray-900">{alert.customerName}</p>
-                      <p className="text-sm text-gray-500">מסלול: {alert.trackType}</p>
+                      <p className="font-medium text-gray-900">{alert.customer_name}</p>
+                      <p className="text-sm text-gray-500">מסלול: {alert.track_type}</p>
                     </div>
                   </div>
                   <span className={`text-xs font-medium px-2 py-1 rounded-full ${colors.badge}`}>
-                    {alert.daysLeft} ימים
+                    {alert.days_until_end} ימים
                   </span>
                 </div>
               )
@@ -139,31 +232,26 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Today's Tasks */}
+        {/* Tasks */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100">
           <div className="p-4 border-b border-gray-100 flex items-center gap-2">
             <CheckSquare size={18} className="text-[#1a4f8a]" />
-            <h2 className="font-semibold text-gray-900">משימות להיום</h2>
+            <h2 className="font-semibold text-gray-900">משימות פתוחות</h2>
           </div>
           <div className="divide-y divide-gray-50">
-            {tasks.map((task) => (
+            {tasks.length === 0 ? (
+              <div className="p-8 text-center text-gray-400 text-sm">אין משימות פתוחות</div>
+            ) : tasks.map((task) => (
               <div key={task.id} className="p-4 flex items-center gap-3">
                 <button
                   onClick={() => toggleTask(task.id)}
-                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                    task.done ? 'bg-[#1a4f8a] border-[#1a4f8a]' : 'border-gray-300 hover:border-[#1a4f8a]'
-                  }`}
-                >
-                  {task.done && (
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path d="M2.5 6L5 8.5L9.5 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </button>
+                  className="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors border-gray-300 hover:border-[#1a4f8a]"
+                />
                 <div className="flex-1">
-                  <p className={`text-sm ${task.done ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                    {task.title}
-                  </p>
+                  <p className="text-sm text-gray-900">{task.title}</p>
+                  {task.customer_name && (
+                    <p className="text-xs text-gray-400">{task.customer_name}</p>
+                  )}
                 </div>
                 <span className={`text-xs px-2 py-0.5 rounded-full ${getPriorityColor(task.priority)}`}>
                   {task.priority}
@@ -182,7 +270,7 @@ export default function DashboardPage() {
         </div>
         <div className="p-4 overflow-x-auto">
           <div className="flex gap-4 min-w-[900px]">
-            {pipelineStages.map((stage, idx) => (
+            {pipelineStages.map((stage) => (
               <div key={stage.name} className="flex-1 min-w-[150px]">
                 <div className="text-center mb-3">
                   <span className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
@@ -190,16 +278,19 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <div className="space-y-2">
-                  {stage.customers.map((customer, cIdx) => (
+                  {stage.customers.map((customer) => (
                     <div
-                      key={cIdx}
+                      key={customer.id}
+                      onClick={() => navigate(`/customers/${customer.id}`)}
                       className="bg-gray-50 rounded-lg p-3 border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
                     >
                       <p className="font-medium text-sm text-gray-900">{customer.name}</p>
-                      <p className="text-xs text-gray-500 mt-1">{formatCurrency(customer.amount)}</p>
                       <p className="text-xs text-gray-400 mt-1">{customer.days} ימים בשלב</p>
                     </div>
                   ))}
+                  {stage.customers.length === 0 && (
+                    <p className="text-center text-xs text-gray-300 py-4">—</p>
+                  )}
                 </div>
               </div>
             ))}
@@ -209,40 +300,42 @@ export default function DashboardPage() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Monthly Deals Bar Chart */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <h2 className="font-semibold text-gray-900 mb-4">עסקאות לפי חודש</h2>
+          <h2 className="font-semibold text-gray-900 mb-4">לקוחות חדשים לפי חודש</h2>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={monthlyDeals}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(value: number) => [`${value} עסקאות`, 'כמות']} />
+              <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+              <Tooltip formatter={(v) => [`${v} לקוחות`, 'כמות']} />
               <Bar dataKey="deals" fill="#1a4f8a" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Source Pie Chart */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <h2 className="font-semibold text-gray-900 mb-4">לקוחות לפי מקור</h2>
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie
-                data={sourceData}
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                dataKey="value"
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-              >
-                {sourceData.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value: number) => [`${value} לקוחות`, 'כמות']} />
-            </PieChart>
-          </ResponsiveContainer>
+          {sourceData.length === 0 ? (
+            <div className="flex items-center justify-center h-[280px] text-gray-400 text-sm">אין נתונים עדיין</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie
+                  data={sourceData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                >
+                  {sourceData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v) => [`${v} לקוחות`, 'כמות']} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
     </div>

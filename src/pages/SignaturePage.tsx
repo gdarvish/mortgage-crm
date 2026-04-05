@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { PenTool, CheckCircle, RotateCcw } from 'lucide-react'
 
 export default function SignaturePage() {
-  const { token } = useParams()
+  const { token: _token } = useParams()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [signed, setSigned] = useState(false)

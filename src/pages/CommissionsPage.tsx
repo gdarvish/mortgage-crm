@@ -53,7 +53,7 @@ export default function CommissionsPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" />
               <YAxis tickFormatter={v => `₪${(v / 1000).toFixed(0)}K`} />
-              <Tooltip formatter={(v: number) => formatCurrency(v)} />
+              <Tooltip formatter={(v) => formatCurrency(v as number)} />
               <Bar dataKey="amount" fill="#1a4f8a" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

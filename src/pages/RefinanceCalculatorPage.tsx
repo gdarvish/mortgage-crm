@@ -153,7 +153,7 @@ export default function RefinanceCalculatorPage() {
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="month" label={{ value: 'חודש', position: 'bottom' }} />
             <YAxis tickFormatter={v => `₪${(v / 1000).toFixed(0)}K`} />
-            <Tooltip formatter={(v: number) => formatCurrency(v)} />
+            <Tooltip formatter={(v) => formatCurrency(v as number)} />
             <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="3 3" />
             <Line type="monotone" dataKey="saving" stroke="#1a4f8a" strokeWidth={2} name="חיסכון מצטבר" dot={false} />
           </LineChart>

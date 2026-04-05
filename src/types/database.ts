@@ -10,72 +10,72 @@ export interface Database {
       }
       customers: {
         Row: Customer
-        Insert: Omit<Customer, 'id' | 'created_at' | 'updated_at'>
+        Insert: Partial<Customer>
         Update: Partial<Customer>
       }
       leads: {
         Row: Lead
-        Insert: Omit<Lead, 'id' | 'created_at'>
+        Insert: Partial<Lead>
         Update: Partial<Lead>
       }
       referral_partners: {
         Row: ReferralPartner
-        Insert: Omit<ReferralPartner, 'id' | 'created_at'>
+        Insert: Partial<ReferralPartner>
         Update: Partial<ReferralPartner>
       }
       documents: {
         Row: Document
-        Insert: Omit<Document, 'id' | 'uploaded_at'>
+        Insert: Partial<Document>
         Update: Partial<Document>
       }
       signatures: {
         Row: Signature
-        Insert: Omit<Signature, 'id'>
+        Insert: Partial<Signature>
         Update: Partial<Signature>
       }
       mortgages: {
         Row: Mortgage
-        Insert: Omit<Mortgage, 'id' | 'created_at'>
+        Insert: Partial<Mortgage>
         Update: Partial<Mortgage>
       }
       loan_tracks: {
         Row: LoanTrack
-        Insert: Omit<LoanTrack, 'id' | 'created_at'>
+        Insert: Partial<LoanTrack>
         Update: Partial<LoanTrack>
       }
       bank_responses: {
         Row: BankResponse
-        Insert: Omit<BankResponse, 'id' | 'created_at'>
+        Insert: Partial<BankResponse>
         Update: Partial<BankResponse>
       }
       alerts: {
         Row: Alert
-        Insert: Omit<Alert, 'id' | 'created_at'>
+        Insert: Partial<Alert>
         Update: Partial<Alert>
       }
       tasks: {
         Row: Task
-        Insert: Omit<Task, 'id' | 'created_at'>
+        Insert: Partial<Task>
         Update: Partial<Task>
       }
       commissions: {
         Row: Commission
-        Insert: Omit<Commission, 'id' | 'created_at'>
+        Insert: Partial<Commission>
         Update: Partial<Commission>
       }
       interest_rates: {
         Row: InterestRate
-        Insert: Omit<InterestRate, 'id' | 'created_at'>
+        Insert: Partial<InterestRate>
         Update: Partial<InterestRate>
       }
       messages: {
         Row: Message
-        Insert: Omit<Message, 'id' | 'sent_at'>
+        Insert: Partial<Message>
         Update: Partial<Message>
       }
       cpi_index: {
         Row: CpiIndex
-        Insert: Omit<CpiIndex, 'id'>
+        Insert: Partial<CpiIndex>
         Update: Partial<CpiIndex>
       }
     }
@@ -106,6 +106,7 @@ export interface AdvisorSettings {
 
 export interface Customer {
   id: string
+  user_id?: string | null
   first_name: string
   last_name: string
   id_number: string | null
@@ -132,6 +133,7 @@ export type CustomerStatus = 'ליד' | 'פגישה' | 'מסמכים' | 'הגש�
 
 export interface Lead {
   id: string
+  user_id?: string | null
   name: string | null
   phone: string | null
   email: string | null

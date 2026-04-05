@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Calculator, Plus, Trash2, Sparkles, AlertTriangle, CheckCircle, Download, Save } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
-import { formatCurrency, formatNumber } from '@/lib/utils'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { formatCurrency } from '@/lib/utils'
 import {
   calculateMonthlyPayment,
   calculateAmortizationSchedule,
@@ -210,7 +210,7 @@ export default function MortgageCalculatorPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="year" label={{ value: 'שנה', position: 'bottom' }} />
                   <YAxis tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v) => formatCurrency(v as number)} />
                   <Bar dataKey="principal" name="קרן" fill="#1a4f8a" stackId="a" />
                   <Bar dataKey="interest" name="ריבית" fill="#f59e0b" stackId="a" />
                 </BarChart>

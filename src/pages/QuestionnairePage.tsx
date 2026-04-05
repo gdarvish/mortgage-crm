@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react'
 const steps = ['פרטים אישיים', 'מצב משפחתי', 'הכנסות', 'נכסים', 'התחייבויות', 'מטרת המשכנתא']
 
 export default function QuestionnairePage() {
-  const { token } = useParams()
+  const { token: _token } = useParams()
   const [currentStep, setCurrentStep] = useState(0)
   const [submitted, setSubmitted] = useState(false)
   const [form, setForm] = useState({

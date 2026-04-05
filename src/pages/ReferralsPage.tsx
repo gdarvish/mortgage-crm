@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Share2, Plus, Phone, Mail, TrendingUp } from 'lucide-react'
+import { Share2, Plus, Phone, TrendingUp } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
 const partnerTypes = ['סוכן נדל"ן', 'עו"ד', 'רו"ח', 'לקוח קיים', 'אחר']

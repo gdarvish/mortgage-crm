@@ -30,7 +30,7 @@ const statusIcon = (status: string) => {
 }
 
 export default function ClientPortalPage() {
-  const { token } = useParams()
+  const { token: _token } = useParams()
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">

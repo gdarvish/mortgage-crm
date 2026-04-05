@@ -18,7 +18,7 @@ interface AuthActions {
 
 export type AuthStore = AuthState & AuthActions
 
-export const useAuthStore = create<AuthStore>((set, get) => ({
+export const useAuthStore = create<AuthStore>((set, _get) => ({
   user: null,
   session: null,
   loading: true,

@@ -153,7 +153,7 @@ export default function ConsolidationCalculatorPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="name" />
               <YAxis tickFormatter={v => `₪${v}`} />
-              <Tooltip formatter={(v: number) => formatCurrency(v)} />
+              <Tooltip formatter={(v) => formatCurrency(v as number)} />
               <Bar dataKey="current" name="החזר נוכחי" fill="#ef4444" radius={[4, 4, 0, 0]} />
               <Bar dataKey="share" name="חלק באיחוד" fill="#1a4f8a" radius={[4, 4, 0, 0]} />
             </BarChart>

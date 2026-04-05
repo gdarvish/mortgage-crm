@@ -57,7 +57,7 @@ export default function InterestRatesPage() {
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="date" />
             <YAxis domain={[5, 6.5]} tickFormatter={v => `${v}%`} />
-            <Tooltip formatter={(v: number) => `${v}%`} />
+            <Tooltip formatter={(v) => `${v}%`} />
             <Line type="monotone" dataKey="rate" stroke="#1a4f8a" strokeWidth={2} dot={{ fill: '#1a4f8a' }} />
           </LineChart>
         </ResponsiveContainer>

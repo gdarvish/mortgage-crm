@@ -36,7 +36,7 @@ function getPageTitle(pathname: string): string {
   return 'דשבורד'
 }
 
-export default function Header({ onMenuToggle, sidebarCollapsed }: HeaderProps) {
+export default function Header({ onMenuToggle }: Omit<HeaderProps, 'sidebarCollapsed'> & { sidebarCollapsed?: boolean }) {
   const location = useLocation()
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
