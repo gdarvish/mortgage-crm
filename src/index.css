@@ -22,6 +22,8 @@
 
 html {
   direction: rtl;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 body {
@@ -29,6 +31,30 @@ body {
   background-color: #f8fafc;
   color: #1e293b;
   min-height: 100vh;
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+#root {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Responsive tables */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Make inputs readable on mobile iOS */
+input, select, textarea {
+  font-size: 16px;
+}
+
+@media (min-width: 640px) {
+  input, select, textarea {
+    font-size: 14px;
+  }
 }
 
 h1, h2, h3, h4, h5, h6 {

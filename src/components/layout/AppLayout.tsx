@@ -21,7 +21,7 @@ export default function AppLayout() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]" dir="rtl">
+    <div className="min-h-screen bg-[#f8fafc] overflow-x-hidden" dir="rtl">
       {/* Sidebar - right side in RTL */}
       <Sidebar
         open={sidebarOpen}
@@ -33,8 +33,7 @@ export default function AppLayout() {
       {/* Main content area - offset from sidebar on the right */}
       <div
         className={cn(
-          'transition-all duration-300 min-w-0 overflow-x-hidden',
-          // In RTL, margin-right pushes content away from the right sidebar
+          'transition-all duration-300 flex flex-col min-h-screen',
           sidebarCollapsed
             ? 'lg:mr-[72px]'
             : 'lg:mr-[260px]'
@@ -45,7 +44,7 @@ export default function AppLayout() {
           sidebarCollapsed={sidebarCollapsed}
         />
 
-        <main className="p-4 lg:p-6 overflow-x-auto">
+        <main className="flex-1 p-3 sm:p-4 lg:p-6 w-full max-w-full overflow-x-hidden">
           <Outlet />
         </main>
       </div>

@@ -152,8 +152,8 @@ export default function MortgageCalculatorPage() {
                 return (
                   <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-100 space-y-2">
                     {/* Main row */}
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
-                      <div>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-end">
+                      <div className="col-span-2 md:col-span-1">
                         <label className="block text-xs text-gray-500 mb-1">סוג</label>
                         <select value={track.type} onChange={e => updateTrack(idx, 'type', e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm bg-white">
                           {trackTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -168,7 +168,7 @@ export default function MortgageCalculatorPage() {
                         <input type="number" step="0.1" value={track.interestRate} onChange={e => updateTrack(idx, 'interestRate', +e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-500 mb-1">תקופה (חודשים)</label>
+                        <label className="block text-xs text-gray-500 mb-1">תקופה (חו')</label>
                         <input type="number" value={track.periodMonths} onChange={e => updateTrack(idx, 'periodMonths', +e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
                       </div>
                       <div className="flex items-center justify-between gap-2">
