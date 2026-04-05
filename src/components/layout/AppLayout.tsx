@@ -33,7 +33,7 @@ export default function AppLayout() {
       {/* Main content area - offset from sidebar on the right */}
       <div
         className={cn(
-          'transition-all duration-300',
+          'transition-all duration-300 min-w-0 overflow-x-hidden',
           // In RTL, margin-right pushes content away from the right sidebar
           sidebarCollapsed
             ? 'lg:mr-[72px]'
@@ -45,7 +45,7 @@ export default function AppLayout() {
           sidebarCollapsed={sidebarCollapsed}
         />
 
-        <main className="p-4 lg:p-6">
+        <main className="p-4 lg:p-6 overflow-x-auto">
           <Outlet />
         </main>
       </div>

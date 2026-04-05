@@ -1,10 +1,59 @@
 import type { LoanTrackType, PropertyType } from '@/types/database'
 
+export type GraceType = 'מלא' | 'חלקי'
+
 export interface TrackInput {
   type: LoanTrackType
   amount: number
   interestRate: number
   periodMonths: number
+  graceMonths?: number   // 0 or undefined = no grace period
+  graceType?: GraceType  // 'מלא' = interest+principal deferred | 'חלקי' = interest only paid
+}
+
+/**
+ * Calculate payments during and after grace period.
+ * גרייס חלקי (partial): Only interest is paid during grace. Principal unchanged.
+ * גרייס מלא (full): Nothing is paid. Interest compounds onto principal.
+ */
+export function calculateGracePayments(
+  principal: number,
+  annualRate: number,
+  totalMonths: number,
+  graceMonths: number,
+  graceType: GraceType
+): { duringGrace: number; afterGrace: number } {
+  if (graceMonths <= 0 || totalMonths <= graceMonths) {
+    const p = calculateMonthlyPayment(principal, annualRate, totalMonths)
+    return { duringGrace: p, afterGrace: p }
+  }
+
+  const r = annualRate / 100 / 12
+  const remainingMonths = totalMonths - graceMonths
+
+  if (graceType === 'חלקי') {
+    // Partial grace: pay interest only, principal stays the same
+    const duringGrace = Math.round(principal * r)
+    const afterGrace = Math.round(calculateMonthlyPayment(principal, annualRate, remainingMonths))
+    return { duringGrace, afterGrace }
+  } else {
+    // Full grace: nothing paid, interest compounds onto principal
+    const capitalAfterGrace = principal * Math.pow(1 + r, graceMonths)
+    const duringGrace = 0
+    const afterGrace = Math.round(calculateMonthlyPayment(capitalAfterGrace, annualRate, remainingMonths))
+    return { duringGrace, afterGrace }
+  }
+}
+
+/** Returns the effective monthly payment for compliance & totals (uses afterGrace if grace exists) */
+export function effectiveMonthlyPayment(track: TrackInput): number {
+  if (!track.graceMonths || track.graceMonths <= 0) {
+    return calculateMonthlyPayment(track.amount, track.interestRate, track.periodMonths)
+  }
+  return calculateGracePayments(
+    track.amount, track.interestRate, track.periodMonths,
+    track.graceMonths, track.graceType || 'חלקי'
+  ).afterGrace
 }
 
 export interface AmortizationRow {

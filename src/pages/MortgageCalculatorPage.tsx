@@ -7,7 +7,10 @@ import {
   calculateAmortizationSchedule,
   checkCompliance,
   generateRecommendedMixes,
+  calculateGracePayments,
+  effectiveMonthlyPayment,
   type TrackInput,
+  type GraceType,
 } from '@/utils/mortgageCalculations'
 import type { LoanTrackType, PropertyType } from '@/types/database'
 
@@ -44,7 +47,7 @@ export default function MortgageCalculatorPage() {
   const loanAmount = propertyPrice - ownCapital
 
   const totalMonthlyPayment = useMemo(() =>
-    tracks.reduce((sum, t) => sum + calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths), 0),
+    tracks.reduce((sum, t) => sum + effectiveMonthlyPayment(t), 0),
     [tracks]
   )
 
@@ -141,37 +144,97 @@ export default function MortgageCalculatorPage() {
             </div>
 
             <div className="space-y-3">
-              {tracks.map((track, idx) => (
-                <div key={idx} className="grid grid-cols-5 gap-3 items-end p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">סוג</label>
-                    <select value={track.type} onChange={e => updateTrack(idx, 'type', e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm bg-white">
-                      {trackTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                    </select>
+              {tracks.map((track, idx) => {
+                const hasGrace = (track.graceMonths ?? 0) > 0
+                const gracePayments = hasGrace
+                  ? calculateGracePayments(track.amount, track.interestRate, track.periodMonths, track.graceMonths!, track.graceType || 'חלקי')
+                  : null
+                return (
+                  <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-100 space-y-2">
+                    {/* Main row */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">סוג</label>
+                        <select value={track.type} onChange={e => updateTrack(idx, 'type', e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm bg-white">
+                          {trackTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">סכום</label>
+                        <input type="number" value={track.amount} onChange={e => updateTrack(idx, 'amount', +e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">ריבית %</label>
+                        <input type="number" step="0.1" value={track.interestRate} onChange={e => updateTrack(idx, 'interestRate', +e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">תקופה (חודשים)</label>
+                        <input type="number" value={track.periodMonths} onChange={e => updateTrack(idx, 'periodMonths', +e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-medium text-[#1a4f8a]">
+                          {gracePayments ? (
+                            <div className="text-xs leading-tight">
+                              <div className="text-gray-400">גרייס: {formatCurrency(gracePayments.duringGrace)}</div>
+                              <div>{formatCurrency(gracePayments.afterGrace)}/חודש</div>
+                            </div>
+                          ) : (
+                            <span>{formatCurrency(calculateMonthlyPayment(track.amount, track.interestRate, track.periodMonths))}/חודש</span>
+                          )}
+                        </div>
+                        <button onClick={() => removeTrack(idx)} className="text-red-400 hover:text-red-600 shrink-0"><Trash2 size={16} /></button>
+                      </div>
+                    </div>
+
+                    {/* Grace period row */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end pt-1 border-t border-gray-200">
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">גרייס (חודשים)</label>
+                        <input
+                          type="number" min={0} max={track.periodMonths - 1}
+                          value={track.graceMonths ?? 0}
+                          onChange={e => updateTrack(idx, 'graceMonths', +e.target.value)}
+                          className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
+                          dir="ltr"
+                          placeholder="0"
+                        />
+                      </div>
+                      {hasGrace && (
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">סוג גרייס</label>
+                          <select
+                            value={track.graceType ?? 'חלקי'}
+                            onChange={e => updateTrack(idx, 'graceType', e.target.value as GraceType)}
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
+                          >
+                            <option value="חלקי">חלקי (ריבית בלבד)</option>
+                            <option value="מלא">מלא (קרן + ריבית נדחים)</option>
+                          </select>
+                        </div>
+                      )}
+                      {hasGrace && gracePayments && (
+                        <div className="sm:col-span-2 text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                          <span className="font-medium text-amber-700">גרייס {track.graceType} · {track.graceMonths} חודשים: </span>
+                          {track.graceType === 'מלא'
+                            ? `ללא תשלום → ${formatCurrency(gracePayments.afterGrace)}/חודש לאחר מכן`
+                            : `${formatCurrency(gracePayments.duringGrace)}/חודש (ריבית) → ${formatCurrency(gracePayments.afterGrace)}/חודש לאחר מכן`
+                          }
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">סכום</label>
-                    <input type="number" value={track.amount} onChange={e => updateTrack(idx, 'amount', +e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">ריבית %</label>
-                    <input type="number" step="0.1" value={track.interestRate} onChange={e => updateTrack(idx, 'interestRate', +e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">תקופה (חודשים)</label>
-                    <input type="number" value={track.periodMonths} onChange={e => updateTrack(idx, 'periodMonths', +e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-[#1a4f8a]">{formatCurrency(calculateMonthlyPayment(track.amount, track.interestRate, track.periodMonths))}/חודש</span>
-                    <button onClick={() => removeTrack(idx)} className="text-red-400 hover:text-red-600"><Trash2 size={16} /></button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* Total */}
             <div className="mt-4 p-4 bg-[#e8f0fe] rounded-lg flex items-center justify-between">
-              <span className="font-semibold text-gray-800">סה"כ החזר חודשי</span>
+              <div>
+                <span className="font-semibold text-gray-800">סה"כ החזר חודשי</span>
+                {tracks.some(t => (t.graceMonths ?? 0) > 0) && (
+                  <p className="text-xs text-gray-500 mt-0.5">לאחר תום תקופת הגרייס</p>
+                )}
+              </div>
               <span className="text-2xl font-bold text-[#1a4f8a]">{formatCurrency(totalMonthlyPayment)}</span>
             </div>
           </div>
