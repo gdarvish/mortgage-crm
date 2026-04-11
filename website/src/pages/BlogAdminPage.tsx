@@ -2,7 +2,15 @@ import { useState, useEffect } from "react";
 import SEOHead from "../components/seo/SEOHead";
 import { loadPosts, savePosts, type BlogPost } from "../data/blogPosts";
 
-const ADMIN_PASSWORD = "Gabid@1980";
+const ADMIN_HASH = "9e88c674b01107a9fc7d063eb175b0f56f22aef80b01afa9cc1a082ebd80de42";
+
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 export default function BlogAdminPage() {
   const [isAuth, setIsAuth] = useState(false);
@@ -17,9 +25,10 @@ export default function BlogAdminPage() {
     if (isAuth) setPosts(loadPosts());
   }, [isAuth]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
+    const hashed = await hashPassword(password);
+    if (hashed === ADMIN_HASH) {
       setIsAuth(true);
       setAuthError(false);
     } else {

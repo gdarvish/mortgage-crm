@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import SEOHead from "../components/seo/SEOHead";
 
-const HERO_IMG = "https://lh3.googleusercontent.com/aida-public/AB6AXuBOo0eL80QgdYWWMoivshWmH2tMvU5-cmCVnxKeDGMPOmvzPkfWm-TWH6uSp-m82wXrKPV2cLRxcTKyQPoPp0ihZKBFZHJuqA8pCDTms-J4b9RvGHxuDZEqdewTDsU09ALCKvhR5A53e0DfUnjqKk3KZMnAF2X80SLdUaEh9HK7aSPUKT_cGA2JxNbQ5evNuEpka4Rru18MplzClkY1oPG4UBqbhbF-t6en9R6k-5mLZ7yKb_OivkLGoojGqqMwRFrydzE2tVBN";
+const HERO_IMG = "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&q=80";
 
 const services = [
   { icon: "house", title: "משכנתא חדשה", desc: "ליווי מקיף לרכישת הבית הראשון שלכם. אנחנו נבנה עבורכם את התמהיל המדויק ונדאג לריביות הטובות ביותר.", large: true },

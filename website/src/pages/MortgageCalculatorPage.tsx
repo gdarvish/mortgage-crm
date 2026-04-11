@@ -1,10 +1,12 @@
 import { useState, useMemo } from "react";
 import SEOHead from "../components/seo/SEOHead";
 import {
-  calculateMonthlyPayment,
-  generateAmortizationSchedule,
+  generateAmortizationWithGrace,
+  generateCPILinkedSchedule,
   formatCurrency,
   formatPercent,
+  type GraceType,
+  type AmortizationRow,
 } from "../utils/mortgageCalculations";
 
 interface MortgageTrack {
@@ -14,6 +16,8 @@ interface MortgageTrack {
   years: number;
   rate: number;
   expectedCPI: number;
+  graceMonths: number;
+  graceType: GraceType;
 }
 
 const TRACK_TYPE_OPTIONS = [
@@ -28,8 +32,11 @@ function isTrackCPILinked(name: string): boolean {
   return name.includes("צמודת מדד");
 }
 
-function getEffectiveRate(track: MortgageTrack): number {
-  return isTrackCPILinked(track.name) ? track.rate + track.expectedCPI : track.rate;
+function getTrackSchedule(t: MortgageTrack): AmortizationRow[] {
+  if (isTrackCPILinked(t.name)) {
+    return generateCPILinkedSchedule(t.amount, t.rate, t.years, t.expectedCPI, t.graceMonths, t.graceType);
+  }
+  return generateAmortizationWithGrace(t.amount, t.rate, t.years, t.graceMonths, t.graceType);
 }
 
 interface MixTab {
@@ -39,8 +46,8 @@ interface MixTab {
 }
 
 const defaultTracks: MortgageTrack[] = [
-  { id: 1, name: 'ריבית קבועה לא צמודה (קל"צ)', amount: 450000, years: 25, rate: 4.8, expectedCPI: 2.5 },
-  { id: 2, name: "פריים (ריבית משתנה)", amount: 350000, years: 30, rate: 6.25, expectedCPI: 2.5 },
+  { id: 1, name: 'ריבית קבועה לא צמודה (קל"צ)', amount: 450000, years: 25, rate: 4.8, expectedCPI: 2.5, graceMonths: 0, graceType: "none" },
+  { id: 2, name: "פריים (ריבית משתנה)", amount: 350000, years: 30, rate: 6.25, expectedCPI: 2.5, graceMonths: 0, graceType: "none" },
 ];
 
 let nextTrackId = 3;
@@ -90,6 +97,8 @@ export default function MortgageCalculatorPage() {
       years: 20,
       rate: 5.0,
       expectedCPI: 2.5,
+      graceMonths: 0,
+      graceType: "none",
     };
     setMixes((prev) =>
       prev.map((mix) =>
@@ -105,28 +114,51 @@ export default function MortgageCalculatorPage() {
     const newMix: MixTab = {
       id: nextMixId++,
       label: `תמהיל ${mixes.length + 1}`,
-      tracks: [{ id: nextTrackId++, name: 'ריבית קבועה לא צמודה (קל"צ)', amount: 400000, years: 25, rate: 5.0, expectedCPI: 2.5 }],
+      tracks: [{ id: nextTrackId++, name: 'ריבית קבועה לא צמודה (קל"צ)', amount: 400000, years: 25, rate: 5.0, expectedCPI: 2.5, graceMonths: 0, graceType: "none" }],
     };
     setMixes((prev) => [...prev, newMix]);
     setActiveMixId(newMix.id);
   };
 
-  const totalMonthly = useMemo(
-    () =>
-      tracks.reduce(
-        (sum, t) => sum + calculateMonthlyPayment(t.amount, getEffectiveRate(t), t.years),
-        0
-      ),
+  // Build per-track schedules using proper CPI/grace logic
+  const trackSchedules = useMemo(
+    () => tracks.map((t) => ({ id: t.id, schedule: getTrackSchedule(t) })),
     [tracks]
   );
 
+  const combinedSchedule = useMemo(() => {
+    if (trackSchedules.length === 0) return [];
+    const maxMonths = Math.max(...trackSchedules.map((ts) => ts.schedule.length), 0);
+    const combined: AmortizationRow[] = [];
+    for (let m = 0; m < maxMonths; m++) {
+      let principalPayment = 0;
+      let interestPayment = 0;
+      let totalPayment = 0;
+      let remainingBalance = 0;
+      for (const ts of trackSchedules) {
+        if (m < ts.schedule.length) {
+          principalPayment += ts.schedule[m].principalPayment;
+          interestPayment += ts.schedule[m].interestPayment;
+          totalPayment += ts.schedule[m].totalPayment;
+          remainingBalance += ts.schedule[m].remainingBalance;
+        }
+      }
+      combined.push({ month: m + 1, principalPayment, interestPayment, totalPayment, remainingBalance });
+    }
+    return combined;
+  }, [trackSchedules]);
+
+  // Derive summary from actual schedules (not flat formulas)
+  const totalMonthly = useMemo(() => {
+    if (combinedSchedule.length === 0) return 0;
+    // First regular payment (skip grace months with 0 payment)
+    const firstPayment = combinedSchedule.find((r) => r.totalPayment > 0);
+    return firstPayment?.totalPayment ?? 0;
+  }, [combinedSchedule]);
+
   const totalRepayment = useMemo(
-    () =>
-      tracks.reduce((sum, t) => {
-        const mp = calculateMonthlyPayment(t.amount, getEffectiveRate(t), t.years);
-        return sum + mp * t.years * 12;
-      }, 0),
-    [tracks]
+    () => combinedSchedule.reduce((sum, r) => sum + r.totalPayment, 0),
+    [combinedSchedule]
   );
 
   const totalPrincipal = useMemo(
@@ -135,42 +167,6 @@ export default function MortgageCalculatorPage() {
   );
 
   const creditCost = totalRepayment - totalPrincipal;
-
-  // Amortization for the combined mortgage (weighted)
-  const longestYears = useMemo(() => Math.max(...tracks.map((t) => t.years), 1), [tracks]);
-
-  const combinedSchedule = useMemo(() => {
-    if (tracks.length === 0) return [];
-    const schedules = tracks.map((t) =>
-      generateAmortizationSchedule(t.amount, getEffectiveRate(t), t.years)
-    );
-    const maxMonths = longestYears * 12;
-    const combined = [];
-    for (let m = 0; m < maxMonths; m++) {
-      let principalPayment = 0;
-      let interestPayment = 0;
-      let totalPayment = 0;
-      let remainingBalance = 0;
-      for (const schedule of schedules) {
-        if (m < schedule.length) {
-          principalPayment += schedule[m].principalPayment;
-          interestPayment += schedule[m].interestPayment;
-          totalPayment += schedule[m].totalPayment;
-          remainingBalance += schedule[m].remainingBalance;
-        }
-      }
-      if (totalPayment > 0) {
-        combined.push({
-          month: m + 1,
-          principalPayment,
-          interestPayment,
-          totalPayment,
-          remainingBalance,
-        });
-      }
-    }
-    return combined;
-  }, [tracks, longestYears]);
 
   const displayedSchedule = showAllMonths
     ? combinedSchedule
@@ -308,6 +304,37 @@ export default function MortgageCalculatorPage() {
                           />
                         </div>
                       )}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-on-surface-variant mb-1">
+                            תקופת גרייס (חודשים)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="36"
+                            value={track.graceMonths}
+                            onChange={(e) =>
+                              updateTrack(track.id, "graceMonths", Number(e.target.value))
+                            }
+                            className="editorial-input w-full py-2 text-sm text-on-surface"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-on-surface-variant mb-1">
+                            סוג גרייס
+                          </label>
+                          <select
+                            value={track.graceType}
+                            onChange={(e) => updateTrack(track.id, "graceType", e.target.value)}
+                            className="editorial-input w-full py-2 text-sm text-on-surface bg-surface-container-lowest"
+                          >
+                            <option value="none">ללא</option>
+                            <option value="interest-only">ריבית בלבד</option>
+                            <option value="full">גרייס מלא</option>
+                          </select>
+                        </div>
+                      </div>
                       <div className="grid grid-cols-3 gap-3">
                         <div>
                           <label className="block text-xs text-on-surface-variant mb-1">
@@ -394,11 +421,13 @@ export default function MortgageCalculatorPage() {
                 {/* Per-track breakdown */}
                 <div className="mt-4 pt-4 border-t border-on-primary/20 space-y-2">
                   {tracks.map((t, idx) => {
-                    const mp = calculateMonthlyPayment(t.amount, getEffectiveRate(t), t.years);
+                    const ts = trackSchedules.find((s) => s.id === t.id);
+                    const firstPayment = ts?.schedule.find((r) => r.totalPayment > 0);
+                    const mp = firstPayment?.totalPayment ?? 0;
                     return (
                       <div key={t.id} className="flex justify-between text-sm">
                         <span className="text-on-primary/80">
-                          מסלול {idx + 1} ({formatPercent(t.rate)}{isTrackCPILinked(t.name) ? ` + מדד ${formatPercent(t.expectedCPI)}` : ""})
+                          מסלול {idx + 1} ({formatPercent(t.rate)}{isTrackCPILinked(t.name) ? ` + מדד ${formatPercent(t.expectedCPI)}` : ""}{t.graceType !== "none" ? ` | גרייס ${t.graceMonths} חודשים` : ""})
                         </span>
                         <span className="font-medium">{formatCurrency(mp)}/חודש</span>
                       </div>
@@ -505,9 +534,9 @@ export default function MortgageCalculatorPage() {
                         פילוח ריביות לפי מסלול
                       </h3>
                       {tracks.map((t, idx) => {
-                        const mp = calculateMonthlyPayment(t.amount, getEffectiveRate(t), t.years);
-                        const totalTrack = mp * t.years * 12;
-                        const interestTotal = totalTrack - t.amount;
+                        const ts = trackSchedules.find((s) => s.id === t.id);
+                        const totalTrack = ts?.schedule.reduce((s, r) => s + r.totalPayment, 0) ?? 0;
+                        const interestTotal = ts?.schedule.reduce((s, r) => s + r.interestPayment, 0) ?? 0;
                         const interestPct = totalTrack > 0 ? (interestTotal / totalTrack) * 100 : 0;
                         return (
                           <div key={t.id} className="space-y-1">
@@ -543,12 +572,14 @@ export default function MortgageCalculatorPage() {
                         {/* Simplified bar visualization */}
                         <div className="w-full space-y-2">
                           {tracks.map((t, idx) => {
-                            const mp = calculateMonthlyPayment(t.amount, getEffectiveRate(t), t.years);
-                            const maxMp = Math.max(
-                              ...tracks.map((tr) =>
-                                calculateMonthlyPayment(tr.amount, getEffectiveRate(tr), tr.years)
-                              )
-                            );
+                            const ts = trackSchedules.find((s) => s.id === t.id);
+                            const firstPayment = ts?.schedule.find((r) => r.totalPayment > 0);
+                            const mp = firstPayment?.totalPayment ?? 0;
+                            const allMps = tracks.map((tr) => {
+                              const s = trackSchedules.find((s) => s.id === tr.id);
+                              return s?.schedule.find((r) => r.totalPayment > 0)?.totalPayment ?? 0;
+                            });
+                            const maxMp = Math.max(...allMps);
                             const widthPct = maxMp > 0 ? (mp / maxMp) * 100 : 0;
                             return (
                               <div key={t.id} className="flex items-center gap-3">
