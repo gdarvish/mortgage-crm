@@ -1,324 +1,182 @@
-import type { LoanTrackType, PropertyType } from '@/types/database'
-
-export type GraceType = 'מלא' | 'חלקי'
-
-export interface TrackInput {
-  type: LoanTrackType
-  amount: number
-  interestRate: number
-  periodMonths: number
-  graceMonths?: number   // 0 or undefined = no grace period
-  graceType?: GraceType  // 'מלא' = interest+principal deferred | 'חלקי' = interest only paid
-}
-
-/**
- * Calculate payments during and after grace period.
- * גרייס חלקי (partial): Only interest is paid during grace. Principal unchanged.
- * גרייס מלא (full): Nothing is paid. Interest compounds onto principal.
- */
-export function calculateGracePayments(
-  principal: number,
-  annualRate: number,
-  totalMonths: number,
-  graceMonths: number,
-  graceType: GraceType
-): { duringGrace: number; afterGrace: number } {
-  if (graceMonths <= 0 || totalMonths <= graceMonths) {
-    const p = calculateMonthlyPayment(principal, annualRate, totalMonths)
-    return { duringGrace: p, afterGrace: p }
-  }
-
-  const r = annualRate / 100 / 12
-  const remainingMonths = totalMonths - graceMonths
-
-  if (graceType === 'חלקי') {
-    // Partial grace: pay interest only, principal stays the same
-    const duringGrace = Math.round(principal * r)
-    const afterGrace = Math.round(calculateMonthlyPayment(principal, annualRate, remainingMonths))
-    return { duringGrace, afterGrace }
-  } else {
-    // Full grace: nothing paid, interest compounds onto principal
-    const capitalAfterGrace = principal * Math.pow(1 + r, graceMonths)
-    const duringGrace = 0
-    const afterGrace = Math.round(calculateMonthlyPayment(capitalAfterGrace, annualRate, remainingMonths))
-    return { duringGrace, afterGrace }
-  }
-}
-
-/** Returns the effective monthly payment for compliance & totals (uses afterGrace if grace exists) */
-export function effectiveMonthlyPayment(track: TrackInput): number {
-  if (!track.graceMonths || track.graceMonths <= 0) {
-    return calculateMonthlyPayment(track.amount, track.interestRate, track.periodMonths)
-  }
-  return calculateGracePayments(
-    track.amount, track.interestRate, track.periodMonths,
-    track.graceMonths, track.graceType || 'חלקי'
-  ).afterGrace
-}
-
-export interface AmortizationRow {
-  month: number
-  payment: number
-  principal: number
-  interest: number
-  balance: number
-}
-
-export interface ComplianceResult {
-  isValid: boolean
-  checks: ComplianceCheck[]
-}
-
-export interface ComplianceCheck {
-  name: string
-  value: number
-  limit: number
-  isValid: boolean
-  severity: 'error' | 'warning'
-  message: string
-}
-
 export function calculateMonthlyPayment(
   principal: number,
   annualRate: number,
-  months: number
+  years: number
 ): number {
-  if (months <= 0) return 0
-  if (annualRate === 0) return principal / months
-  const r = annualRate / 100 / 12
-  return (principal * r * Math.pow(1 + r, months)) / (Math.pow(1 + r, months) - 1)
+  if (principal <= 0 || years <= 0) return 0;
+  if (annualRate <= 0) return principal / (years * 12);
+
+  const monthlyRate = annualRate / 100 / 12;
+  const numPayments = years * 12;
+  const payment =
+    (principal * monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
+    (Math.pow(1 + monthlyRate, numPayments) - 1);
+  return payment;
 }
 
-export function calculateAmortizationSchedule(
+export interface AmortizationRow {
+  month: number;
+  principalPayment: number;
+  interestPayment: number;
+  totalPayment: number;
+  remainingBalance: number;
+}
+
+export function generateAmortizationSchedule(
   principal: number,
   annualRate: number,
-  months: number
+  years: number
 ): AmortizationRow[] {
-  const schedule: AmortizationRow[] = []
-  const r = annualRate / 100 / 12
-  const payment = calculateMonthlyPayment(principal, annualRate, months)
-  let balance = principal
+  const schedule: AmortizationRow[] = [];
+  const monthlyRate = annualRate / 100 / 12;
+  const numPayments = years * 12;
+  const monthlyPayment = calculateMonthlyPayment(principal, annualRate, years);
 
-  for (let month = 1; month <= months; month++) {
-    const interest = balance * r
-    const principalPart = payment - interest
-    balance -= principalPart
+  let remaining = principal;
+
+  for (let month = 1; month <= numPayments; month++) {
+    const interestPayment = remaining * monthlyRate;
+    const principalPayment = monthlyPayment - interestPayment;
+    remaining = Math.max(0, remaining - principalPayment);
 
     schedule.push({
       month,
-      payment: Math.round(payment),
-      principal: Math.round(principalPart),
-      interest: Math.round(interest),
-      balance: Math.max(0, Math.round(balance)),
-    })
+      principalPayment,
+      interestPayment,
+      totalPayment: monthlyPayment,
+      remainingBalance: remaining,
+    });
   }
 
-  return schedule
+  return schedule;
 }
 
-export function calculateTotalPayment(
+export type GraceType = "none" | "full" | "interest-only";
+
+/**
+ * Generate amortization schedule with optional grace period.
+ * - "full" grace: no payments at all during grace, interest capitalizes onto principal
+ * - "interest-only" grace: pay only interest during grace, principal unchanged
+ * - After grace: standard Spitzer (annuity) schedule on remaining balance
+ */
+export function generateAmortizationWithGrace(
   principal: number,
   annualRate: number,
-  months: number
-): number {
-  return calculateMonthlyPayment(principal, annualRate, months) * months
+  years: number,
+  graceMonths: number,
+  graceType: GraceType
+): AmortizationRow[] {
+  if (principal <= 0 || years <= 0) return [];
+  const monthlyRate = annualRate / 100 / 12;
+  const schedule: AmortizationRow[] = [];
+  let remaining = principal;
+  let month = 1;
+
+  // Grace period
+  if (graceType !== "none" && graceMonths > 0) {
+    for (let g = 0; g < graceMonths; g++) {
+      const interestPayment = remaining * monthlyRate;
+      if (graceType === "full") {
+        // Interest capitalizes - no payment
+        remaining += interestPayment;
+        schedule.push({ month, principalPayment: 0, interestPayment: 0, totalPayment: 0, remainingBalance: remaining });
+      } else {
+        // Interest-only - pay interest, principal unchanged
+        schedule.push({ month, principalPayment: 0, interestPayment, totalPayment: interestPayment, remainingBalance: remaining });
+      }
+      month++;
+    }
+  }
+
+  // Regular repayment period after grace
+  const remainingMonths = years * 12 - (graceType !== "none" ? graceMonths : 0);
+  if (remainingMonths <= 0) return schedule;
+
+  const payment = annualRate <= 0
+    ? remaining / remainingMonths
+    : (remaining * monthlyRate * Math.pow(1 + monthlyRate, remainingMonths)) /
+      (Math.pow(1 + monthlyRate, remainingMonths) - 1);
+
+  for (let i = 0; i < remainingMonths; i++) {
+    const interestPayment = remaining * monthlyRate;
+    const principalPayment = payment - interestPayment;
+    remaining = Math.max(0, remaining - principalPayment);
+    schedule.push({ month, principalPayment, interestPayment, totalPayment: payment, remainingBalance: remaining });
+    month++;
+  }
+
+  return schedule;
 }
 
-export function calculateTotalInterest(
+/**
+ * Generate CPI-linked amortization schedule (Israeli mortgage market).
+ * CPI adjusts the outstanding principal each month, NOT the interest rate.
+ * monthlyCPI = (1 + annualCPI/100)^(1/12) - 1
+ * Each month: balance *= (1 + monthlyCPI), then calculate interest & principal payment.
+ * The monthly payment is recalculated each month based on the adjusted balance.
+ */
+export function generateCPILinkedSchedule(
   principal: number,
   annualRate: number,
-  months: number
-): number {
-  return calculateTotalPayment(principal, annualRate, months) - principal
-}
+  years: number,
+  annualCPI: number,
+  graceMonths: number = 0,
+  graceType: GraceType = "none"
+): AmortizationRow[] {
+  if (principal <= 0 || years <= 0) return [];
+  const monthlyRate = annualRate / 100 / 12;
+  const monthlyCPI = Math.pow(1 + annualCPI / 100, 1 / 12) - 1;
+  const totalMonths = years * 12;
+  const schedule: AmortizationRow[] = [];
+  let remaining = principal;
+  let month = 1;
 
-export function getLtvLimit(propertyType: PropertyType): number {
-  switch (propertyType) {
-    case 'דירה_ראשונה': return 75
-    case 'משפרי_דיור': return 70
-    case 'להשקעה': return 50
-    default: return 75
+  // Grace period
+  const effectiveGrace = graceType !== "none" ? graceMonths : 0;
+  for (let g = 0; g < effectiveGrace; g++) {
+    // CPI adjustment on principal
+    remaining *= (1 + monthlyCPI);
+    const interestPayment = remaining * monthlyRate;
+
+    if (graceType === "full") {
+      remaining += interestPayment;
+      schedule.push({ month, principalPayment: 0, interestPayment: 0, totalPayment: 0, remainingBalance: remaining });
+    } else {
+      schedule.push({ month, principalPayment: 0, interestPayment, totalPayment: interestPayment, remainingBalance: remaining });
+    }
+    month++;
   }
-}
 
-export function checkCompliance(
-  tracks: TrackInput[],
-  propertyPrice: number,
-  propertyType: PropertyType,
-  monthlyIncome: number
-): ComplianceResult {
-  const totalLoan = tracks.reduce((sum, t) => sum + t.amount, 0)
-  const totalMonthlyPayment = tracks.reduce(
-    (sum, t) => sum + calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths),
-    0
-  )
-  const maxPeriod = Math.max(...tracks.map(t => t.periodMonths))
+  // Regular repayment period - recalculate payment each month due to CPI adjustment
+  const remainingMonths = totalMonths - effectiveGrace;
+  if (remainingMonths <= 0) return schedule;
 
-  const fixedTracks = tracks.filter(t => t.type === 'קל"צ' || t.type === 'קל"ב')
-  const primeTracks = tracks.filter(t => t.type === 'פריים')
-  const variableTracks = tracks.filter(t =>
-    t.type === 'פריים' || t.type === 'משתנה_צמודה' || t.type === 'משתנה_לא_צמודה'
-  )
+  for (let i = 0; i < remainingMonths; i++) {
+    // CPI adjustment on principal at start of month
+    remaining *= (1 + monthlyCPI);
 
-  const fixedPercent = totalLoan > 0
-    ? (fixedTracks.reduce((s, t) => s + t.amount, 0) / totalLoan) * 100
-    : 0
-  const primePercent = totalLoan > 0
-    ? (primeTracks.reduce((s, t) => s + t.amount, 0) / totalLoan) * 100
-    : 0
-  const variablePercent = totalLoan > 0
-    ? (variableTracks.reduce((s, t) => s + t.amount, 0) / totalLoan) * 100
-    : 0
+    // Recalculate payment based on updated balance and remaining term
+    const monthsLeft = remainingMonths - i;
+    const payment = annualRate <= 0
+      ? remaining / monthsLeft
+      : (remaining * monthlyRate * Math.pow(1 + monthlyRate, monthsLeft)) /
+        (Math.pow(1 + monthlyRate, monthsLeft) - 1);
 
-  const ltv = (totalLoan / propertyPrice) * 100
-  const ltvLimit = getLtvLimit(propertyType)
-  const dti = monthlyIncome > 0 ? (totalMonthlyPayment / monthlyIncome) * 100 : 0
+    const interestPayment = remaining * monthlyRate;
+    const principalPayment = payment - interestPayment;
+    remaining = Math.max(0, remaining - principalPayment);
 
-  const checks: ComplianceCheck[] = [
-    {
-      name: 'LTV - יחס הלוואה לשווי',
-      value: Math.round(ltv * 10) / 10,
-      limit: ltvLimit,
-      isValid: ltv <= ltvLimit,
-      severity: 'error',
-      message: ltv <= ltvLimit
-        ? `LTV תקין: ${ltv.toFixed(1)}% (מקסימום ${ltvLimit}%)`
-        : `LTV חורג: ${ltv.toFixed(1)}% (מקסימום ${ltvLimit}%)`,
-    },
-    {
-      name: 'ריבית קבועה (מינימום)',
-      value: Math.round(fixedPercent * 10) / 10,
-      limit: 33.3,
-      isValid: fixedPercent >= 33.3,
-      severity: 'error',
-      message: fixedPercent >= 33.3
-        ? `ריבית קבועה תקינה: ${fixedPercent.toFixed(1)}% (מינימום 33.3%)`
-        : `ריבית קבועה חסרה: ${fixedPercent.toFixed(1)}% (מינימום 33.3%)`,
-    },
-    {
-      name: 'פריים (מקסימום)',
-      value: Math.round(primePercent * 10) / 10,
-      limit: 33.3,
-      isValid: primePercent <= 33.3,
-      severity: 'error',
-      message: primePercent <= 33.3
-        ? `פריים תקין: ${primePercent.toFixed(1)}% (מקסימום 33.3%)`
-        : `פריים חורג: ${primePercent.toFixed(1)}% (מקסימום 33.3%)`,
-    },
-    {
-      name: 'משתנה כולל (מקסימום)',
-      value: Math.round(variablePercent * 10) / 10,
-      limit: 66.6,
-      isValid: variablePercent <= 66.6,
-      severity: 'error',
-      message: variablePercent <= 66.6
-        ? `משתנה כולל תקין: ${variablePercent.toFixed(1)}% (מקסימום 66.6%)`
-        : `משתנה כולל חורג: ${variablePercent.toFixed(1)}% (מקסימום 66.6%)`,
-    },
-    {
-      name: 'תקופה (מקסימום)',
-      value: maxPeriod,
-      limit: 360,
-      isValid: maxPeriod <= 360,
-      severity: 'error',
-      message: maxPeriod <= 360
-        ? `תקופה תקינה: ${maxPeriod} חודשים (מקסימום 360)`
-        : `תקופה חורגת: ${maxPeriod} חודשים (מקסימום 360)`,
-    },
-    {
-      name: 'יחס החזר/הכנסה',
-      value: Math.round(dti * 10) / 10,
-      limit: 40,
-      isValid: dti <= 40,
-      severity: dti <= 40 ? 'warning' : 'error',
-      message: dti <= 40
-        ? `יחס החזר/הכנסה תקין: ${dti.toFixed(1)}% (מקסימום 40%)`
-        : `יחס החזר/הכנסה חורג: ${dti.toFixed(1)}% (מקסימום 40%)`,
-    },
-  ]
-
-  return {
-    isValid: checks.every(c => c.isValid),
-    checks,
+    schedule.push({ month, principalPayment, interestPayment, totalPayment: payment, remainingBalance: remaining });
+    month++;
   }
+
+  return schedule;
 }
 
-export function generateRecommendedMixes(
-  loanAmount: number,
-  periodMonths: number,
-  primeRate: number
-): { name: string; tracks: TrackInput[] }[] {
-  return [
-    {
-      name: 'שמרני',
-      tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.4), interestRate: 4.5, periodMonths },
-        { type: 'קל"ב', amount: Math.round(loanAmount * 0.3), interestRate: 3.8, periodMonths },
-        { type: 'פריים', amount: Math.round(loanAmount * 0.3), interestRate: primeRate, periodMonths },
-      ],
-    },
-    {
-      name: 'מאוזן',
-      tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.34), interestRate: 4.5, periodMonths },
-        { type: 'קל"ב', amount: Math.round(loanAmount * 0.33), interestRate: 3.8, periodMonths },
-        { type: 'פריים', amount: Math.round(loanAmount * 0.33), interestRate: primeRate, periodMonths },
-      ],
-    },
-    {
-      name: 'אגרסיבי',
-      tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.34), interestRate: 4.5, periodMonths },
-        { type: 'משתנה_צמודה', amount: Math.round(loanAmount * 0.33), interestRate: 3.2, periodMonths },
-        { type: 'פריים', amount: Math.round(loanAmount * 0.33), interestRate: primeRate, periodMonths },
-      ],
-    },
-    {
-      name: 'מותאם אישית',
-      tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.35), interestRate: 4.5, periodMonths },
-        { type: 'קל"ב', amount: Math.round(loanAmount * 0.2), interestRate: 3.8, periodMonths },
-        { type: 'זכאות', amount: Math.round(loanAmount * 0.15), interestRate: 3.0, periodMonths: Math.min(periodMonths, 240) },
-        { type: 'פריים', amount: Math.round(loanAmount * 0.3), interestRate: primeRate, periodMonths },
-      ],
-    },
-  ]
+export function formatCurrency(amount: number): string {
+  return `₪${Math.round(amount).toLocaleString("he-IL")}`;
 }
 
-export function calculateRefinanceSavings(
-  existingTracks: TrackInput[],
-  newTracks: TrackInput[],
-  earlyRepaymentFee: number
-) {
-  const existingMonthly = existingTracks.reduce(
-    (sum, t) => sum + calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths), 0
-  )
-  const newMonthly = newTracks.reduce(
-    (sum, t) => sum + calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths), 0
-  )
-
-  const existingTotal = existingTracks.reduce(
-    (sum, t) => sum + calculateTotalPayment(t.amount, t.interestRate, t.periodMonths), 0
-  )
-  const newTotal = newTracks.reduce(
-    (sum, t) => sum + calculateTotalPayment(t.amount, t.interestRate, t.periodMonths), 0
-  )
-
-  const monthlySaving = existingMonthly - newMonthly
-  const totalSaving = existingTotal - newTotal - earlyRepaymentFee
-  const breakEvenMonths = monthlySaving > 0
-    ? Math.ceil(earlyRepaymentFee / monthlySaving)
-    : Infinity
-
-  return {
-    existingMonthly: Math.round(existingMonthly),
-    newMonthly: Math.round(newMonthly),
-    monthlySaving: Math.round(monthlySaving),
-    existingTotal: Math.round(existingTotal),
-    newTotal: Math.round(newTotal),
-    totalSaving: Math.round(totalSaving),
-    earlyRepaymentFee,
-    breakEvenMonths,
-    isWorthIt: totalSaving > 0 && breakEvenMonths < 36,
-  }
+export function formatPercent(value: number): string {
+  return `${value.toFixed(1)}%`;
 }
