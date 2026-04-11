@@ -8,8 +8,6 @@ const navLinks = [
   { label: "בלוג", path: "/blog" },
 ];
 
-const LOGO_URL = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="20" fill="#14696d"/><path d="M20 8L32 18V32H8V18Z" fill="none" stroke="#c9a96e" stroke-width="2" stroke-linejoin="round"/><rect x="16" y="22" width="8" height="10" fill="#c9a96e" rx="1"/><text x="20" y="19" text-anchor="middle" fill="#c9a96e" font-size="7" font-weight="bold">₪</text></svg>')}`;
-
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
@@ -22,7 +20,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 shrink-0">
-            <img src={LOGO_URL} alt="הבית הכלכלי" className="w-10 h-10 rounded-full object-cover" />
+            <img src="/logo.svg" alt="הבית הכלכלי" className="w-10 h-10 object-contain" />
             <span className="font-headline text-lg font-bold text-primary">הבית הכלכלי</span>
           </Link>
 
