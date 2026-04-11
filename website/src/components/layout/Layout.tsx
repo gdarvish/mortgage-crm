@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
+import AccessibilityWidget from "../AccessibilityWidget";
 
 interface LayoutProps {
   children: ReactNode;
@@ -19,6 +20,7 @@ export default function Layout({ children }: LayoutProps) {
       <Navbar />
       <main className="flex-1 pt-16">{children}</main>
       <Footer />
+      <AccessibilityWidget />
     </div>
   );
 }

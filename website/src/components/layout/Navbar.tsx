@@ -3,8 +3,8 @@ import { Link, useLocation } from "react-router-dom";
 
 const navLinks = [
   { label: "מחשבון משכנתא", path: "/mortgage-calculator" },
-  { label: "רכישת דירה", path: "/purchase-calculator" },
-  { label: "איחוד הלוואות", path: "/consolidation-calculator" },
+  { label: "מחשבון רכישת דירה", path: "/purchase-calculator" },
+  { label: "מחשבון איחוד הלוואות", path: "/consolidation-calculator" },
   { label: "בלוג", path: "/blog" },
 ];
 

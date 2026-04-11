@@ -127,7 +127,7 @@ export default function BlogPage() {
                   <p className="text-on-primary-container text-base mb-8">השאירו פרטים ומומחה מטעמנו יחזור אליכם.</p>
                   <div className="flex items-center gap-3 text-white">
                     <span className="material-symbols-outlined text-secondary-container">call</span>
-                    <span className="font-semibold" dir="ltr">053-277-3844</span>
+                    <span className="font-semibold" dir="ltr">054-209-1980</span>
                   </div>
                 </div>
                 <div className="bg-white p-8 rounded-2xl shadow-2xl">

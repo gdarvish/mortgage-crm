@@ -38,9 +38,9 @@ export default function HomePage() {
           "@type": "FinancialService",
           name: "הבית הכלכלי",
           description: "יועץ משכנתאות מומחה - ליווי מקצועי ברכישת דירה, מחזור משכנתא ואיחוד הלוואות",
-          telephone: "053-277-3844",
-          email: "g.darvish@gmail.com",
-          address: { "@type": "PostalAddress", streetAddress: "המלאכה 18", addressLocality: "נתניה", addressCountry: "IL" },
+          telephone: "054-209-1980",
+          email: "habaithacalcali@gmail.com",
+          address: { "@type": "PostalAddress", streetAddress: "רמת גן", addressLocality: "רמת גן", addressCountry: "IL" },
         }}
       />
 
@@ -170,15 +170,15 @@ export default function HomePage() {
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <span className="material-symbols-outlined text-tertiary-fixed-dim">call</span>
-                <span dir="ltr">053-277-3844</span>
+                <span dir="ltr">054-209-1980</span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="material-symbols-outlined text-tertiary-fixed-dim">mail</span>
-                <span>g.darvish@gmail.com</span>
+                <span>habaithacalcali@gmail.com</span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="material-symbols-outlined text-tertiary-fixed-dim">location_on</span>
-                <span>המלאכה 18, נתניה</span>
+                <span>רמת גן</span>
               </div>
             </div>
           </div>
@@ -211,7 +211,7 @@ export default function HomePage() {
 
       {/* Mobile FAB */}
       <div className="fixed bottom-6 left-6 md:hidden z-40">
-        <a href="tel:0532773844" className="w-14 h-14 bg-brand-gold text-white rounded-full shadow-2xl flex items-center justify-center" aria-label="התקשר עכשיו">
+        <a href="tel:0542091980" className="w-14 h-14 bg-brand-gold text-white rounded-full shadow-2xl flex items-center justify-center" aria-label="התקשר עכשיו">
           <span className="material-symbols-outlined">call</span>
         </a>
       </div>

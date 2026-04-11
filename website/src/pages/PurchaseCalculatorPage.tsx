@@ -40,6 +40,7 @@ export default function PurchaseCalculatorPage() {
   const [borrower2, setBorrower2] = useState<IncomeExpenses>({ ...defaultIncome });
 
   const [contactForm, setContactForm] = useState({ name: "", phone: "", email: "" });
+  const [showRecommendations, setShowRecommendations] = useState(false);
 
   const financingRatio = useMemo(
     () => (propertyValue > 0 ? (mortgageAmount / propertyValue) * 100 : 0),
@@ -62,8 +63,6 @@ export default function PurchaseCalculatorPage() {
     return b1 + b2;
   }, [borrower1, borrower2, isCoupleMode]);
 
-  const disposableIncome = totalIncome - totalExpenses;
-
   const estimatedMonthly = useMemo(
     () => calculateMonthlyPayment(mortgageAmount, 5.0, years),
     [mortgageAmount, years]
@@ -73,6 +72,21 @@ export default function PurchaseCalculatorPage() {
     () => (totalIncome > 0 ? (estimatedMonthly / totalIncome) * 100 : 0),
     [estimatedMonthly, totalIncome]
   );
+
+  const disposableIncome = totalIncome - totalExpenses;
+
+  const recommendations = useMemo(() => {
+    const tips: string[] = [];
+    if (repaymentRatio > 40) tips.push("יחס ההחזר שלכם גבוה מ-40%. שקלו להגדיל את ההון העצמי או להאריך את תקופת המשכנתא.");
+    if (repaymentRatio > 30 && repaymentRatio <= 40) tips.push("יחס ההחזר שלכם סביר אך גבוה. שקלו תמהיל עם מסלולים בריבית נמוכה יותר.");
+    if (financingRatio > 70) tips.push("אחוז המימון גבוה מ-70%. ככל שההון העצמי גדול יותר, תקבלו תנאים טובים יותר מהבנק.");
+    if (financingRatio > 60 && financingRatio <= 70) tips.push("אחוז מימון של " + financingRatio.toFixed(0) + "% הוא סביר, אך הגדלת ההון העצמי תשפר את התנאים.");
+    if (totalExpenses > 0) tips.push("יש לכם התחייבויות קיימות. סגירת הלוואות לפני הגשת בקשה למשכנתא תשפר את יחס ההחזר.");
+    if (isCoupleMode && borrower2.salary > 0) tips.push("כזוג, ההכנסה המשותפת שלכם משפרת את יכולת המימון. ודאו שכל ההכנסות מתועדות.");
+    if (years > 25) tips.push("תקופה של מעל 25 שנה מגדילה את עלות האשראי הכוללת. שקלו תקופה קצרה יותר אם ההחזר החודשי מאפשר.");
+    if (tips.length === 0) tips.push("הנתונים שלכם נראים טוב! מומלץ לפנות ליועץ משכנתאות לקבלת תמהיל מותאם אישית.");
+    return tips;
+  }, [repaymentRatio, financingRatio, totalExpenses, isCoupleMode, borrower2.salary, years]);
 
   const b1Disposable = useMemo(() => {
     return (
@@ -364,13 +378,46 @@ export default function PurchaseCalculatorPage() {
                   </div>
 
                   <div className="mt-6 space-y-2">
-                    <button className="w-full flex items-center justify-center gap-2 py-2.5 bg-on-primary/10 hover:bg-on-primary/20 rounded-xl text-sm font-medium transition-colors">
+                    <button
+                      onClick={() => {
+                        const rows = [
+                          ["פרט", "ערך"],
+                          ["שווי נכס", `₪${propertyValue.toLocaleString()}`],
+                          ["סכום משכנתא", `₪${mortgageAmount.toLocaleString()}`],
+                          ["אחוז מימון", `${financingRatio.toFixed(1)}%`],
+                          ["הכנסה פנויה", `₪${disposableIncome.toLocaleString()}`],
+                          ["החזר חודשי משוער", `₪${Math.round(estimatedMonthly).toLocaleString()}`],
+                          ["יחס החזר", `${repaymentRatio.toFixed(1)}%`],
+                        ];
+                        const csv = "\uFEFF" + rows.map(r => r.join(",")).join("\n");
+                        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url; a.download = "purchase-analysis.csv"; a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-on-primary/10 hover:bg-on-primary/20 rounded-xl text-sm font-medium transition-colors"
+                    >
                       <span className="material-symbols-outlined text-base">download</span>
                       הורדת דו״ח ב-Excel
                     </button>
-                    <button className="w-full py-2.5 bg-brand-gold text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity">
+                    <button
+                      onClick={() => setShowRecommendations(!showRecommendations)}
+                      className="w-full py-2.5 bg-brand-gold text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity"
+                    >
                       קבלת המלצות לשיפור התמהיל
                     </button>
+                    {showRecommendations && (
+                      <div className="mt-3 bg-on-primary/10 rounded-xl p-4 space-y-2">
+                        <h4 className="text-sm font-bold mb-2">המלצות מותאמות:</h4>
+                        {recommendations.map((tip, i) => (
+                          <div key={i} className="flex items-start gap-2 text-xs leading-relaxed">
+                            <span className="material-symbols-outlined text-sm text-brand-gold-light mt-0.5">lightbulb</span>
+                            <span>{tip}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <p className="mt-4 text-[10px] text-on-primary/50 leading-relaxed">

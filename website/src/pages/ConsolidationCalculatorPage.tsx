@@ -201,6 +201,40 @@ export default function ConsolidationCalculatorPage() {
                 </div>
               </div>
 
+              {/* Download/Print */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    const rows = [
+                      ["שם הלוואה", "יתרה", "ריבית", "חודשים", "החזר חודשי"],
+                      ...includedLoans.map(l => [l.name, l.balance.toString(), l.rate.toString(), l.months.toString(), Math.round(calculateMonthlyPayment(l.balance, l.rate, l.months / 12)).toString()]),
+                      [],
+                      ["סיכום", "", "", "", ""],
+                      ["החזר נוכחי", Math.round(currentMonthly).toString()],
+                      ["החזר מאוחד", Math.round(consolidatedMonthly).toString()],
+                      ["חיסכון חודשי", Math.round(monthlySaving).toString()],
+                    ];
+                    const csv = "\uFEFF" + rows.map(r => r.join(",")).join("\n");
+                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url; a.download = "consolidation-report.csv"; a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-surface-container-lowest rounded-xl editorial-shadow text-sm font-medium text-secondary hover:bg-surface-container-low transition-colors"
+                >
+                  <span className="material-symbols-outlined text-base">download</span>
+                  הורדת דו״ח
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-surface-container-lowest rounded-xl editorial-shadow text-sm font-medium text-secondary hover:bg-surface-container-low transition-colors"
+                >
+                  <span className="material-symbols-outlined text-base">print</span>
+                  הדפסה
+                </button>
+              </div>
+
               {/* Chart */}
               <div className="bg-surface-container-lowest p-6 rounded-xl editorial-shadow">
                 <h2 className="font-headline text-xl font-bold text-primary mb-6">השוואת החזר חודשי</h2>

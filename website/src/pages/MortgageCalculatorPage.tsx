@@ -13,6 +13,23 @@ interface MortgageTrack {
   amount: number;
   years: number;
   rate: number;
+  expectedCPI: number;
+}
+
+const TRACK_TYPE_OPTIONS = [
+  'ריבית קבועה לא צמודה (קל"צ)',
+  "ריבית משתנה כל 5 שנים לא צמודה",
+  "פריים (ריבית משתנה)",
+  "ריבית קבועה צמודת מדד",
+  "ריבית משתנה כל 5 שנים צמודת מדד",
+];
+
+function isTrackCPILinked(name: string): boolean {
+  return name.includes("צמודת מדד");
+}
+
+function getEffectiveRate(track: MortgageTrack): number {
+  return isTrackCPILinked(track.name) ? track.rate + track.expectedCPI : track.rate;
 }
 
 interface MixTab {
@@ -22,8 +39,8 @@ interface MixTab {
 }
 
 const defaultTracks: MortgageTrack[] = [
-  { id: 1, name: 'ריבית קבועה לא צמודה (קל"צ)', amount: 450000, years: 25, rate: 4.8 },
-  { id: 2, name: "פריים", amount: 350000, years: 30, rate: 6.25 },
+  { id: 1, name: 'ריבית קבועה לא צמודה (קל"צ)', amount: 450000, years: 25, rate: 4.8, expectedCPI: 2.5 },
+  { id: 2, name: "פריים (ריבית משתנה)", amount: 350000, years: 30, rate: 6.25, expectedCPI: 2.5 },
 ];
 
 let nextTrackId = 3;
@@ -68,10 +85,11 @@ export default function MortgageCalculatorPage() {
   const addTrack = () => {
     const newTrack: MortgageTrack = {
       id: nextTrackId++,
-      name: "מסלול חדש",
+      name: 'ריבית קבועה לא צמודה (קל"צ)',
       amount: 200000,
       years: 20,
       rate: 5.0,
+      expectedCPI: 2.5,
     };
     setMixes((prev) =>
       prev.map((mix) =>
@@ -87,7 +105,7 @@ export default function MortgageCalculatorPage() {
     const newMix: MixTab = {
       id: nextMixId++,
       label: `תמהיל ${mixes.length + 1}`,
-      tracks: [{ id: nextTrackId++, name: 'ריבית קבועה לא צמודה (קל"צ)', amount: 400000, years: 25, rate: 5.0 }],
+      tracks: [{ id: nextTrackId++, name: 'ריבית קבועה לא צמודה (קל"צ)', amount: 400000, years: 25, rate: 5.0, expectedCPI: 2.5 }],
     };
     setMixes((prev) => [...prev, newMix]);
     setActiveMixId(newMix.id);
@@ -96,7 +114,7 @@ export default function MortgageCalculatorPage() {
   const totalMonthly = useMemo(
     () =>
       tracks.reduce(
-        (sum, t) => sum + calculateMonthlyPayment(t.amount, t.rate, t.years),
+        (sum, t) => sum + calculateMonthlyPayment(t.amount, getEffectiveRate(t), t.years),
         0
       ),
     [tracks]
@@ -105,7 +123,7 @@ export default function MortgageCalculatorPage() {
   const totalRepayment = useMemo(
     () =>
       tracks.reduce((sum, t) => {
-        const mp = calculateMonthlyPayment(t.amount, t.rate, t.years);
+        const mp = calculateMonthlyPayment(t.amount, getEffectiveRate(t), t.years);
         return sum + mp * t.years * 12;
       }, 0),
     [tracks]
@@ -124,7 +142,7 @@ export default function MortgageCalculatorPage() {
   const combinedSchedule = useMemo(() => {
     if (tracks.length === 0) return [];
     const schedules = tracks.map((t) =>
-      generateAmortizationSchedule(t.amount, t.rate, t.years)
+      generateAmortizationSchedule(t.amount, getEffectiveRate(t), t.years)
     );
     const maxMonths = longestYears * 12;
     const combined = [];
@@ -157,6 +175,31 @@ export default function MortgageCalculatorPage() {
   const displayedSchedule = showAllMonths
     ? combinedSchedule
     : combinedSchedule.slice(0, 5);
+
+  const downloadCSV = () => {
+    const headers = ["חודש", "קרן", "ריבית", 'סה"כ', "יתרה"];
+    const rows = combinedSchedule.map((row) => [
+      row.month,
+      Math.round(row.principalPayment),
+      Math.round(row.interestPayment),
+      Math.round(row.totalPayment),
+      Math.round(row.remainingBalance),
+    ]);
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "amortization_schedule.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   const [contactForm, setContactForm] = useState({ name: "", phone: "", email: "" });
 
@@ -235,15 +278,36 @@ export default function MortgageCalculatorPage() {
                     <div className="space-y-4">
                       <div>
                         <label className="block text-xs text-on-surface-variant mb-1">
-                          שם מסלול
+                          סוג מסלול
                         </label>
-                        <input
-                          type="text"
+                        <select
                           value={track.name}
                           onChange={(e) => updateTrack(track.id, "name", e.target.value)}
-                          className="editorial-input w-full py-2 text-sm text-on-surface"
-                        />
+                          className="editorial-input w-full py-2 text-sm text-on-surface bg-surface-container-lowest"
+                        >
+                          {TRACK_TYPE_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
                       </div>
+                      {isTrackCPILinked(track.name) && (
+                        <div>
+                          <label className="block text-xs text-on-surface-variant mb-1">
+                            מדד צפוי שנתי (%)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={track.expectedCPI}
+                            onChange={(e) =>
+                              updateTrack(track.id, "expectedCPI", Number(e.target.value))
+                            }
+                            className="editorial-input w-full py-2 text-sm text-on-surface"
+                          />
+                        </div>
+                      )}
                       <div className="grid grid-cols-3 gap-3">
                         <div>
                           <label className="block text-xs text-on-surface-variant mb-1">
@@ -330,11 +394,11 @@ export default function MortgageCalculatorPage() {
                 {/* Per-track breakdown */}
                 <div className="mt-4 pt-4 border-t border-on-primary/20 space-y-2">
                   {tracks.map((t, idx) => {
-                    const mp = calculateMonthlyPayment(t.amount, t.rate, t.years);
+                    const mp = calculateMonthlyPayment(t.amount, getEffectiveRate(t), t.years);
                     return (
                       <div key={t.id} className="flex justify-between text-sm">
                         <span className="text-on-primary/80">
-                          מסלול {idx + 1} ({formatPercent(t.rate)})
+                          מסלול {idx + 1} ({formatPercent(t.rate)}{isTrackCPILinked(t.name) ? ` + מדד ${formatPercent(t.expectedCPI)}` : ""})
                         </span>
                         <span className="font-medium">{formatCurrency(mp)}/חודש</span>
                       </div>
@@ -371,11 +435,17 @@ export default function MortgageCalculatorPage() {
                     <div>
                       {/* Action buttons */}
                       <div className="flex items-center gap-2 mb-4">
-                        <button className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-secondary bg-secondary/10 rounded-lg hover:bg-secondary/20 transition-colors">
+                        <button
+                          onClick={downloadCSV}
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-secondary bg-secondary/10 rounded-lg hover:bg-secondary/20 transition-colors"
+                        >
                           <span className="material-symbols-outlined text-sm">download</span>
                           הורדה
                         </button>
-                        <button className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-secondary bg-secondary/10 rounded-lg hover:bg-secondary/20 transition-colors">
+                        <button
+                          onClick={handlePrint}
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-secondary bg-secondary/10 rounded-lg hover:bg-secondary/20 transition-colors"
+                        >
                           <span className="material-symbols-outlined text-sm">print</span>
                           הדפסה
                         </button>
@@ -435,7 +505,7 @@ export default function MortgageCalculatorPage() {
                         פילוח ריביות לפי מסלול
                       </h3>
                       {tracks.map((t, idx) => {
-                        const mp = calculateMonthlyPayment(t.amount, t.rate, t.years);
+                        const mp = calculateMonthlyPayment(t.amount, getEffectiveRate(t), t.years);
                         const totalTrack = mp * t.years * 12;
                         const interestTotal = totalTrack - t.amount;
                         const interestPct = totalTrack > 0 ? (interestTotal / totalTrack) * 100 : 0;
@@ -473,10 +543,10 @@ export default function MortgageCalculatorPage() {
                         {/* Simplified bar visualization */}
                         <div className="w-full space-y-2">
                           {tracks.map((t, idx) => {
-                            const mp = calculateMonthlyPayment(t.amount, t.rate, t.years);
+                            const mp = calculateMonthlyPayment(t.amount, getEffectiveRate(t), t.years);
                             const maxMp = Math.max(
                               ...tracks.map((tr) =>
-                                calculateMonthlyPayment(tr.amount, tr.rate, tr.years)
+                                calculateMonthlyPayment(tr.amount, getEffectiveRate(tr), tr.years)
                               )
                             );
                             const widthPct = maxMp > 0 ? (mp / maxMp) * 100 : 0;

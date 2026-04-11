@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import SEOHead from "../components/seo/SEOHead";
 import { loadPosts, savePosts, type BlogPost } from "../data/blogPosts";
 
-const ADMIN_PASSWORD = "admin123";
+const ADMIN_PASSWORD = "Gabid@1980";
 
 export default function BlogAdminPage() {
   const [isAuth, setIsAuth] = useState(false);

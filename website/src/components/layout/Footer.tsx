@@ -6,8 +6,8 @@ const LOGO_URL =
 const navLinks = [
   { label: "דף הבית", path: "/" },
   { label: "מחשבון משכנתא", path: "/mortgage-calculator" },
-  { label: "רכישת דירה", path: "/purchase-calculator" },
-  { label: "איחוד הלוואות", path: "/consolidation-calculator" },
+  { label: "מחשבון רכישת דירה", path: "/purchase-calculator" },
+  { label: "מחשבון איחוד הלוואות", path: "/consolidation-calculator" },
   { label: "בלוג", path: "/blog" },
 ];
 
@@ -39,7 +39,7 @@ export default function Footer() {
                 <span className="material-symbols-outlined text-lg text-white/80">group</span>
               </a>
               <a
-                href="mailto:g.darvish@gmail.com"
+                href="mailto:habaithacalcali@gmail.com"
                 className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center hover:bg-brand-gold/30 transition-colors"
                 aria-label="Email"
               >
@@ -71,19 +71,19 @@ export default function Footer() {
             <ul className="space-y-3">
               <li className="flex items-center gap-2 text-sm text-white/60">
                 <span className="material-symbols-outlined text-base text-brand-gold-light">phone</span>
-                <a href="tel:0532773844" className="hover:text-brand-gold-light transition-colors" dir="ltr">
-                  053-277-3844
+                <a href="tel:0542091980" className="hover:text-brand-gold-light transition-colors" dir="ltr">
+                  054-209-1980
                 </a>
               </li>
               <li className="flex items-center gap-2 text-sm text-white/60">
                 <span className="material-symbols-outlined text-base text-brand-gold-light">mail</span>
-                <a href="mailto:g.darvish@gmail.com" className="hover:text-brand-gold-light transition-colors">
-                  g.darvish@gmail.com
+                <a href="mailto:habaithacalcali@gmail.com" className="hover:text-brand-gold-light transition-colors">
+                  habaithacalcali@gmail.com
                 </a>
               </li>
               <li className="flex items-start gap-2 text-sm text-white/60">
                 <span className="material-symbols-outlined text-base text-brand-gold-light mt-0.5">location_on</span>
-                <span>המלאכה 18, נתניה</span>
+                <span>רמת גן</span>
               </li>
             </ul>
           </div>

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
 import Layout from "./components/layout/Layout";
 import HomePage from "./pages/HomePage";
@@ -10,14 +11,16 @@ import BlogAdminPage from "./pages/BlogAdminPage";
 export default function App() {
   return (
     <Layout>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/mortgage-calculator" element={<MortgageCalculatorPage />} />
-        <Route path="/purchase-calculator" element={<PurchaseCalculatorPage />} />
-        <Route path="/consolidation-calculator" element={<ConsolidationCalculatorPage />} />
-        <Route path="/blog" element={<BlogPage />} />
-        <Route path="/blog/admin" element={<BlogAdminPage />} />
-      </Routes>
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><span className="text-on-surface-variant">טוען...</span></div>}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/mortgage-calculator" element={<MortgageCalculatorPage />} />
+          <Route path="/purchase-calculator" element={<PurchaseCalculatorPage />} />
+          <Route path="/consolidation-calculator" element={<ConsolidationCalculatorPage />} />
+          <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/admin" element={<BlogAdminPage />} />
+        </Routes>
+      </Suspense>
     </Layout>
   );
 }
