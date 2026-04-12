@@ -2121,6 +2121,16 @@ const testimonials = [
 
 export default function HomePage() {
   const [contactForm, setContactForm] = useState({ name: "", phone: "", service: "משכנתא חדשה" });
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contactForm.name.trim() || !contactForm.phone.trim()) return;
+
+    const message = `שלום, אני ${contactForm.name}.%0Aאשמח לקבל ייעוץ בנושא: ${contactForm.service}.%0Aטלפון: ${contactForm.phone}`;
+    window.open(`https://wa.me/972542091980?text=${message}`, "_blank");
+    setSubmitted(true);
+  };
 
   return (
     <>
@@ -2278,28 +2288,41 @@ export default function HomePage() {
             </div>
           </div>
           <div className="md:w-1/2 p-10">
-            <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
-              <div>
-                <label className="block text-xs font-bold text-primary uppercase tracking-wider mb-2">שם מלא</label>
-                <input type="text" value={contactForm.name} onChange={(e) => setContactForm((p) => ({ ...p, name: e.target.value }))} className="editorial-input w-full py-3 text-base" placeholder="ישראל ישראלי" />
+            {submitted ? (
+              <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                <span className="material-symbols-outlined text-6xl text-tertiary mb-4">check_circle</span>
+                <h3 className="font-headline text-2xl font-bold text-primary mb-2">הפנייה נשלחה בהצלחה!</h3>
+                <p className="text-on-surface-variant mb-6">ניצור איתך קשר בהקדם.</p>
+                <button onClick={() => { setSubmitted(false); setContactForm({ name: "", phone: "", service: "משכנתא חדשה" }); }} className="px-6 py-2 bg-surface-container text-primary rounded-lg font-medium hover:bg-surface-container-high transition-all">
+                  שליחת פנייה נוספת
+                </button>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-primary uppercase tracking-wider mb-2">טלפון</label>
-                <input type="tel" value={contactForm.phone} onChange={(e) => setContactForm((p) => ({ ...p, phone: e.target.value }))} className="editorial-input w-full py-3 text-base" placeholder="050-0000000" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-primary uppercase tracking-wider mb-2">סוג השירות</label>
-                <select value={contactForm.service} onChange={(e) => setContactForm((p) => ({ ...p, service: e.target.value }))} className="editorial-input w-full py-3 text-base bg-transparent">
-                  <option>משכנתא חדשה</option>
-                  <option>מחזור משכנתא</option>
-                  <option>משכנתא לכל מטרה</option>
-                  <option>ייעוץ כללי</option>
-                </select>
-              </div>
-              <button type="submit" className="w-full py-4 bg-brand-gold text-white rounded-lg font-bold text-lg hover:opacity-90 transition-all active:scale-95">
-                שליחת בקשה
-              </button>
-            </form>
+            ) : (
+              <form className="space-y-6" onSubmit={handleSubmit}>
+                <div>
+                  <label className="block text-xs font-bold text-primary uppercase tracking-wider mb-2">שם מלא</label>
+                  <input type="text" required value={contactForm.name} onChange={(e) => setContactForm((p) => ({ ...p, name: e.target.value }))} className="editorial-input w-full py-3 text-base" placeholder="ישראל ישראלי" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-primary uppercase tracking-wider mb-2">טלפון</label>
+                  <input type="tel" required value={contactForm.phone} onChange={(e) => setContactForm((p) => ({ ...p, phone: e.target.value }))} className="editorial-input w-full py-3 text-base" placeholder="050-0000000" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-primary uppercase tracking-wider mb-2">סוג השירות</label>
+                  <select value={contactForm.service} onChange={(e) => setContactForm((p) => ({ ...p, service: e.target.value }))} className="editorial-input w-full py-3 text-base bg-transparent">
+                    <option>משכנתא חדשה</option>
+                    <option>מחזור משכנתא</option>
+                    <option>משכנתא לכל מטרה</option>
+                    <option>ייעוץ כללי</option>
+                  </select>
+                </div>
+                <button type="submit" className="w-full py-4 bg-brand-gold text-white rounded-lg font-bold text-lg hover:opacity-90 transition-all active:scale-95 flex items-center justify-center gap-2">
+                  <span className="material-symbols-outlined">send</span>
+                  שליחת בקשה בוואטסאפ
+                </button>
+                <p className="text-center text-xs text-on-surface-variant">או התקשרו ישירות: <a href="tel:0542091980" className="text-primary font-bold hover:underline" dir="ltr">054-209-1980</a></p>
+              </form>
+            )}
           </div>
         </div>
       </section>
