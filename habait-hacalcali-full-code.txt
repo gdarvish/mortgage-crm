@@ -2122,14 +2122,33 @@ const testimonials = [
 export default function HomePage() {
   const [contactForm, setContactForm] = useState({ name: "", phone: "", service: "משכנתא חדשה" });
   const [submitted, setSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contactForm.name.trim() || !contactForm.phone.trim()) return;
 
-    const message = `שלום, אני ${contactForm.name}.%0Aאשמח לקבל ייעוץ בנושא: ${contactForm.service}.%0Aטלפון: ${contactForm.phone}`;
-    window.open(`https://wa.me/972542091980?text=${message}`, "_blank");
-    setSubmitted(true);
+    setSending(true);
+    try {
+      await fetch("https://formsubmit.co/ajax/habaithacalcali@gmail.com", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          name: contactForm.name,
+          phone: contactForm.phone,
+          service: contactForm.service,
+          _subject: "פנייה חדשה מהאתר - הבית הכלכלי",
+        }),
+      });
+      setSubmitted(true);
+    } catch {
+      // Fallback to WhatsApp if email fails
+      const message = `שלום, אני ${contactForm.name}.%0Aאשמח לקבל ייעוץ בנושא: ${contactForm.service}.%0Aטלפון: ${contactForm.phone}`;
+      window.open(`https://wa.me/972542091980?text=${message}`, "_blank");
+      setSubmitted(true);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -2316,9 +2335,9 @@ export default function HomePage() {
                     <option>ייעוץ כללי</option>
                   </select>
                 </div>
-                <button type="submit" className="w-full py-4 bg-brand-gold text-white rounded-lg font-bold text-lg hover:opacity-90 transition-all active:scale-95 flex items-center justify-center gap-2">
-                  <span className="material-symbols-outlined">send</span>
-                  שליחת בקשה בוואטסאפ
+                <button type="submit" disabled={sending} className="w-full py-4 bg-brand-gold text-white rounded-lg font-bold text-lg hover:opacity-90 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60">
+                  <span className="material-symbols-outlined">{sending ? "hourglass_top" : "send"}</span>
+                  {sending ? "שולח..." : "שליחת בקשה"}
                 </button>
                 <p className="text-center text-xs text-on-surface-variant">או התקשרו ישירות: <a href="tel:0542091980" className="text-primary font-bold hover:underline" dir="ltr">054-209-1980</a></p>
               </form>
