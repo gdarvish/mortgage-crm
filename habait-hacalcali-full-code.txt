@@ -361,12 +361,12 @@ import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
 import Layout from "./components/layout/Layout";
 import HomePage from "./pages/HomePage";
-import MortgageCalculatorPage from "./pages/MortgageCalculatorPage";
-import PurchaseCalculatorPage from "./pages/PurchaseCalculatorPage";
-import ConsolidationCalculatorPage from "./pages/ConsolidationCalculatorPage";
-import BlogPage from "./pages/BlogPage";
-import BlogAdminPage from "./pages/BlogAdminPage";
 
+const MortgageCalculatorPage = lazy(() => import("./pages/MortgageCalculatorPage"));
+const PurchaseCalculatorPage = lazy(() => import("./pages/PurchaseCalculatorPage"));
+const ConsolidationCalculatorPage = lazy(() => import("./pages/ConsolidationCalculatorPage"));
+const BlogPage = lazy(() => import("./pages/BlogPage"));
+const BlogAdminPage = lazy(() => import("./pages/BlogAdminPage"));
 const TermsPage = lazy(() => import("./pages/TermsPage"));
 const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
 const AccessibilityPage = lazy(() => import("./pages/AccessibilityPage"));
