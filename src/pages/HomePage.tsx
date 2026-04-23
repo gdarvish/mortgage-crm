@@ -5,10 +5,10 @@ import SEOHead from "../components/seo/SEOHead";
 const HERO_IMG = "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&q=80";
 
 const services = [
-  { icon: "house", title: "משכנתא חדשה", desc: "ליווי מקיף לרכישת הבית הראשון שלכם. אנחנו נבנה עבורכם את התמהיל המדויק ונדאג לריביות הטובות ביותר.", large: true },
-  { icon: "refresh", title: "מחזור משכנתא", desc: "בדיקה מקיפה של המשכנתא הקיימת. ייתכן שאתם משלמים אלפי שקלים מיותרים בכל חודש.", large: false },
-  { icon: "real_estate_agent", title: "ייעוץ למשפרי דיור", desc: "עוברים לבית גדול יותר? נעזור לכם לגשר על הפער הפיננסי בחוכמה.", large: false },
-  { icon: "payments", title: "משכנתא לכל מטרה", desc: "שיפוץ, סגירת חובות או השקעה? נשתמש בנכס הקיים שלכם כדי לגייס הון בתנאים מועדפים.", large: false },
+  { icon: "house", title: "משכנתא חדשה", desc: "ליווי מקיף לרכישת הבית הראשון שלכם. אנחנו נבנה עבורכם את התמהיל המדויק ונדאג לריביות הטובות ביותר.", dark: false },
+  { icon: "refresh", title: "מחזור משכנתא", desc: "בדיקה מקיפה של המשכנתא הקיימת. ייתכן שאתם משלמים אלפי שקלים מיותרים בכל חודש.", dark: true },
+  { icon: "real_estate_agent", title: "ייעוץ למשפרי דיור", desc: "עוברים לבית גדול יותר? נעזור לכם לגשר על הפער הפיננסי בחוכמה.", dark: false },
+  { icon: "payments", title: "משכנתא לכל מטרה", desc: "שיפוץ, סגירת חובות או השקעה? נשתמש בנכס הקיים שלכם כדי לגייס הון בתנאים מועדפים.", dark: false },
 ];
 
 const steps = [
@@ -120,14 +120,12 @@ export default function HomePage() {
             <h2 className="font-headline text-3xl md:text-4xl font-bold text-primary mb-4">השירותים שלנו</h2>
             <p className="text-on-surface-variant text-lg max-w-2xl mx-auto">מעטפת מקצועית מלאה לכל שלב בדרך לדירה, עם דגש על חיסכון מקסימלי וביטחון כלכלי.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {services.map((s) => (
-              <article key={s.title} className={`rounded-xl p-8 transition-all hover:shadow-xl ${s.large ? "bg-surface-container-low md:col-span-2 md:flex md:items-start md:gap-8" : s.title === "מחזור משכנתא" ? "bg-primary text-white" : "bg-surface-container-lowest border border-outline-variant/20"}`}>
-                <span className={`material-symbols-outlined text-4xl mb-4 block ${s.title === "מחזור משכנתא" ? "text-tertiary-fixed-dim" : "text-secondary"}`}>{s.icon}</span>
-                <div>
-                  <h3 className={`text-xl font-bold mb-2 ${s.title === "מחזור משכנתא" ? "" : "text-primary"}`}>{s.title}</h3>
-                  <p className={`leading-relaxed ${s.title === "מחזור משכנתא" ? "text-on-primary-container" : "text-on-surface-variant"}`}>{s.desc}</p>
-                </div>
+              <article key={s.title} className={`rounded-xl p-8 transition-all hover:shadow-xl ${s.dark ? "bg-primary text-white" : "bg-surface-container-lowest border border-outline-variant/20"}`}>
+                <span className={`material-symbols-outlined text-4xl mb-4 block ${s.dark ? "text-tertiary-fixed-dim" : "text-secondary"}`}>{s.icon}</span>
+                <h3 className={`text-xl font-bold mb-2 ${s.dark ? "text-white" : "text-primary"}`}>{s.title}</h3>
+                <p className={`leading-relaxed ${s.dark ? "text-on-primary-container" : "text-on-surface-variant"}`}>{s.desc}</p>
               </article>
             ))}
           </div>
