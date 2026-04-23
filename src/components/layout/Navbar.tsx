@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useState, useCallback } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 const navLinks = [
   { label: "מחשבון משכנתא", path: "/mortgage-calculator" },
@@ -11,8 +11,23 @@ const navLinks = [
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   const isActive = (path: string) => location.pathname === path;
+
+  const scrollToContact = useCallback(() => {
+    setMobileOpen(false);
+    const scroll = () => {
+      const el = document.getElementById("contact");
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+    };
+    if (location.pathname === "/") {
+      scroll();
+    } else {
+      navigate("/");
+      setTimeout(scroll, 300);
+    }
+  }, [location.pathname, navigate]);
 
   return (
     <nav className="fixed top-0 right-0 left-0 z-50 bg-white/80 backdrop-blur-md border-b border-outline-variant/30">
@@ -43,13 +58,14 @@ export default function Navbar() {
 
           {/* CTA + Mobile Toggle */}
           <div className="flex items-center gap-3">
-            <Link
-              to="/#contact"
+            <button
+              type="button"
+              onClick={scrollToContact}
               className="hidden md:inline-flex items-center gap-1 px-4 py-2 bg-brand-gold text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
             >
               <span className="material-symbols-outlined text-base">calendar_month</span>
               ייעוץ אישי
-            </Link>
+            </button>
 
             <button
               type="button"
@@ -83,13 +99,13 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
-            <Link
-              to="/#contact"
-              onClick={() => setMobileOpen(false)}
-              className="block mt-2 px-4 py-2 bg-brand-gold text-white text-sm font-medium rounded-lg text-center hover:opacity-90 transition-opacity"
+            <button
+              type="button"
+              onClick={scrollToContact}
+              className="block w-full mt-2 px-4 py-2 bg-brand-gold text-white text-sm font-medium rounded-lg text-center hover:opacity-90 transition-opacity"
             >
               ייעוץ אישי
-            </Link>
+            </button>
           </div>
         </div>
       )}

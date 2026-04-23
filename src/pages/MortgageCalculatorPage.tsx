@@ -397,7 +397,7 @@ export default function MortgageCalculatorPage() {
               {/* Summary Card */}
               <div className="bg-primary rounded-2xl p-6 text-on-primary">
                 <h2 className="font-headline text-lg font-bold mb-4">סיכום המשכנתא</h2>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <p className="text-xs text-on-primary/70 mb-1">החזר חודשי</p>
                     <p className="text-2xl font-bold font-headline">

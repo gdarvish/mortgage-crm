@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import SEOHead from "../components/seo/SEOHead";
 import { loadPosts, type BlogPost } from "../data/blogPosts";
 
@@ -109,11 +108,6 @@ export default function BlogPage() {
                 </div>
               </div>
 
-              {/* Admin link */}
-              <Link to="/blog/admin" className="flex items-center justify-center gap-2 p-3 bg-surface-container rounded-lg text-on-surface-variant text-sm hover:bg-surface-container-high transition-colors">
-                <span className="material-symbols-outlined text-base">admin_panel_settings</span>
-                ניהול תכנים
-              </Link>
             </aside>
           </div>
 

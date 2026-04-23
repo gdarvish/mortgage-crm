@@ -22,7 +22,7 @@ export default function App() {
           <Route path="/purchase-calculator" element={<PurchaseCalculatorPage />} />
           <Route path="/consolidation-calculator" element={<ConsolidationCalculatorPage />} />
           <Route path="/blog" element={<BlogPage />} />
-          <Route path="/blog/admin" element={<BlogAdminPage />} />
+          <Route path="/manage-bc2024" element={<BlogAdminPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/accessibility" element={<AccessibilityPage />} />
