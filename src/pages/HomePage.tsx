@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import SEOHead from "../components/seo/SEOHead";
 
-const HERO_IMG = "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&q=80";
+const HERO_IMG = "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=1200&q=80";
 
 const services = [
   { icon: "house", title: "משכנתא חדשה", desc: "ליווי מקיף לרכישת הבית הראשון שלכם. אנחנו נבנה עבורכם את התמהיל המדויק ונדאג לריביות הטובות ביותר.", dark: false },
