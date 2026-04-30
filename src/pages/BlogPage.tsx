@@ -5,6 +5,7 @@ import { loadPosts, type BlogPost } from "../data/blogPosts";
 export default function BlogPage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [contactForm, setContactForm] = useState({ name: "", phone: "" });
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     setPosts(loadPosts());
@@ -27,7 +28,7 @@ export default function BlogPage() {
 
           {/* Featured Article */}
           {featured && (
-            <section className="mb-16">
+            <section className="mb-16 cursor-pointer" onClick={() => setExpandedId(expandedId === featured.id ? null : featured.id)}>
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-hidden rounded-xl editorial-shadow bg-surface-container-lowest">
                 <div className="lg:col-span-7 relative h-64 lg:h-[500px]">
                   <img src={featured.imageUrl} alt={featured.title} className="absolute inset-0 w-full h-full object-cover" />
@@ -35,7 +36,9 @@ export default function BlogPage() {
                 <div className="lg:col-span-5 p-8 lg:p-12 flex flex-col justify-center bg-primary-container text-white">
                   <span className="text-secondary-fixed text-xs font-bold tracking-widest uppercase mb-3">{featured.category}</span>
                   <h1 className="font-headline text-2xl lg:text-4xl font-extrabold mb-4 leading-tight">{featured.title}</h1>
-                  <p className="text-on-primary-container text-sm lg:text-base mb-6 leading-relaxed">{featured.excerpt}</p>
+                  <p className="text-on-primary-container text-sm lg:text-base mb-6 leading-relaxed">
+                    {expandedId === featured.id ? featured.content : featured.excerpt}
+                  </p>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
                       <span className="material-symbols-outlined text-white text-lg">person</span>
@@ -60,15 +63,23 @@ export default function BlogPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                 {articles.map((post) => (
-                  <article key={post.id} className="group">
+                  <article
+                    key={post.id}
+                    className="group cursor-pointer"
+                    onClick={() => setExpandedId(expandedId === post.id ? null : post.id)}
+                  >
                     <div className="relative aspect-[16/10] mb-4 overflow-hidden rounded-lg">
                       <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
                       <div className="absolute top-3 right-3 bg-white/90 backdrop-blur px-2 py-0.5 text-[10px] font-bold text-primary uppercase">{post.category}</div>
                     </div>
                     <h3 className="font-headline text-lg font-bold text-primary mb-2 group-hover:text-brand-gold transition-colors leading-snug">{post.title}</h3>
-                    <p className="text-on-surface-variant text-sm mb-3 line-clamp-2">{post.excerpt}</p>
+                    {expandedId === post.id ? (
+                      <p className="text-on-surface-variant text-sm mb-3 leading-relaxed">{post.content}</p>
+                    ) : (
+                      <p className="text-on-surface-variant text-sm mb-3 line-clamp-2">{post.excerpt}</p>
+                    )}
                     <span className="text-brand-gold font-bold text-xs inline-flex items-center gap-1 group-hover:underline">
-                      קרא עוד <span className="material-symbols-outlined text-sm">arrow_back</span>
+                      {expandedId === post.id ? "סגור" : "קרא עוד"} <span className="material-symbols-outlined text-sm">{expandedId === post.id ? "arrow_forward" : "arrow_back"}</span>
                     </span>
                   </article>
                 ))}
