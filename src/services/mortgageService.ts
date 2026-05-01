@@ -1,90 +1,163 @@
-import { supabase } from '@/lib/supabase'
-import type { Mortgage, MortgageWithTracks, LoanTrack, BankResponse } from '@/types/database'
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  serverTimestamp,
+} from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { fromDoc, fromDocs, requireUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import type {
+  Mortgage,
+  MortgageWithTracks,
+  LoanTrack,
+  BankResponse,
+} from '@/types/database'
+
+async function attachRelations(mortgage: Mortgage): Promise<MortgageWithTracks> {
+  const [tracksSnap, responsesSnap] = await Promise.all([
+    getDocs(query(collection(db, 'loan_tracks'), where('mortgage_id', '==', mortgage.id))),
+    getDocs(query(collection(db, 'bank_responses'), where('mortgage_id', '==', mortgage.id))),
+  ])
+  return {
+    ...mortgage,
+    loan_tracks: fromDocs<LoanTrack>(tracksSnap.docs),
+    bank_responses: fromDocs<BankResponse>(responsesSnap.docs),
+  }
+}
 
 export const mortgageService = {
-  async getByCustomer(customerId: string) {
-    const { data, error } = await supabase
-      .from('mortgages')
-      .select('*, loan_tracks(*), bank_responses(*)')
-      .eq('customer_id', customerId)
-      .order('created_at', { ascending: false })
-
-    return { data: data as MortgageWithTracks[] | null, error }
+  async getByCustomer(customerId: string): Promise<{ data: MortgageWithTracks[] | null; error: FirestoreError | null }> {
+    try {
+      const snap = await getDocs(
+        query(
+          collection(db, 'mortgages'),
+          where('customer_id', '==', customerId),
+          orderBy('created_at', 'desc')
+        )
+      )
+      const mortgages = fromDocs<Mortgage>(snap.docs)
+      const data = await Promise.all(mortgages.map(attachRelations))
+      return { data, error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 
-  async getById(id: string) {
-    const { data, error } = await supabase
-      .from('mortgages')
-      .select('*, loan_tracks(*), bank_responses(*)')
-      .eq('id', id)
-      .single()
-
-    return { data: data as MortgageWithTracks | null, error }
+  async getById(id: string): Promise<{ data: MortgageWithTracks | null; error: FirestoreError | null }> {
+    try {
+      const snap = await getDoc(doc(db, 'mortgages', id))
+      if (!snap.exists()) return { data: null, error: null }
+      const data = await attachRelations(fromDoc<Mortgage>(snap))
+      return { data, error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 
-  async create(mortgage: Omit<Mortgage, 'id' | 'created_at'>) {
-    const { data, error } = await supabase
-      .from('mortgages')
-      .insert(mortgage as Record<string, unknown>)
-      .select()
-      .single()
-
-    return { data: data as Mortgage | null, error }
+  async create(mortgage: Omit<Mortgage, 'id' | 'created_at'>): Promise<{ data: Mortgage | null; error: FirestoreError | null }> {
+    try {
+      const uid = requireUserId()
+      const payload = {
+        ...mortgage,
+        user_id: uid,
+        type: mortgage.type ?? 'חדשה',
+        status: mortgage.status ?? 'טיוטה',
+        created_at: serverTimestamp(),
+      }
+      const ref = await addDoc(collection(db, 'mortgages'), payload)
+      const snap = await getDoc(ref)
+      return { data: fromDoc<Mortgage>(snap), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 
-  async update(id: string, updates: Partial<Mortgage>) {
-    const { data, error } = await supabase
-      .from('mortgages')
-      .update(updates as Record<string, unknown>)
-      .eq('id', id)
-      .select()
-      .single()
-
-    return { data: data as Mortgage | null, error }
+  async update(id: string, updates: Partial<Mortgage>): Promise<{ data: Mortgage | null; error: FirestoreError | null }> {
+    try {
+      const ref = doc(db, 'mortgages', id)
+      await updateDoc(ref, updates as Record<string, unknown>)
+      const snap = await getDoc(ref)
+      return { data: fromDoc<Mortgage>(snap), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 
-  async delete(id: string) {
-    return supabase.from('mortgages').delete().eq('id', id)
+  async delete(id: string): Promise<{ error: FirestoreError | null }> {
+    try {
+      await deleteDoc(doc(db, 'mortgages', id))
+      return { error: null }
+    } catch (e) {
+      return { error: toError(e) }
+    }
   },
 
-  // Loan Tracks
-  async addTrack(track: Omit<LoanTrack, 'id' | 'created_at'>) {
-    const { data, error } = await supabase
-      .from('loan_tracks')
-      .insert(track as Record<string, unknown>)
-      .select()
-      .single()
-
-    return { data: data as LoanTrack | null, error }
+  async addTrack(track: Omit<LoanTrack, 'id' | 'created_at'>): Promise<{ data: LoanTrack | null; error: FirestoreError | null }> {
+    try {
+      const uid = requireUserId()
+      const payload = {
+        ...track,
+        user_id: uid,
+        is_existing: track.is_existing ?? false,
+        created_at: serverTimestamp(),
+      }
+      const ref = await addDoc(collection(db, 'loan_tracks'), payload)
+      const snap = await getDoc(ref)
+      return { data: fromDoc<LoanTrack>(snap), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 
-  async updateTrack(id: string, updates: Partial<LoanTrack>) {
-    const { data, error } = await supabase
-      .from('loan_tracks')
-      .update(updates as Record<string, unknown>)
-      .eq('id', id)
-      .select()
-      .single()
-
-    return { data: data as LoanTrack | null, error }
+  async updateTrack(id: string, updates: Partial<LoanTrack>): Promise<{ data: LoanTrack | null; error: FirestoreError | null }> {
+    try {
+      const ref = doc(db, 'loan_tracks', id)
+      await updateDoc(ref, updates as Record<string, unknown>)
+      const snap = await getDoc(ref)
+      return { data: fromDoc<LoanTrack>(snap), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 
-  async deleteTrack(id: string) {
-    return supabase.from('loan_tracks').delete().eq('id', id)
+  async deleteTrack(id: string): Promise<{ error: FirestoreError | null }> {
+    try {
+      await deleteDoc(doc(db, 'loan_tracks', id))
+      return { error: null }
+    } catch (e) {
+      return { error: toError(e) }
+    }
   },
 
-  // Bank Responses
-  async addBankResponse(response: Omit<BankResponse, 'id' | 'created_at'>) {
-    const { data, error } = await supabase
-      .from('bank_responses')
-      .insert(response as Record<string, unknown>)
-      .select()
-      .single()
-
-    return { data: data as BankResponse | null, error }
+  async addBankResponse(response: Omit<BankResponse, 'id' | 'created_at'>): Promise<{ data: BankResponse | null; error: FirestoreError | null }> {
+    try {
+      const uid = requireUserId()
+      const payload = {
+        ...response,
+        user_id: uid,
+        created_at: serverTimestamp(),
+      }
+      const ref = await addDoc(collection(db, 'bank_responses'), payload)
+      const snap = await getDoc(ref)
+      return { data: fromDoc<BankResponse>(snap), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 
-  async deleteBankResponse(id: string) {
-    return supabase.from('bank_responses').delete().eq('id', id)
+  async deleteBankResponse(id: string): Promise<{ error: FirestoreError | null }> {
+    try {
+      await deleteDoc(doc(db, 'bank_responses', id))
+      return { error: null }
+    } catch (e) {
+      return { error: toError(e) }
+    }
   },
 }

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UserPlus, Search, Phone, Mail, Star, ArrowLeftRight, Loader2, X } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { supabase } from '@/lib/supabase'
+import { leadService } from '@/services/leadService'
 import type { Lead, LeadStatus } from '@/types/database'
 
 const statusColors: Record<string, string> = {
@@ -32,43 +32,26 @@ export default function LeadsPage() {
 
   const fetchLeads = useCallback(async () => {
     setLoading(true)
-    let query = supabase.from('leads').select('*').order('created_at', { ascending: false })
-
-    if (sourceFilter !== 'הכל') query = query.eq('source', sourceFilter)
-    if (search) query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%`)
-
-    const { data, error } = await query
+    const { data, error } = await leadService.getAll({
+      source: sourceFilter !== 'הכל' ? sourceFilter : undefined,
+      search: search || undefined,
+    })
     if (error) console.error(error)
-    else setLeads((data || []) as Lead[])
+    else setLeads(data || [])
     setLoading(false)
   }, [sourceFilter, search])
 
   useEffect(() => { fetchLeads() }, [fetchLeads])
 
   const updateStatus = async (id: string, status: LeadStatus) => {
-    const { error } = await supabase.from('leads').update({ status }).eq('id', id)
+    const { error } = await leadService.update(id, { status })
     if (!error) setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l))
   }
 
   const convertToCustomer = async (lead: Lead) => {
     if (!confirm(`להמיר את "${lead.name}" ללקוח?`)) return
-    const { data: { user } } = await supabase.auth.getUser()
-    const nameParts = (lead.name || '').trim().split(' ')
-    const firstName = nameParts[0] || ''
-    const lastName = nameParts.slice(1).join(' ') || ''
-
-    const { data, error } = await supabase.from('customers').insert({
-      first_name: firstName,
-      last_name: lastName,
-      phone: lead.phone,
-      email: lead.email,
-      lead_source: lead.source,
-      status: 'ליד',
-      user_id: user?.id,
-    }).select().single()
-
+    const { data, error } = await leadService.convertToCustomer(lead.id)
     if (data && !error) {
-      await supabase.from('leads').update({ status: 'הפך ללקוח' }).eq('id', lead.id)
       setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: 'הפך ללקוח' } : l))
       navigate(`/customers/${data.id}`)
     } else if (error) {
@@ -80,12 +63,11 @@ export default function LeadsPage() {
     e.preventDefault()
     if (!newLead.name.trim()) return
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
 
-    const { error } = await supabase.from('leads').insert({
+    const { error } = await leadService.create({
       ...newLead,
       status: 'חדש' as LeadStatus,
-      user_id: user?.id,
+      referral_partner_id: null,
     })
 
     if (error) alert('שגיאה: ' + error.message)

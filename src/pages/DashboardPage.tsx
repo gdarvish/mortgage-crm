@@ -9,8 +9,20 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer,
 } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
-import { supabase } from '@/lib/supabase'
-import type { Customer, Task, Alert } from '@/types/database'
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+  updateDoc,
+} from 'firebase/firestore'
+import { db, auth } from '@/lib/firebase'
+import { fromDoc, fromDocs } from '@/services/_firestoreHelpers'
+import type { Customer, Task, Alert, Commission, LoanTrack } from '@/types/database'
 
 const COLORS = ['#1a4f8a', '#2563a8', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6']
 const statusOrder = ['ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'סגירה']
@@ -50,62 +62,90 @@ export default function DashboardPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-
-    const [customersRes, tasksRes, alertsRes, commissionsRes] = await Promise.all([
-      supabase.from('customers').select('*').order('created_at', { ascending: false }),
-      supabase.from('tasks').select('*').neq('status', 'הושלמה').order('due_date', { ascending: true }).limit(10),
-      supabase.from('alerts').select('*').eq('status', 'פתוח').order('days_until_end', { ascending: true }).limit(10),
-      supabase.from('commissions').select('amount').eq('status', 'שולם'),
-    ])
-
-    if (customersRes.data) setCustomers(customersRes.data as Customer[])
-
-    if (tasksRes.data) {
-      const taskCustomerIds = tasksRes.data.filter(t => t.customer_id).map(t => t.customer_id)
-      let customerMap: Record<string, string> = {}
-      if (taskCustomerIds.length > 0) {
-        const { data: taskCustomers } = await supabase
-          .from('customers')
-          .select('id, first_name, last_name')
-          .in('id', taskCustomerIds)
-        if (taskCustomers) {
-          customerMap = Object.fromEntries(
-            taskCustomers.map(c => [c.id, `${c.first_name} ${c.last_name}`])
-          )
-        }
-      }
-      setTasks(tasksRes.data.map(t => ({
-        ...t,
-        customer_name: t.customer_id ? customerMap[t.customer_id] : undefined,
-      })) as DashboardTask[])
+    const uid = auth.currentUser?.uid
+    if (!uid) {
+      setLoading(false)
+      return
     }
 
-    if (alertsRes.data && alertsRes.data.length > 0) {
-      const alertCustomerIds = alertsRes.data.map(a => a.customer_id)
-      const alertTrackIds = alertsRes.data.filter(a => a.loan_track_id).map(a => a.loan_track_id)
+    const [customersSnap, tasksSnap, alertsSnap, commissionsSnap] = await Promise.all([
+      getDocs(query(collection(db, 'customers'), where('user_id', '==', uid), orderBy('created_at', 'desc'))),
+      getDocs(query(
+        collection(db, 'tasks'),
+        where('user_id', '==', uid),
+        where('status', '!=', 'הושלמה'),
+        orderBy('due_date', 'asc'),
+        limit(10)
+      )),
+      getDocs(query(
+        collection(db, 'alerts'),
+        where('user_id', '==', uid),
+        where('status', '==', 'פתוח'),
+        orderBy('days_until_end', 'asc'),
+        limit(10)
+      )),
+      getDocs(query(collection(db, 'commissions'), where('user_id', '==', uid), where('status', '==', 'שולם'))),
+    ])
 
-      const [custRes, trackRes] = await Promise.all([
-        supabase.from('customers').select('id, first_name, last_name').in('id', alertCustomerIds),
-        alertTrackIds.length > 0
-          ? supabase.from('loan_tracks').select('id, type').in('id', alertTrackIds)
-          : Promise.resolve({ data: [] }),
+    const customersData = fromDocs<Customer>(customersSnap.docs)
+    setCustomers(customersData)
+
+    const tasksData = fromDocs<Task>(tasksSnap.docs)
+    const taskCustomerIds = Array.from(new Set(tasksData.map(t => t.customer_id).filter(Boolean) as string[]))
+    const customerMap: Record<string, string> = {}
+    await Promise.all(taskCustomerIds.map(async (cid) => {
+      const snap = await getDoc(doc(db, 'customers', cid))
+      if (snap.exists()) {
+        const c = fromDoc<Customer>(snap)
+        customerMap[cid] = `${c.first_name} ${c.last_name}`
+      }
+    }))
+    setTasks(tasksData.map(t => ({
+      ...t,
+      customer_name: t.customer_id ? customerMap[t.customer_id] : undefined,
+    })))
+
+    const alertsData = fromDocs<Alert>(alertsSnap.docs)
+    if (alertsData.length > 0) {
+      const alertCustomerIds = Array.from(new Set(alertsData.map(a => a.customer_id)))
+      const alertTrackIds = Array.from(new Set(alertsData.map(a => a.loan_track_id).filter(Boolean) as string[]))
+
+      const [custMap, trackMap] = await Promise.all([
+        (async () => {
+          const map: Record<string, string> = {}
+          await Promise.all(alertCustomerIds.map(async (cid) => {
+            const snap = await getDoc(doc(db, 'customers', cid))
+            if (snap.exists()) {
+              const c = fromDoc<Customer>(snap)
+              map[cid] = `${c.first_name} ${c.last_name}`
+            }
+          }))
+          return map
+        })(),
+        (async () => {
+          const map: Record<string, string> = {}
+          await Promise.all(alertTrackIds.map(async (tid) => {
+            const snap = await getDoc(doc(db, 'loan_tracks', tid))
+            if (snap.exists()) {
+              const t = fromDoc<LoanTrack>(snap)
+              map[tid] = t.type || '—'
+            }
+          }))
+          return map
+        })(),
       ])
 
-      const custMap: Record<string, string> = {}
-      if (custRes.data) custRes.data.forEach(c => { custMap[c.id] = `${c.first_name} ${c.last_name}` })
-      const trackMap: Record<string, string> = {}
-      if (trackRes.data) trackRes.data.forEach(t => { trackMap[t.id] = t.type || '—' })
-
-      setAlerts(alertsRes.data.map(a => ({
+      setAlerts(alertsData.map(a => ({
         ...a,
         customer_name: custMap[a.customer_id] || 'לא ידוע',
         track_type: a.loan_track_id ? (trackMap[a.loan_track_id] || '—') : '—',
-      })) as DashboardAlert[])
+      })))
+    } else {
+      setAlerts([])
     }
 
-    if (commissionsRes.data) {
-      setCommissionTotal(commissionsRes.data.reduce((sum, c) => sum + (c.amount || 0), 0))
-    }
+    const commissionsData = fromDocs<Commission>(commissionsSnap.docs)
+    setCommissionTotal(commissionsData.reduce((sum, c) => sum + (c.amount || 0), 0))
 
     setLoading(false)
   }, [])
@@ -115,9 +155,11 @@ export default function DashboardPage() {
   }, [fetchData])
 
   const toggleTask = async (id: string) => {
-    const { error } = await supabase.from('tasks').update({ status: 'הושלמה' }).eq('id', id)
-    if (!error) {
+    try {
+      await updateDoc(doc(db, 'tasks', id), { status: 'הושלמה' })
       setTasks(prev => prev.filter(t => t.id !== id))
+    } catch (e) {
+      console.error('toggleTask failed', e)
     }
   }
 

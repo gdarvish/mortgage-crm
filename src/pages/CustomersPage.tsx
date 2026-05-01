@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Filter, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { supabase } from '@/lib/supabase'
+import { customerService } from '@/services/customerService'
 import type { Customer } from '@/types/database'
 
 const statusColors: Record<string, string> = {
@@ -34,25 +34,14 @@ export default function CustomersPage() {
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true)
-    let query = supabase
-      .from('customers')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (statusFilter !== 'הכל') {
-      query = query.eq('status', statusFilter)
-    }
-    if (search) {
-      query = query.or(
-        `first_name.ilike.%${search}%,last_name.ilike.%${search}%,phone.ilike.%${search}%,id_number.ilike.%${search}%`
-      )
-    }
-
-    const { data, error } = await query
+    const { data, error } = await customerService.getAll({
+      status: statusFilter !== 'הכל' ? statusFilter : undefined,
+      search: search || undefined,
+    })
     if (error) {
       console.error('Error fetching customers:', error)
     } else {
-      setCustomers((data || []) as Customer[])
+      setCustomers(data || [])
     }
     setLoading(false)
   }, [statusFilter, search])
@@ -66,15 +55,25 @@ export default function CustomersPage() {
     if (!newCustomer.first_name || !newCustomer.last_name) return
 
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-
-    const { error } = await supabase
-      .from('customers')
-      .insert({
-        ...newCustomer,
-        user_id: user?.id,
-        status: 'ליד',
-      })
+    const { error } = await customerService.create({
+      ...newCustomer,
+      status: 'ליד',
+      children: 0,
+      existing_obligations: 0,
+      questionnaire_completed: false,
+      id_number: newCustomer.id_number || null,
+      phone: newCustomer.phone || null,
+      email: newCustomer.email || null,
+      address: null,
+      marital_status: null,
+      monthly_income: null,
+      partner_income: null,
+      own_capital: null,
+      lead_source: newCustomer.lead_source || null,
+      notes: null,
+      referral_partner_id: null,
+      questionnaire_token: null,
+    })
 
     if (error) {
       console.error('Error creating customer:', error)

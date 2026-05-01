@@ -7,7 +7,10 @@ import {
   Trash2, Loader2, Save,
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { supabase } from '@/lib/supabase'
+import { customerService } from '@/services/customerService'
+import { taskService } from '@/services/taskService'
+import { messageService } from '@/services/messageService'
+import { commissionService } from '@/services/commissionService'
 import type {
   Customer, Document, Mortgage, LoanTrack, Message, Task, Commission, CustomerStatus
 } from '@/types/database'
@@ -111,44 +114,34 @@ export default function CustomerDetailPage() {
     if (!id) return
     setLoading(true)
 
-    const [custRes, docsRes, mortRes, msgRes, taskRes, commRes] = await Promise.all([
-      supabase.from('customers').select('*').eq('id', id).single(),
-      supabase.from('documents').select('*').eq('customer_id', id).order('uploaded_at', { ascending: false }),
-      supabase.from('mortgages').select('*, loan_tracks(*)').eq('customer_id', id).order('created_at', { ascending: false }),
-      supabase.from('messages').select('*').eq('customer_id', id).order('sent_at', { ascending: true }),
-      supabase.from('tasks').select('*').eq('customer_id', id).order('due_date', { ascending: true }),
-      supabase.from('commissions').select('*').eq('customer_id', id).limit(1).maybeSingle(),
-    ])
-
-    if (custRes.data) {
-      const c = custRes.data as Customer
-      setCustomer(c)
-      setStatusValue(c.status)
+    const { data: full } = await customerService.getById(id)
+    if (full) {
+      setCustomer(full)
+      setStatusValue(full.status)
       setPersonal({
-        first_name: c.first_name || '',
-        last_name: c.last_name || '',
-        id_number: c.id_number || '',
-        phone: c.phone || '',
-        email: c.email || '',
-        address: c.address || '',
-        marital_status: c.marital_status || 'רווק',
-        children: c.children || 0,
+        first_name: full.first_name || '',
+        last_name: full.last_name || '',
+        id_number: full.id_number || '',
+        phone: full.phone || '',
+        email: full.email || '',
+        address: full.address || '',
+        marital_status: full.marital_status || 'רווק',
+        children: full.children || 0,
       })
       setFinancial({
-        monthly_income: c.monthly_income || 0,
-        partner_income: c.partner_income || 0,
-        own_capital: c.own_capital || 0,
-        existing_obligations: c.existing_obligations || 0,
-        lead_source: c.lead_source || '',
-        notes: c.notes || '',
+        monthly_income: full.monthly_income || 0,
+        partner_income: full.partner_income || 0,
+        own_capital: full.own_capital || 0,
+        existing_obligations: full.existing_obligations || 0,
+        lead_source: full.lead_source || '',
+        notes: full.notes || '',
       })
+      setDocuments(full.documents || [])
+      setMortgages((full.mortgages || []) as MortgageWithTracks[])
+      setMessages(full.messages || [])
+      setTasks(full.tasks || [])
+      setCommission((full.commissions && full.commissions[0]) || null)
     }
-
-    if (docsRes.data) setDocuments(docsRes.data as Document[])
-    if (mortRes.data) setMortgages(mortRes.data as MortgageWithTracks[])
-    if (msgRes.data) setMessages(msgRes.data as Message[])
-    if (taskRes.data) setTasks(taskRes.data as Task[])
-    if (commRes.data) setCommission(commRes.data as Commission)
 
     setLoading(false)
   }, [id])
@@ -161,10 +154,7 @@ export default function CustomerDetailPage() {
   const savePersonal = async () => {
     if (!id) return
     setSaving(true)
-    const { error } = await supabase.from('customers').update({
-      ...personal,
-      status: statusValue,
-    }).eq('id', id)
+    const { error } = await customerService.update(id, { ...personal, status: statusValue })
     if (!error) setCustomer(prev => prev ? { ...prev, ...personal, status: statusValue } : prev)
     else alert('שגיאה בשמירה: ' + error.message)
     setSaving(false)
@@ -173,7 +163,7 @@ export default function CustomerDetailPage() {
   const saveFinancial = async () => {
     if (!id) return
     setSaving(true)
-    const { error } = await supabase.from('customers').update(financial).eq('id', id)
+    const { error } = await customerService.update(id, financial)
     if (!error) setCustomer(prev => prev ? { ...prev, ...financial } : prev)
     else alert('שגיאה בשמירה: ' + error.message)
     setSaving(false)
@@ -181,41 +171,42 @@ export default function CustomerDetailPage() {
 
   const addTask = async () => {
     if (!newTask.title.trim() || !id) return
-    const { data, error } = await supabase.from('tasks').insert({
+    const { data, error } = await taskService.create({
       customer_id: id,
       title: newTask.title,
       due_date: newTask.due_date || null,
       priority: newTask.priority as Task['priority'],
       status: 'פתוחה',
-    }).select().single()
+      notes: null,
+    })
     if (data && !error) {
-      setTasks(prev => [data as Task, ...prev])
+      setTasks(prev => [data, ...prev])
       setNewTask({ title: '', due_date: '', priority: 'בינונית' })
     }
   }
 
   const toggleTask = async (task: Task) => {
     const newStatus = task.status === 'הושלמה' ? 'פתוחה' : 'הושלמה'
-    const { error } = await supabase.from('tasks').update({ status: newStatus }).eq('id', task.id)
+    const { error } = await taskService.update(task.id, { status: newStatus })
     if (!error) setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t))
   }
 
   const deleteTask = async (taskId: string) => {
-    const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+    const { error } = await taskService.delete(taskId)
     if (!error) setTasks(prev => prev.filter(t => t.id !== taskId))
   }
 
   const sendMessage = async (channel: Message['channel']) => {
     if (!messageText.trim() || !id) return
     setSendingMsg(true)
-    const { data, error } = await supabase.from('messages').insert({
+    const { data, error } = await messageService.create({
       customer_id: id,
       channel,
       direction: 'נשלח',
       content: messageText,
-    }).select().single()
+    })
     if (data && !error) {
-      setMessages(prev => [...prev, data as Message])
+      setMessages(prev => [...prev, data])
       setMessageText('')
     }
     setSendingMsg(false)
@@ -225,21 +216,22 @@ export default function CustomerDetailPage() {
     if (!commission || !id) return
     setSaving(true)
     if (commission.id) {
-      await supabase.from('commissions').update({
+      await commissionService.update(commission.id, {
         amount: commission.amount,
         status: commission.status,
         payment_date: commission.payment_date,
         notes: commission.notes,
-      }).eq('id', commission.id)
+      })
     } else {
-      const { data } = await supabase.from('commissions').insert({
+      const { data } = await commissionService.create({
         customer_id: id,
+        mortgage_id: null,
         amount: commission.amount,
         status: commission.status,
         payment_date: commission.payment_date,
         notes: commission.notes,
-      }).select().single()
-      if (data) setCommission(data as Commission)
+      })
+      if (data) setCommission(data)
     }
     setSaving(false)
   }

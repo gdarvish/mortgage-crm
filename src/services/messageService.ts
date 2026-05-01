@@ -1,25 +1,49 @@
-import { supabase } from '@/lib/supabase'
+import {
+  collection,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  addDoc,
+  serverTimestamp,
+} from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { fromDoc, fromDocs, requireUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { Message } from '@/types/database'
 
-export const messageService = {
-  async getByCustomer(customerId: string) {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('customer_id', customerId)
-      .order('sent_at', { ascending: false })
+const COL = 'messages'
 
-    return { data: data as Message[] | null, error }
+export const messageService = {
+  async getByCustomer(customerId: string): Promise<{ data: Message[] | null; error: FirestoreError | null }> {
+    try {
+      const snap = await getDocs(
+        query(
+          collection(db, COL),
+          where('customer_id', '==', customerId),
+          orderBy('sent_at', 'desc')
+        )
+      )
+      return { data: fromDocs<Message>(snap.docs), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 
-  async create(message: Omit<Message, 'id' | 'sent_at'>) {
-    const { data, error } = await supabase
-      .from('messages')
-      .insert(message as Record<string, unknown>)
-      .select()
-      .single()
-
-    return { data: data as Message | null, error }
+  async create(message: Omit<Message, 'id' | 'sent_at'>): Promise<{ data: Message | null; error: FirestoreError | null }> {
+    try {
+      const uid = requireUserId()
+      const payload = {
+        ...message,
+        user_id: uid,
+        sent_at: serverTimestamp(),
+      }
+      const ref = await addDoc(collection(db, COL), payload)
+      const snap = await getDoc(ref)
+      return { data: fromDoc<Message>(snap), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 
   sendWhatsApp(phone: string, message: string) {

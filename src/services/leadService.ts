@@ -1,86 +1,122 @@
-import { supabase } from '@/lib/supabase'
-import type { Lead } from '@/types/database'
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  serverTimestamp,
+  type QueryConstraint,
+} from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { fromDoc, fromDocs, requireUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import type { Lead, Customer } from '@/types/database'
+
+const COL = 'leads'
+
+function matchesSearch(lead: Lead, search: string): boolean {
+  const needle = search.toLowerCase()
+  return (
+    (lead.name?.toLowerCase().includes(needle) ?? false) ||
+    (lead.phone?.toLowerCase().includes(needle) ?? false)
+  )
+}
 
 export const leadService = {
-  async getAll(filters?: { status?: string; source?: string; search?: string }) {
-    let query = supabase
-      .from('leads')
-      .select('*, referral_partner:referral_partners(*)')
-      .order('created_at', { ascending: false })
+  async getAll(filters?: { status?: string; source?: string; search?: string }): Promise<{ data: Lead[] | null; error: FirestoreError | null }> {
+    try {
+      const uid = requireUserId()
+      const constraints: QueryConstraint[] = [where('user_id', '==', uid)]
+      if (filters?.status) constraints.push(where('status', '==', filters.status))
+      if (filters?.source) constraints.push(where('source', '==', filters.source))
+      constraints.push(orderBy('created_at', 'desc'))
 
-    if (filters?.status) query = query.eq('status', filters.status)
-    if (filters?.source) query = query.eq('source', filters.source)
-    if (filters?.search) {
-      query = query.or(`name.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`)
+      const snap = await getDocs(query(collection(db, COL), ...constraints))
+      let data = fromDocs<Lead>(snap.docs)
+      if (filters?.search) data = data.filter((l) => matchesSearch(l, filters.search!))
+      return { data, error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
     }
-
-    const { data, error } = await query
-    return { data: data as Lead[] | null, error }
   },
 
-  async create(lead: Omit<Lead, 'id' | 'created_at'>) {
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data, error } = await supabase
-      .from('leads')
-      .insert({ ...lead, user_id: user?.id } as Record<string, unknown>)
-      .select()
-      .single()
-
-    return { data: data as Lead | null, error }
+  async create(lead: Omit<Lead, 'id' | 'created_at'>): Promise<{ data: Lead | null; error: FirestoreError | null }> {
+    try {
+      const uid = requireUserId()
+      const payload = {
+        ...lead,
+        user_id: uid,
+        score: lead.score ?? 0,
+        status: lead.status ?? 'חדש',
+        created_at: serverTimestamp(),
+      }
+      const ref = await addDoc(collection(db, COL), payload)
+      const snap = await getDoc(ref)
+      return { data: fromDoc<Lead>(snap), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 
-  async update(id: string, updates: Partial<Lead>) {
-    const { data, error } = await supabase
-      .from('leads')
-      .update(updates as Record<string, unknown>)
-      .eq('id', id)
-      .select()
-      .single()
-
-    return { data: data as Lead | null, error }
+  async update(id: string, updates: Partial<Lead>): Promise<{ data: Lead | null; error: FirestoreError | null }> {
+    try {
+      const ref = doc(db, COL, id)
+      await updateDoc(ref, updates as Record<string, unknown>)
+      const snap = await getDoc(ref)
+      return { data: fromDoc<Lead>(snap), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 
-  async delete(id: string) {
-    return supabase.from('leads').delete().eq('id', id)
+  async delete(id: string): Promise<{ error: FirestoreError | null }> {
+    try {
+      await deleteDoc(doc(db, COL, id))
+      return { error: null }
+    } catch (e) {
+      return { error: toError(e) }
+    }
   },
 
-  async convertToCustomer(leadId: string) {
-    const { data: lead, error: leadError } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('id', leadId)
-      .single()
+  async convertToCustomer(leadId: string): Promise<{ data: Customer | null; error: FirestoreError | null }> {
+    try {
+      const uid = requireUserId()
+      const leadRef = doc(db, COL, leadId)
+      const leadSnap = await getDoc(leadRef)
+      if (!leadSnap.exists()) return { data: null, error: { message: 'Lead not found' } }
+      const lead = fromDoc<Lead>(leadSnap)
 
-    if (leadError || !lead) return { data: null, error: leadError }
+      const nameParts = (lead.name || '').split(' ')
+      const firstName = nameParts[0] || ''
+      const lastName = nameParts.slice(1).join(' ') || ''
 
-    const nameParts = (lead.name || '').split(' ')
-    const firstName = nameParts[0] || ''
-    const lastName = nameParts.slice(1).join(' ') || ''
-
-    const { data: { user } } = await supabase.auth.getUser()
-
-    const { data: customer, error: customerError } = await supabase
-      .from('customers')
-      .insert({
-        user_id: user?.id,
+      const customerPayload = {
+        user_id: uid,
         first_name: firstName,
         last_name: lastName,
         phone: lead.phone,
         email: lead.email,
         lead_source: lead.source,
         status: 'ליד',
+        children: 0,
+        existing_obligations: 0,
+        questionnaire_completed: false,
         referral_partner_id: lead.referral_partner_id,
-      })
-      .select()
-      .single()
+        created_at: serverTimestamp(),
+        updated_at: serverTimestamp(),
+      }
+      const customerRef = await addDoc(collection(db, 'customers'), customerPayload)
+      const customerSnap = await getDoc(customerRef)
 
-    if (customerError) return { data: null, error: customerError }
+      await updateDoc(leadRef, { status: 'הפך ללקוח' })
 
-    await supabase
-      .from('leads')
-      .update({ status: 'הפך ללקוח' })
-      .eq('id', leadId)
-
-    return { data: customer, error: null }
+      return { data: fromDoc<Customer>(customerSnap), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 }
