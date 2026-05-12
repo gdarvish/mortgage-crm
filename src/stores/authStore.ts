@@ -2,8 +2,10 @@ import { create } from 'zustand'
 import {
   type User,
   type AuthError,
+  GoogleAuthProvider,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
   createUserWithEmailAndPassword,
   sendEmailVerification,
   signOut as fbSignOut,
@@ -20,6 +22,7 @@ interface AuthActions {
   initialize: () => () => void
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>
   signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>
+  signInWithGoogle: () => Promise<{ error: AuthError | null }>
   signOut: () => Promise<void>
 }
 
@@ -58,6 +61,18 @@ export const useAuthStore = create<AuthStore>((set, _get) => ({
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password)
       await sendEmailVerification(cred.user)
+      return { error: null }
+    } catch (error) {
+      set({ loading: false })
+      return { error: error as AuthError }
+    }
+  },
+
+  signInWithGoogle: async () => {
+    set({ loading: true })
+    try {
+      const provider = new GoogleAuthProvider()
+      await signInWithPopup(auth, provider)
       return { error: null }
     } catch (error) {
       set({ loading: false })
