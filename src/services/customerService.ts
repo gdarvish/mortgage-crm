@@ -5,7 +5,6 @@ import {
   getDocs,
   query,
   where,
-  orderBy,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -80,19 +79,22 @@ export const customerService = {
 
   async getById(id: string): Promise<{ data: CustomerWithRelations | null; error: FirestoreError | null }> {
     try {
+      const uid = requireUserId()
       const customerSnap = await getDoc(doc(db, COL, id))
       if (!customerSnap.exists()) return { data: null, error: null }
       const customer = fromDoc<Customer>(customerSnap)
+      if (customer.user_id !== uid) return { data: null, error: null }
 
       const [docsSnap, mortgagesSnap, tasksSnap, messagesSnap, commissionsSnap] = await Promise.all([
-        getDocs(query(collection(db, 'documents'), where('customer_id', '==', id), orderBy('uploaded_at', 'desc'))),
-        getDocs(query(collection(db, 'mortgages'), where('customer_id', '==', id), orderBy('created_at', 'desc'))),
-        getDocs(query(collection(db, 'tasks'), where('customer_id', '==', id), orderBy('due_date', 'asc'))),
-        getDocs(query(collection(db, 'messages'), where('customer_id', '==', id), orderBy('sent_at', 'asc'))),
+        getDocs(query(collection(db, 'documents'), where('customer_id', '==', id))),
+        getDocs(query(collection(db, 'mortgages'), where('customer_id', '==', id))),
+        getDocs(query(collection(db, 'tasks'), where('customer_id', '==', id))),
+        getDocs(query(collection(db, 'messages'), where('customer_id', '==', id))),
         getDocs(query(collection(db, 'commissions'), where('customer_id', '==', id))),
       ])
 
       const mortgages = fromDocs<Mortgage>(mortgagesSnap.docs)
+        .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
       const mortgageIds = mortgages.map((m) => m.id)
 
       const [tracksSnaps, responsesSnaps] = await Promise.all([
@@ -126,10 +128,13 @@ export const customerService = {
 
       const result: CustomerWithRelations = {
         ...customer,
-        documents: fromDocs<Document>(docsSnap.docs),
+        documents: fromDocs<Document>(docsSnap.docs)
+          .sort((a, b) => new Date(b.uploaded_at || 0).getTime() - new Date(a.uploaded_at || 0).getTime()),
         mortgages: mortgagesWithRelations,
-        tasks: fromDocs<Task>(tasksSnap.docs),
-        messages: fromDocs<Message>(messagesSnap.docs),
+        tasks: fromDocs<Task>(tasksSnap.docs)
+          .sort((a, b) => new Date(a.due_date || 0).getTime() - new Date(b.due_date || 0).getTime()),
+        messages: fromDocs<Message>(messagesSnap.docs)
+          .sort((a, b) => new Date(a.sent_at || 0).getTime() - new Date(b.sent_at || 0).getTime()),
         commissions: fromDocs<Commission>(commissionsSnap.docs),
         referral_partner: referralPartner,
       }

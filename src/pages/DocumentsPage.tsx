@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { FileText, Upload, Download, Search, CheckCircle, Clock, XCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { FileText, Upload, Download, Search, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Trash2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db, auth } from '@/lib/firebase'
@@ -241,17 +241,32 @@ export default function DocumentsPage() {
                     </td>
                     <td className="p-3 text-[12px]" style={{ color: '#a8a29e' }}>{d.uploaded_at ? formatDate(d.uploaded_at) : '—'}</td>
                     <td className="p-3">
-                      {d.file_url && (
-                        <a
-                          href={d.file_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-lg"
-                          style={{ background: '#d1fae5', color: '#065f46' }}
+                      <div className="flex items-center gap-2">
+                        {d.file_url && (
+                          <a
+                            href={d.file_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-lg"
+                            style={{ background: '#d1fae5', color: '#065f46' }}
+                          >
+                            <Download size={12} /> הורד
+                          </a>
+                        )}
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm('האם למחוק מסמך זה?')) return
+                            const { error } = await documentService.delete(d.id)
+                            if (error) { alert('שגיאה במחיקה: ' + error.message); return }
+                            await fetchDocs()
+                          }}
+                          className="inline-flex items-center justify-center transition-colors hover:text-red-600"
+                          style={{ color: '#d6d3d1' }}
+                          aria-label="מחק מסמך"
                         >
-                          <Download size={12} /> הורד
-                        </a>
-                      )}
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )

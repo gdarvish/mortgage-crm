@@ -779,6 +779,16 @@ export default function CustomerDetailPage() {
               className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg hover:bg-purple-100 transition-colors text-sm">
               <Calculator size={16} />צור תמהיל
             </button>
+            <button
+              onClick={async () => {
+                if (!window.confirm('האם למחוק לקוח זה? פעולה זו בלתי הפיכה.')) return
+                const { error } = await customerService.delete(id!)
+                if (error) { alert('שגיאה במחיקה: ' + error.message); return }
+                navigate('/customers')
+              }}
+              className="inline-flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 px-3 py-2 rounded-lg hover:bg-red-100 transition-colors text-sm">
+              <Trash2 size={16} />מחק לקוח
+            </button>
           </div>
         </div>
       </div>

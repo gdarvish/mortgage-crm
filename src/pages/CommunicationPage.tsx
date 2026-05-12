@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { MessageSquare, Send, Phone, Mail, Clock, Loader2 } from 'lucide-react'
+import { MessageSquare, Send, Phone, Mail, Clock, Loader2, Trash2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { customerService } from '@/services/customerService'
 import { messageService } from '@/services/messageService'
@@ -91,12 +91,22 @@ export default function CommunicationPage() {
     } else if (error) {
       alert('שגיאה: ' + error.message)
     }
-    // Also open WhatsApp if channel is WhatsApp
-    if (!error && channel === 'וואטסאפ') {
+    if (!error) {
       const cust = customers.find(c => c.id === selectedCustomerId)
-      if (cust?.phone) messageService.sendWhatsApp(cust.phone, messageText)
+      if (channel === 'וואטסאפ' && cust?.phone) {
+        messageService.sendWhatsApp(cust.phone, messageText)
+      } else if (channel === 'אימייל' && cust?.email) {
+        window.open(`mailto:${cust.email}?body=${encodeURIComponent(messageText)}`, '_blank')
+      } else if (channel === 'SMS' && cust?.phone) {
+        window.open(`sms:${cust.phone}?body=${encodeURIComponent(messageText)}`, '_blank')
+      }
     }
     setSending(false)
+  }
+
+  const handleDeleteMessage = async (msgId: string) => {
+    await messageService.delete(msgId)
+    setMessages(prev => prev.filter(m => m.id !== msgId))
   }
 
   return (
@@ -239,6 +249,14 @@ export default function CommunicationPage() {
                         <Clock size={10} />{formatDate(msg.sent_at)}
                       </p>
                     </div>
+                    <button
+                      onClick={() => handleDeleteMessage(msg.id)}
+                      className="shrink-0 flex items-center justify-center transition-colors hover:text-red-600"
+                      style={{ color: '#d6d3d1' }}
+                      aria-label="מחק הודעה"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 )
               })}

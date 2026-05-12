@@ -16,12 +16,12 @@ import {
   getDocs,
   query,
   where,
-  orderBy,
   limit,
   updateDoc,
 } from 'firebase/firestore'
 import { db, auth } from '@/lib/firebase'
 import { fromDoc, fromDocs } from '@/services/_firestoreHelpers'
+import { settingsService } from '@/services/settingsService'
 import type { Customer, Task, Alert, Commission, LoanTrack } from '@/types/database'
 
 const statusOrder = ['ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'סגירה']
@@ -144,6 +144,7 @@ function KpiCard({
 export default function DashboardPage() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
+  const [advisorName, setAdvisorName] = useState('')
   const [customers, setCustomers] = useState<Customer[]>([])
   const [tasks, setTasks] = useState<DashboardTask[]>([])
   const [alerts, setAlerts] = useState<DashboardAlert[]>([])
@@ -160,29 +161,20 @@ export default function DashboardPage() {
 
     try {
       const [customersSnap, tasksSnap, alertsSnap, commissionsSnap] = await Promise.all([
-        getDocs(query(collection(db, 'customers'), where('user_id', '==', uid), orderBy('created_at', 'desc'))),
-        getDocs(query(
-          collection(db, 'tasks'),
-          where('user_id', '==', uid),
-          orderBy('due_date', 'asc'),
-          limit(50)
-        )),
-        getDocs(query(
-          collection(db, 'alerts'),
-          where('user_id', '==', uid),
-          where('status', '==', 'פתוח'),
-          orderBy('days_until_end', 'asc'),
-          limit(8)
-        )),
+        getDocs(query(collection(db, 'customers'), where('user_id', '==', uid))),
+        getDocs(query(collection(db, 'tasks'), where('user_id', '==', uid), limit(50))),
+        getDocs(query(collection(db, 'alerts'), where('user_id', '==', uid), where('status', '==', 'פתוח'), limit(8))),
         getDocs(query(collection(db, 'commissions'), where('user_id', '==', uid), where('status', '==', 'שולם'))),
       ])
 
       const customersData = fromDocs<Customer>(customersSnap.docs)
+        .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
       if (!isMounted()) return
       setCustomers(customersData)
 
       const tasksData = fromDocs<Task>(tasksSnap.docs)
         .filter(t => t.status !== 'הושלמה')
+        .sort((a, b) => new Date(a.due_date || 0).getTime() - new Date(b.due_date || 0).getTime())
         .slice(0, 10)
       const taskCustomerIds = Array.from(new Set(tasksData.map(t => t.customer_id).filter(Boolean) as string[]))
       const customerMap: Record<string, string> = {}
@@ -253,6 +245,9 @@ export default function DashboardPage() {
   useEffect(() => {
     let mounted = true
     fetchData(() => mounted)
+    settingsService.get().then(({ data }) => {
+      if (data?.name) setAdvisorName(data.name)
+    })
     return () => { mounted = false }
   }, [fetchData])
 
@@ -326,14 +321,14 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="font-black" style={{ fontSize: 26, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
-            שלום, יועץ משכנתאות
+            שלום, {advisorName || 'יועץ משכנתאות'}
           </h1>
           <p className="mt-1 text-[14px]" style={{ color: '#a8a29e' }}>
             {todayStr} &nbsp;·&nbsp; {tasks.length} משימות פתוחות
           </p>
         </div>
         <button
-          onClick={() => navigate('/customers/new')}
+          onClick={() => navigate('/customers')}
           className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all duration-150 hover:opacity-90 active:scale-[0.96] shrink-0"
           style={{
             borderRadius: 12,

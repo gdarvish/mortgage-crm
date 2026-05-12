@@ -43,6 +43,7 @@ async function fetchBOIRates(): Promise<RatesData> {
       signal: controller.signal,
     })
     clearTimeout(timeout)
+    if (!res.ok) throw new Error('HTTP ' + res.status)
     const json = await res.json()
     const series = json?.resultSet?.series?.[0]?.points ?? []
     const latest = series[series.length - 1]

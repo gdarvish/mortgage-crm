@@ -2,10 +2,11 @@ import {
   collection,
   getDoc,
   getDocs,
+  doc,
   query,
   where,
-  orderBy,
   addDoc,
+  deleteDoc,
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -18,15 +19,22 @@ export const messageService = {
   async getByCustomer(customerId: string): Promise<{ data: Message[] | null; error: FirestoreError | null }> {
     try {
       const snap = await getDocs(
-        query(
-          collection(db, COL),
-          where('customer_id', '==', customerId),
-          orderBy('sent_at', 'desc')
-        )
+        query(collection(db, COL), where('customer_id', '==', customerId))
       )
-      return { data: fromDocs<Message>(snap.docs), error: null }
+      const data = fromDocs<Message>(snap.docs)
+        .sort((a, b) => new Date(a.sent_at || 0).getTime() - new Date(b.sent_at || 0).getTime())
+      return { data, error: null }
     } catch (e) {
       return { data: null, error: toError(e) }
+    }
+  },
+
+  async delete(id: string): Promise<{ error: FirestoreError | null }> {
+    try {
+      await deleteDoc(doc(db, COL, id))
+      return { error: null }
+    } catch (e) {
+      return { error: toError(e) }
     }
   },
 
