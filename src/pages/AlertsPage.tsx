@@ -41,7 +41,7 @@ export default function AlertsPage() {
     if (!uid) { setLoading(false); return }
     setLoading(true)
     try {
-      // Fetch customers for name lookup
+      // 1. Fetch customers for name lookup
       const custSnap = await getDocs(query(collection(db, 'customers'), where('user_id', '==', uid)))
       const custMap: Record<string, string> = {}
       custSnap.docs.forEach(d => {
@@ -49,21 +49,42 @@ export default function AlertsPage() {
         custMap[d.id] = `${c.first_name} ${c.last_name}`
       })
 
-      // Fetch loan tracks
-      const trackSnap = await getDocs(query(collection(db, 'loan_tracks'), where('user_id', '==', uid)))
+      // 2. Fetch mortgages → build mortgageId → customerId map
+      const mortSnap = await getDocs(query(collection(db, 'mortgages'), where('user_id', '==', uid)))
+      const mortMap: Record<string, string> = {}
+      mortSnap.docs.forEach(d => { mortMap[d.id] = d.data().customer_id })
+      const mortgageIds = mortSnap.docs.map(d => d.id)
+
+      if (mortgageIds.length === 0) {
+        setAlerts([])
+        return
+      }
+
+      // 3. Fetch loan_tracks for those mortgages (chunked by 30 for Firestore 'in' limit)
+      const chunks: string[][] = []
+      for (let i = 0; i < mortgageIds.length; i += 30) chunks.push(mortgageIds.slice(i, i + 30))
+      const trackDocs = (
+        await Promise.all(
+          chunks.map(chunk =>
+            getDocs(query(collection(db, 'loan_tracks'), where('mortgage_id', 'in', chunk)))
+          )
+        )
+      ).flatMap(s => s.docs)
+
+      // 4. Build alert items
       const now = new Date()
       const items: AlertItem[] = []
-
-      trackSnap.docs.forEach(d => {
+      trackDocs.forEach(d => {
         const t = d.data()
         if (!t.end_date) return
         const endDate = new Date(t.end_date)
         const daysLeft = Math.round((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-        if (daysLeft < 0 || daysLeft > 180) return // only show tracks ending within 180 days
+        if (daysLeft < 0 || daysLeft > 180) return
+        const customerId = mortMap[t.mortgage_id] ?? ''
         items.push({
           id: d.id,
-          customerName: custMap[t.customer_id] ?? 'לקוח לא ידוע',
-          customerId: t.customer_id ?? '',
+          customerName: custMap[customerId] ?? 'לקוח לא ידוע',
+          customerId,
           trackType: t.type ?? 'לא ידוע',
           daysLeft,
           status: 'פתוח',

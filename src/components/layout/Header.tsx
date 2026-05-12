@@ -38,7 +38,7 @@ export default function Header({ }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const notificationCount = 3
+  const notificationCount = 0
 
   function isActive(path: string) {
     if (path === '/dashboard') return location.pathname === path || location.pathname === '/'

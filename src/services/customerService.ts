@@ -48,10 +48,11 @@ export const customerService = {
       const uid = requireUserId()
       const constraints: QueryConstraint[] = [where('user_id', '==', uid)]
       if (filters?.status) constraints.push(where('status', '==', filters.status))
-      constraints.push(orderBy('created_at', 'desc'))
+      // No orderBy — sort client-side to avoid composite index requirement
 
       const snap = await getDocs(query(collection(db, COL), ...constraints))
       let data = fromDocs<Customer>(snap.docs)
+      data.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
       if (filters?.search) data = data.filter((c) => matchesSearch(c, filters.search!))
       return { data, error: null }
     } catch (e) {

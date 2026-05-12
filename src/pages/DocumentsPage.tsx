@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { FileText, Upload, Download, Search, CheckCircle, Clock, XCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db, auth } from '@/lib/firebase'
 import { documentService } from '@/services/documentService'
 import { customerService } from '@/services/customerService'
@@ -43,8 +43,9 @@ export default function DocumentsPage() {
     if (!uid) { setLoading(false); return }
     setLoading(true)
     try {
+      // No orderBy — sort client-side to avoid composite index requirement
       const snap = await getDocs(
-        query(collection(db, 'documents'), where('user_id', '==', uid), orderBy('uploaded_at', 'desc'))
+        query(collection(db, 'documents'), where('user_id', '==', uid))
       )
       const rows: DocRow[] = snap.docs.map(d => {
         const data = d.data()
@@ -54,9 +55,9 @@ export default function DocumentsPage() {
           uploaded_at: data.uploaded_at?.toDate?.()?.toISOString() ?? data.uploaded_at ?? '',
         } as DocRow
       })
-      const uid2 = uid
+      rows.sort((a, b) => new Date(b.uploaded_at || 0).getTime() - new Date(a.uploaded_at || 0).getTime())
       const custSnap = await getDocs(
-        query(collection(db, 'customers'), where('user_id', '==', uid2))
+        query(collection(db, 'customers'), where('user_id', '==', uid))
       )
       const custMap: Record<string, string> = {}
       custSnap.docs.forEach(d => {
@@ -73,8 +74,9 @@ export default function DocumentsPage() {
   useEffect(() => { fetchDocs() }, [fetchDocs])
 
   useEffect(() => {
-    customerService.getAll().then(({ data }) => {
+    customerService.getAll().then(({ data, error }) => {
       if (data) setCustomers(data)
+      if (error) console.error('Failed to load customers for selector:', error.message)
     })
   }, [])
 
@@ -82,7 +84,7 @@ export default function DocumentsPage() {
     const file = e.target.files?.[0]
     if (!file || !selectedCustomerId) return
     setUploading(true)
-    const { error } = await documentService.upload(selectedCustomerId, file, uploadType, 'general')
+    const { error } = await documentService.upload(selectedCustomerId, file, uploadType, 'כללי')
     if (error) alert('שגיאה בהעלאה: ' + error.message)
     await fetchDocs()
     setUploading(false)
