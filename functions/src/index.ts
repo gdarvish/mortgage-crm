@@ -6,7 +6,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 initializeApp()
 const db = getFirestore()
 
-const REGION = 'us-central1'
+const REGION = 'europe-west1'
 
 async function findCustomerByToken(token: string) {
   const snap = await db
