@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { Settings, Upload, Save, Eye } from 'lucide-react'
+import { Settings, Upload, Save, Eye, Trash2 } from 'lucide-react'
+import { collection, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore'
+import { db, auth } from '@/lib/firebase'
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -118,6 +120,70 @@ export default function SettingsPage() {
           <Eye size={18} /> תצוגה מקדימה
         </button>
       </div>
+
+      {/* Danger Zone */}
+      <DangerZone />
+    </div>
+  )
+}
+
+function DangerZone() {
+  const [deleting, setDeleting] = useState(false)
+  const [done, setDone] = useState(false)
+  const [confirm, setConfirm] = useState(false)
+
+  const handleDelete = async () => {
+    const uid = auth.currentUser?.uid
+    if (!uid) return
+    setDeleting(true)
+    try {
+      const collections = ['customers', 'leads', 'tasks', 'alerts', 'commissions', 'loan_tracks', 'documents', 'messages']
+      for (const col of collections) {
+        const snap = await getDocs(query(collection(db, col), where('user_id', '==', uid)))
+        await Promise.all(snap.docs.map(d => deleteDoc(doc(db, col, d.id))))
+      }
+      setDone(true)
+      setConfirm(false)
+    } catch (e) {
+      console.error('deleteAllData failed', e)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-red-200 p-5">
+      <h2 className="font-semibold text-red-700 mb-1 flex items-center gap-2">
+        <Trash2 size={17} /> אזור מסוכן
+      </h2>
+      <p className="text-sm text-gray-500 mb-4">מחיקת כל הנתונים מהמערכת — פעולה בלתי הפיכה</p>
+      {done ? (
+        <p className="text-sm font-medium text-green-600">✓ כל הנתונים נמחקו בהצלחה</p>
+      ) : confirm ? (
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-red-600 font-medium">האם אתה בטוח לחלוטין?</p>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center gap-1.5 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors"
+          >
+            {deleting ? 'מוחק...' : 'כן, מחק הכל'}
+          </button>
+          <button
+            onClick={() => setConfirm(false)}
+            className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+          >
+            ביטול
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setConfirm(true)}
+          className="flex items-center gap-2 bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-100 transition-colors"
+        >
+          <Trash2 size={15} /> מחק את כל הנתונים
+        </button>
+      )}
     </div>
   )
 }

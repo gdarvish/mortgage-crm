@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Calculator, Plus, Trash2, Sparkles, AlertTriangle, CheckCircle, Download, Save } from 'lucide-react'
+import { Plus, Sparkles, AlertTriangle, CheckCircle, Download, Save, X } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -14,44 +14,104 @@ import {
 } from '@/utils/mortgageCalculations'
 import type { LoanTrackType, PropertyType } from '@/types/database'
 
+const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
+
 const trackTypes: { value: LoanTrackType; label: string }[] = [
-  { value: 'פריים', label: 'פריים' },
-  { value: 'קל"צ', label: 'קבועה לא צמודה' },
-  { value: 'קל"ב', label: 'קבועה צמודה' },
-  { value: 'משתנה_צמודה', label: 'משתנה צמודה' },
-  { value: 'משתנה_לא_צמודה', label: 'משתנה לא צמודה' },
-  { value: 'זכאות', label: 'זכאות' },
+  { value: 'פריים',            label: 'פריים' },
+  { value: 'קל"צ',             label: 'קבועה לא צמודה' },
+  { value: 'קל"ב',             label: 'קבועה צמודה' },
+  { value: 'משתנה_צמודה',      label: 'משתנה צמודה' },
+  { value: 'משתנה_לא_צמודה',  label: 'משתנה לא צמודה' },
+  { value: 'זכאות',            label: 'זכאות' },
 ]
 
 const propertyTypes: { value: PropertyType; label: string }[] = [
   { value: 'דירה_ראשונה', label: 'דירה ראשונה' },
-  { value: 'משפרי_דיור', label: 'משפרי דיור' },
-  { value: 'להשקעה', label: 'להשקעה' },
+  { value: 'משפרי_דיור',  label: 'משפרי דיור' },
+  { value: 'להשקעה',     label: 'להשקעה' },
 ]
 
 const emptyTrack: TrackInput = { type: 'קל"צ', amount: 0, interestRate: 4.5, periodMonths: 300 }
 
+function InputField({
+  label, value, onChange, type = 'number', prefix, suffix, readOnly = false,
+}: {
+  label: string
+  value: number | string
+  onChange?: (v: string) => void
+  type?: string
+  prefix?: string
+  suffix?: string
+  readOnly?: boolean
+}) {
+  const [focused, setFocused] = useState(false)
+  return (
+    <div>
+      <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e', letterSpacing: '0.03em' }}>
+        {label}
+      </label>
+      <div
+        className="flex items-center overflow-hidden transition-all duration-150"
+        style={{
+          border: `1.5px solid ${focused ? '#059669' : '#e7e5e4'}`,
+          borderRadius: 10,
+          background: readOnly ? '#faf9f7' : '#ffffff',
+          boxShadow: focused ? '0 0 0 3px rgba(5,150,105,0.12)' : 'none',
+        }}
+      >
+        {prefix && (
+          <span className="px-3 text-[14px] font-semibold shrink-0" style={{ color: '#a8a29e' }}>{prefix}</span>
+        )}
+        <input
+          type={type}
+          value={value}
+          readOnly={readOnly}
+          onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          className="flex-1 py-2.5 bg-transparent outline-none text-[14px]"
+          style={{
+            color: readOnly ? '#57534e' : '#1c1917',
+            paddingRight: prefix ? 4 : 12,
+            paddingLeft: suffix ? 4 : 12,
+            fontFamily: 'var(--font-heebo)',
+          }}
+          dir="ltr"
+        />
+        {suffix && (
+          <span className="px-3 text-[13px] shrink-0" style={{ color: '#a8a29e' }}>{suffix}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function MortgageCalculatorPage() {
-  const [propertyPrice, setPropertyPrice] = useState(2000000)
-  const [ownCapital, setOwnCapital] = useState(500000)
+  const [propertyPrice, setPropertyPrice] = useState(1500000)
+  const [ownCapital, setOwnCapital] = useState(300000)
   const [propertyType, setPropertyType] = useState<PropertyType>('דירה_ראשונה')
   const [monthlyIncome, setMonthlyIncome] = useState(25000)
   const [tracks, setTracks] = useState<TrackInput[]>([
-    { type: 'קל"צ', amount: 500000, interestRate: 4.5, periodMonths: 300 },
-    { type: 'קל"ב', amount: 500000, interestRate: 3.8, periodMonths: 300 },
-    { type: 'פריים', amount: 500000, interestRate: 6.0, periodMonths: 300 },
+    { type: 'פריים', amount: 600000, interestRate: 5.0, periodMonths: 240 },
+    { type: 'קל"צ',  amount: 600000, interestRate: 3.2, periodMonths: 300 },
   ])
   const [showAmortization, setShowAmortization] = useState(false)
   const [activeRecommendation, setActiveRecommendation] = useState<number | null>(null)
 
-  const loanAmount = propertyPrice - ownCapital
+  const loanAmount  = Math.max(0, propertyPrice - ownCapital)
+  const ltv         = propertyPrice > 0 ? Math.round((loanAmount / propertyPrice) * 100) : 0
+  const ltvColor    = ltv > 75 ? '#dc2626' : ltv > 60 ? '#d97706' : '#059669'
+  const tracksTotal = tracks.reduce((s, t) => s + t.amount, 0)
 
   const totalMonthlyPayment = useMemo(() =>
     tracks.reduce((sum, t) => sum + effectiveMonthlyPayment(t), 0),
     [tracks]
   )
 
-  const tracksTotal = tracks.reduce((sum, t) => sum + t.amount, 0)
+  const totalCost = useMemo(() =>
+    tracks.reduce((s, t) => s + effectiveMonthlyPayment(t) * t.periodMonths, 0),
+    [tracks]
+  )
 
   const compliance = useMemo(() =>
     checkCompliance(tracks, propertyPrice, propertyType, monthlyIncome),
@@ -80,230 +140,140 @@ export default function MortgageCalculatorPage() {
   const updateTrack = (idx: number, field: keyof TrackInput, value: number | string) => {
     setTracks(tracks.map((t, i) => i === idx ? { ...t, [field]: value } : t))
   }
-
   const applyRecommendation = (idx: number) => {
     setTracks(recommendations[idx].tracks)
     setActiveRecommendation(idx)
   }
 
+  const cardStyle = {
+    background: '#ffffff',
+    borderRadius: 20,
+    boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
+    border: '1px solid #e7e5e4',
+  }
+
   return (
-    <div className="animate-fade-in space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-        <Calculator className="text-[#1a4f8a]" size={28} />
-        מחשבון משכנתא
-      </h1>
+    <div className="animate-fade-in max-w-[1360px] mx-auto">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
+          מחשבון משכנתא
+        </h1>
+        <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>חשב תשלום חודשי לפי מסלולים</p>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Input */}
-        <div className="lg:col-span-2 space-y-4">
-          {/* Property Details */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <h2 className="font-semibold text-gray-900 mb-4">פרטי הנכס</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">מחיר נכס</label>
-                <input type="number" value={propertyPrice} onChange={e => setPropertyPrice(+e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none" dir="ltr" />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">הון עצמי</label>
-                <input type="number" value={ownCapital} onChange={e => setOwnCapital(+e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none" dir="ltr" />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">סוג נכס</label>
-                <select value={propertyType} onChange={e => setPropertyType(e.target.value as PropertyType)} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none bg-white">
-                  {propertyTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">הכנסה חודשית נטו</label>
-                <input type="number" value={monthlyIncome} onChange={e => setMonthlyIncome(+e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none" dir="ltr" />
-              </div>
-            </div>
-            <div className="mt-3 flex items-center gap-4 text-sm">
-              <span className="text-gray-600">סכום הלוואה: <strong className="text-[#1a4f8a]">{formatCurrency(loanAmount)}</strong></span>
-              {tracksTotal !== loanAmount && (
-                <span className="text-red-500">סה"כ מסלולים: {formatCurrency(tracksTotal)} (הפרש: {formatCurrency(Math.abs(loanAmount - tracksTotal))})</span>
-              )}
-            </div>
-          </div>
+      <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 1.4fr' }}>
+        {/* ── LEFT COLUMN ── */}
+        <div className="flex flex-col gap-4">
+          {/* Property inputs */}
+          <div style={{ ...cardStyle, padding: '22px 24px' }}>
+            <h3 className="text-[14px] font-bold mb-4" style={{ color: '#1c1917' }}>נתוני הנכס</h3>
+            <div className="flex flex-col gap-3">
+              <InputField label="מחיר הנכס" value={propertyPrice} onChange={v => setPropertyPrice(Number(v) || 0)} prefix="₪" />
+              <InputField label="הון עצמי" value={ownCapital} onChange={v => setOwnCapital(Number(v) || 0)} prefix="₪" />
 
-          {/* Tracks */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-gray-900">מסלולי תמהיל</h2>
-              <div className="flex gap-2">
-                <button onClick={() => applyRecommendation(1)} className="text-sm bg-[#e8f0fe] text-[#1a4f8a] px-3 py-1.5 rounded-lg hover:bg-blue-100 flex items-center gap-1">
-                  <Sparkles size={14} />
-                  תמהילים מומלצים
-                </button>
-                <button onClick={addTrack} disabled={tracks.length >= 6} className="text-sm bg-[#1a4f8a] text-white px-3 py-1.5 rounded-lg hover:bg-[#143d6b] flex items-center gap-1 disabled:opacity-50">
-                  <Plus size={14} />
-                  הוסף מסלול
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {tracks.map((track, idx) => {
-                const hasGrace = (track.graceMonths ?? 0) > 0
-                const gracePayments = hasGrace
-                  ? calculateGracePayments(track.amount, track.interestRate, track.periodMonths, track.graceMonths!, track.graceType || 'חלקי')
-                  : null
-                return (
-                  <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-100 space-y-2">
-                    {/* Main row */}
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-end">
-                      <div className="col-span-2 md:col-span-1">
-                        <label className="block text-xs text-gray-500 mb-1">סוג</label>
-                        <select value={track.type} onChange={e => updateTrack(idx, 'type', e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm bg-white">
-                          {trackTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-500 mb-1">סכום</label>
-                        <input type="number" value={track.amount} onChange={e => updateTrack(idx, 'amount', +e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-500 mb-1">ריבית %</label>
-                        <input type="number" step="0.1" value={track.interestRate} onChange={e => updateTrack(idx, 'interestRate', +e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-500 mb-1">תקופה (חו')</label>
-                        <input type="number" value={track.periodMonths} onChange={e => updateTrack(idx, 'periodMonths', +e.target.value)} className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-medium text-[#1a4f8a]">
-                          {gracePayments ? (
-                            <div className="text-xs leading-tight">
-                              <div className="text-gray-400">גרייס: {formatCurrency(gracePayments.duringGrace)}</div>
-                              <div>{formatCurrency(gracePayments.afterGrace)}/חודש</div>
-                            </div>
-                          ) : (
-                            <span>{formatCurrency(calculateMonthlyPayment(track.amount, track.interestRate, track.periodMonths))}/חודש</span>
-                          )}
-                        </div>
-                        <button onClick={() => removeTrack(idx)} className="text-red-400 hover:text-red-600 shrink-0"><Trash2 size={16} /></button>
-                      </div>
-                    </div>
-
-                    {/* Grace period row */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end pt-1 border-t border-gray-200">
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">גרייס (חודשים)</label>
-                        <input
-                          type="number" min={0} max={track.periodMonths - 1}
-                          value={track.graceMonths ?? 0}
-                          onChange={e => updateTrack(idx, 'graceMonths', +e.target.value)}
-                          className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
-                          dir="ltr"
-                          placeholder="0"
-                        />
-                      </div>
-                      {hasGrace && (
-                        <div>
-                          <label className="block text-xs text-gray-400 mb-1">סוג גרייס</label>
-                          <select
-                            value={track.graceType ?? 'חלקי'}
-                            onChange={e => updateTrack(idx, 'graceType', e.target.value as GraceType)}
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
-                          >
-                            <option value="חלקי">חלקי (ריבית בלבד)</option>
-                            <option value="מלא">מלא (קרן + ריבית נדחים)</option>
-                          </select>
-                        </div>
-                      )}
-                      {hasGrace && gracePayments && (
-                        <div className="sm:col-span-2 text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-                          <span className="font-medium text-amber-700">גרייס {track.graceType} · {track.graceMonths} חודשים: </span>
-                          {track.graceType === 'מלא'
-                            ? `ללא תשלום → ${formatCurrency(gracePayments.afterGrace)}/חודש לאחר מכן`
-                            : `${formatCurrency(gracePayments.duringGrace)}/חודש (ריבית) → ${formatCurrency(gracePayments.afterGrace)}/חודש לאחר מכן`
-                          }
-                        </div>
-                      )}
-                    </div>
+              <div className="grid grid-cols-2 gap-3">
+                <InputField label="סכום הלוואה" value={formatCurrency(loanAmount)} readOnly />
+                <div>
+                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e', letterSpacing: '0.03em' }}>LTV</label>
+                  <div
+                    className="flex items-center justify-center"
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 10,
+                      background: ltvColor + '15',
+                      border: `1.5px solid ${ltvColor}40`,
+                    }}
+                  >
+                    <span className="font-black" style={{ fontSize: 18, color: ltvColor }}>{ltv}%</span>
                   </div>
-                )
-              })}
-            </div>
-
-            {/* Total */}
-            <div className="mt-4 p-4 bg-[#e8f0fe] rounded-lg flex items-center justify-between">
-              <div>
-                <span className="font-semibold text-gray-800">סה"כ החזר חודשי</span>
-                {tracks.some(t => (t.graceMonths ?? 0) > 0) && (
-                  <p className="text-xs text-gray-500 mt-0.5">לאחר תום תקופת הגרייס</p>
-                )}
+                </div>
               </div>
-              <span className="text-2xl font-bold text-[#1a4f8a]">{formatCurrency(totalMonthlyPayment)}</span>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e', letterSpacing: '0.03em' }}>סוג נכס</label>
+                  <select
+                    value={propertyType}
+                    onChange={e => setPropertyType(e.target.value as PropertyType)}
+                    className="w-full py-2.5 px-3 text-[14px] outline-none transition-all duration-150"
+                    style={{
+                      border: '1.5px solid #e7e5e4',
+                      borderRadius: 10,
+                      background: '#ffffff',
+                      color: '#1c1917',
+                      fontFamily: 'var(--font-heebo)',
+                    }}
+                  >
+                    {propertyTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+                <InputField label="הכנסה חודשית נטו" value={monthlyIncome} onChange={v => setMonthlyIncome(Number(v) || 0)} prefix="₪" />
+              </div>
             </div>
           </div>
 
-          {/* Recommendations */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Sparkles size={18} className="text-[#f59e0b]" />
-              תמהילים מומלצים
-            </h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {recommendations.map((rec, idx) => {
-                const monthly = rec.tracks.reduce((s, t) => s + calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths), 0)
-                return (
-                  <button key={idx} onClick={() => applyRecommendation(idx)} className={`p-3 rounded-lg border-2 text-right transition-all ${activeRecommendation === idx ? 'border-[#1a4f8a] bg-[#e8f0fe]' : 'border-gray-200 hover:border-[#1a4f8a]/50'}`}>
-                    <p className="font-medium text-gray-900">{rec.name}</p>
-                    <p className="text-sm text-[#1a4f8a] font-bold mt-1">{formatCurrency(monthly)}/חודש</p>
-                    <p className="text-xs text-gray-500 mt-1">{rec.tracks.length} מסלולים</p>
-                  </button>
-                )
-              })}
+          {/* Summary */}
+          <div style={{ ...cardStyle, padding: '22px 24px' }}>
+            <h3 className="text-[14px] font-bold mb-4" style={{ color: '#1c1917' }}>סיכום</h3>
+            <div className="flex flex-col divide-y" style={{ borderColor: '#f5f4f2' }}>
+              {[
+                { label: 'תשלום חודשי', value: formatCurrency(Math.round(totalMonthlyPayment)), highlight: true },
+                {
+                  label: 'סה"כ מסלולים',
+                  value: formatCurrency(tracksTotal),
+                  note: tracksTotal !== loanAmount ? `פער: ${formatCurrency(Math.abs(loanAmount - tracksTotal))}` : null,
+                },
+                { label: 'עלות כוללת', value: formatCurrency(Math.round(totalCost)) },
+              ].map(row => (
+                <div key={row.label} className="flex items-center justify-between py-3">
+                  <span className="text-[13px]" style={{ color: '#a8a29e' }}>{row.label}</span>
+                  <div className="flex items-center gap-2">
+                    {row.note && (
+                      <span className="text-[11px] font-medium" style={{ color: '#d97706' }}>{row.note}</span>
+                    )}
+                    <span
+                      className="font-black tabular-nums"
+                      style={{
+                        fontSize: row.highlight ? 22 : 15,
+                        color: row.highlight ? '#059669' : '#1c1917',
+                        fontFamily: 'var(--font-heebo)',
+                      }}
+                    >
+                      {row.value}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Charts */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-gray-900">גרף החזרים לאורך זמן</h2>
-              <button onClick={() => setShowAmortization(!showAmortization)} className="text-sm text-[#1a4f8a] hover:underline">
-                {showAmortization ? 'הסתר' : 'הצג'} לוח סילוקין
-              </button>
-            </div>
-            {showAmortization && amortizationData.length > 0 && (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={amortizationData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="year" label={{ value: 'שנה', position: 'bottom' }} />
-                  <YAxis tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} />
-                  <Tooltip formatter={(v) => formatCurrency(v as number)} />
-                  <Bar dataKey="principal" name="קרן" fill="#1a4f8a" stackId="a" />
-                  <Bar dataKey="interest" name="ריבית" fill="#f59e0b" stackId="a" />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        {/* Right: Compliance + Summary */}
-        <div className="space-y-4">
           {/* Compliance */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              {compliance.isValid ? <CheckCircle className="text-green-500" size={18} /> : <AlertTriangle className="text-red-500" size={18} />}
+          <div style={{ ...cardStyle, padding: '22px 24px' }}>
+            <h3 className="text-[14px] font-bold mb-4 flex items-center gap-2" style={{ color: '#1c1917' }}>
+              {compliance.isValid
+                ? <CheckCircle size={16} style={{ color: '#059669' }} />
+                : <AlertTriangle size={16} style={{ color: '#dc2626' }} />
+              }
               בדיקת Compliance
-            </h2>
+            </h3>
             <div className="space-y-3">
               {compliance.checks.map((check, idx) => (
                 <div key={idx}>
-                  <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="text-gray-700">{check.name}</span>
-                    <span className={check.isValid ? 'text-green-600' : 'text-red-600'}>{check.value}%</span>
+                  <div className="flex items-center justify-between text-[13px] mb-1">
+                    <span style={{ color: '#57534e' }}>{check.name}</span>
+                    <span className="font-semibold" style={{ color: check.isValid ? '#059669' : '#dc2626' }}>{check.value}%</span>
                   </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#f5f4f2' }}>
                     <div
-                      className={`h-full rounded-full transition-all ${check.isValid ? 'bg-green-500' : 'bg-red-500'}`}
-                      style={{ width: `${Math.min((check.value / check.limit) * 100, 100)}%` }}
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.min((check.value / check.limit) * 100, 100)}%`,
+                        background: check.isValid ? '#059669' : '#dc2626',
+                      }}
                     />
                   </div>
-                  <p className={`text-xs mt-0.5 ${check.isValid ? 'text-green-600' : 'text-red-600'}`}>
+                  <p className="text-[11px] mt-0.5" style={{ color: check.isValid ? '#059669' : '#dc2626' }}>
                     {check.message}
                   </p>
                 </div>
@@ -312,33 +282,241 @@ export default function MortgageCalculatorPage() {
           </div>
 
           {/* Actions */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 space-y-3">
-            <button className="w-full flex items-center justify-center gap-2 bg-[#1a4f8a] text-white py-2.5 rounded-lg hover:bg-[#143d6b] transition-colors">
-              <Save size={18} />
+          <div style={{ ...cardStyle, padding: '18px 24px' }} className="flex flex-col gap-2">
+            <button
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97]"
+              style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
+            >
+              <Save size={15} />
               שמור תמהיל ללקוח
             </button>
-            <button className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-700 py-2.5 rounded-lg hover:bg-gray-200 transition-colors">
-              <Download size={18} />
+            <button
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold transition-all hover:opacity-80"
+              style={{ borderRadius: 12, background: '#f5f4f2', color: '#57534e' }}
+            >
+              <Download size={15} />
               הורד PDF
             </button>
           </div>
 
-          {/* Sensitivity Analysis */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <h2 className="font-semibold text-gray-900 mb-3">ניתוח רגישות</h2>
+          {/* Sensitivity */}
+          <div style={{ ...cardStyle, padding: '22px 24px' }}>
+            <h3 className="text-[14px] font-bold mb-3" style={{ color: '#1c1917' }}>ניתוח רגישות</h3>
             <div className="space-y-2">
               {[0, 0.5, 1, 1.5, 2].map(delta => {
                 const adjusted = tracks.reduce((sum, t) =>
                   sum + calculateMonthlyPayment(t.amount, t.interestRate + delta, t.periodMonths), 0
                 )
+                const isCurrent = delta === 0
                 return (
-                  <div key={delta} className="flex justify-between text-sm">
-                    <span className="text-gray-600">{delta === 0 ? 'נוכחי' : `+${delta}%`}</span>
-                    <span className={delta === 0 ? 'font-bold text-[#1a4f8a]' : 'text-gray-700'}>{formatCurrency(adjusted)}</span>
+                  <div key={delta} className="flex justify-between items-center text-[13px]">
+                    <span style={{ color: '#a8a29e' }}>{isCurrent ? 'נוכחי' : `+${delta}%`}</span>
+                    <span
+                      className="font-bold tabular-nums"
+                      style={{ color: isCurrent ? '#059669' : '#1c1917' }}
+                    >
+                      {formatCurrency(Math.round(adjusted))}
+                    </span>
                   </div>
                 )
               })}
             </div>
+          </div>
+        </div>
+
+        {/* ── RIGHT COLUMN ── */}
+        <div className="flex flex-col gap-4">
+          {/* Track header */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-[15px] font-bold" style={{ color: '#1c1917' }}>
+              מסלולים ({tracks.length})
+            </h3>
+            <div className="flex gap-2">
+              <button
+                onClick={() => applyRecommendation(1)}
+                className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold transition-all hover:opacity-80"
+                style={{ borderRadius: 10, background: '#fef3c7', color: '#d97706' }}
+              >
+                <Sparkles size={13} />
+                תמהילים מומלצים
+              </button>
+              <button
+                onClick={addTrack}
+                disabled={tracks.length >= 6}
+                className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-40"
+                style={{ borderRadius: 10, background: '#059669', boxShadow: '0 3px 10px rgba(5,150,105,0.35)' }}
+              >
+                <Plus size={13} />
+                הוסף מסלול
+              </button>
+            </div>
+          </div>
+
+          {/* Track cards */}
+          {tracks.map((track, idx) => {
+            const col = TRACK_COLORS[idx % TRACK_COLORS.length]
+            const monthly = effectiveMonthlyPayment(track)
+            const pct = tracksTotal > 0 ? Math.round((track.amount / tracksTotal) * 100) : 0
+            const hasGrace = (track.graceMonths ?? 0) > 0
+            const gracePayments = hasGrace
+              ? calculateGracePayments(track.amount, track.interestRate, track.periodMonths, track.graceMonths!, track.graceType || 'חלקי')
+              : null
+
+            return (
+              <div
+                key={idx}
+                style={{
+                  ...cardStyle,
+                  padding: '20px 22px',
+                  animationName: 'fadeUp',
+                  animationDuration: '0.4s',
+                  animationDelay: `${idx * 0.08}s`,
+                  animationFillMode: 'backwards',
+                }}
+              >
+                {/* Track header row */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="rounded-full shrink-0" style={{ width: 10, height: 10, background: col }} />
+                    <select
+                      value={track.type}
+                      onChange={e => updateTrack(idx, 'type', e.target.value)}
+                      className="text-[15px] font-bold outline-none bg-transparent cursor-pointer"
+                      style={{ color: '#1c1917', fontFamily: 'var(--font-heebo)', border: 'none' }}
+                    >
+                      {trackTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] px-2.5 py-1 rounded-full" style={{ background: '#f5f4f2', color: '#a8a29e' }}>
+                      {pct}% מהלוואה
+                    </span>
+                    <button
+                      onClick={() => removeTrack(idx)}
+                      className="transition-colors hover:text-red-500"
+                      style={{ color: '#a8a29e' }}
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Inputs grid */}
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <InputField label="סכום" value={track.amount} onChange={v => updateTrack(idx, 'amount', +v || 0)} prefix="₪" />
+                  <InputField label="ריבית שנתית" value={track.interestRate} onChange={v => updateTrack(idx, 'interestRate', +v || 0)} suffix="%" />
+                  <InputField label="תקופה" value={track.periodMonths} onChange={v => updateTrack(idx, 'periodMonths', +v || 0)} suffix="חו'" />
+                </div>
+
+                {/* Grace period */}
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <InputField
+                    label="גרייס (חודשים)"
+                    value={track.graceMonths ?? 0}
+                    onChange={v => updateTrack(idx, 'graceMonths', +v || 0)}
+                  />
+                  {hasGrace && (
+                    <div>
+                      <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e', letterSpacing: '0.03em' }}>סוג גרייס</label>
+                      <select
+                        value={track.graceType ?? 'חלקי'}
+                        onChange={e => updateTrack(idx, 'graceType', e.target.value as GraceType)}
+                        className="w-full py-2.5 px-3 text-[14px] outline-none"
+                        style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, background: '#fff', color: '#1c1917', fontFamily: 'var(--font-heebo)' }}
+                      >
+                        <option value="חלקי">חלקי (ריבית בלבד)</option>
+                        <option value="מלא">מלא (קרן + ריבית נדחים)</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {hasGrace && gracePayments && (
+                  <div className="mb-4 text-[12px] px-3 py-2 rounded-lg" style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}>
+                    <span className="font-semibold">גרייס {track.graceType} · {track.graceMonths} חודשים: </span>
+                    {track.graceType === 'מלא'
+                      ? `ללא תשלום → ${formatCurrency(gracePayments.afterGrace)}/חודש לאחר מכן`
+                      : `${formatCurrency(gracePayments.duringGrace)}/חודש (ריבית) → ${formatCurrency(gracePayments.afterGrace)}/חודש לאחר מכן`
+                    }
+                  </div>
+                )}
+
+                {/* Monthly result */}
+                <div
+                  className="flex items-center justify-between px-4 py-2.5 rounded-xl"
+                  style={{ background: col + '12' }}
+                >
+                  <span className="text-[13px]" style={{ color: '#57534e' }}>תשלום חודשי</span>
+                  <span className="font-black tabular-nums" style={{ fontSize: 18, color: col, fontFamily: 'var(--font-heebo)' }}>
+                    {formatCurrency(Math.round(monthly))}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Recommendations */}
+          <div style={{ ...cardStyle, padding: '22px 24px' }}>
+            <h3 className="text-[14px] font-bold mb-4 flex items-center gap-2" style={{ color: '#1c1917' }}>
+              <Sparkles size={15} style={{ color: '#d97706' }} />
+              תמהילים מומלצים
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              {recommendations.map((rec, idx) => {
+                const monthly = rec.tracks.reduce((s, t) => s + calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths), 0)
+                const active = activeRecommendation === idx
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => applyRecommendation(idx)}
+                    className="text-right p-3 transition-all duration-150"
+                    style={{
+                      borderRadius: 12,
+                      border: `2px solid ${active ? '#059669' : '#e7e5e4'}`,
+                      background: active ? '#d1fae5' : '#faf9f7',
+                    }}
+                  >
+                    <p className="text-[13px] font-semibold" style={{ color: '#1c1917' }}>{rec.name}</p>
+                    <p className="text-[13px] font-black mt-1" style={{ color: '#059669' }}>{formatCurrency(Math.round(monthly))}/חודש</p>
+                    <p className="text-[11px] mt-1" style={{ color: '#a8a29e' }}>{rec.tracks.length} מסלולים</p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Amortization chart */}
+          <div style={{ ...cardStyle, padding: '22px 24px' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[14px] font-bold" style={{ color: '#1c1917' }}>גרף החזרים לאורך זמן</h3>
+              <button
+                onClick={() => setShowAmortization(!showAmortization)}
+                className="text-[13px] font-medium underline transition-colors"
+                style={{ color: '#059669' }}
+              >
+                {showAmortization ? 'הסתר' : 'הצג'} לוח סילוקין
+              </button>
+            </div>
+            {showAmortization && amortizationData.length > 0 && (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={amortizationData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
+                  <XAxis dataKey="year" label={{ value: 'שנה', position: 'bottom' }} tick={{ fontSize: 11, fill: '#a8a29e' }} />
+                  <YAxis tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 11, fill: '#a8a29e' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    formatter={(v) => formatCurrency(v as number)}
+                    contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 12 }}
+                  />
+                  <Bar dataKey="principal" name="קרן"   fill="#059669" stackId="a" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="interest"  name="ריבית" fill="#d97706" stackId="a" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+            {!showAmortization && (
+              <div className="flex items-center justify-center h-16 text-[13px]" style={{ color: '#a8a29e' }}>
+                לחץ "הצג לוח סילוקין" כדי לראות את הגרף
+              </div>
+            )}
           </div>
         </div>
       </div>
