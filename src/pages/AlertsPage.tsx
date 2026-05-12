@@ -1,89 +1,220 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, CheckCircle, RefreshCw, User } from 'lucide-react'
+import { Bell, CheckCircle, RefreshCw, User, Loader2 } from 'lucide-react'
+import { collection, getDocs, query, where } from 'firebase/firestore'
+import { db, auth } from '@/lib/firebase'
+import { formatCurrency } from '@/lib/utils'
 
-const mockAlerts = [
-  { id: '1', customerName: 'יוסי כהן', customerId: '1', trackType: 'פריים', daysLeft: 32, status: 'פתוח', amount: 300000, interestRate: 6.0 },
-  { id: '2', customerName: 'רחל מזרחי', customerId: '4', trackType: 'קל"צ', daysLeft: 55, status: 'פתוח', amount: 400000, interestRate: 5.2 },
-  { id: '3', customerName: 'שרה לוי', customerId: '2', trackType: 'משתנה צמודה', daysLeft: 78, status: 'פתוח', amount: 250000, interestRate: 3.8 },
-  { id: '4', customerName: 'דוד אברהם', customerId: '3', trackType: 'קל"ב', daysLeft: 145, status: 'פתוח', amount: 500000, interestRate: 3.5 },
-  { id: '5', customerName: 'נועה ברק', customerId: '8', trackType: 'פריים', daysLeft: 170, status: 'טופל', amount: 350000, interestRate: 6.2 },
-]
+interface AlertItem {
+  id: string
+  customerName: string
+  customerId: string
+  trackType: string
+  daysLeft: number
+  status: string
+  amount: number
+  interestRate: number
+}
+
+const cardStyle = {
+  background: '#ffffff',
+  borderRadius: 20,
+  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
+  border: '1px solid #e7e5e4',
+}
 
 function getUrgency(days: number) {
-  if (days < 60) return { label: 'דחוף', color: 'bg-red-100 text-red-700 border-red-200', dot: 'bg-red-500' }
-  if (days < 120) return { label: 'אזהרה', color: 'bg-orange-100 text-orange-700 border-orange-200', dot: 'bg-orange-500' }
-  return { label: 'תקין', color: 'bg-green-100 text-green-700 border-green-200', dot: 'bg-green-500' }
+  if (days < 60)  return { label: 'דחוף', bg: '#fee2e2', color: '#dc2626', dot: '#dc2626' }
+  if (days < 120) return { label: 'אזהרה', bg: '#fef3c7', color: '#d97706', dot: '#d97706' }
+  return                { label: 'תקין',   bg: '#d1fae5', color: '#065f46', dot: '#059669' }
 }
 
 export default function AlertsPage() {
   const navigate = useNavigate()
+  const [alerts, setAlerts] = useState<AlertItem[]>([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'urgent' | 'warning' | 'normal'>('all')
-  const [alerts, setAlerts] = useState(mockAlerts)
+  const [handled, setHandled] = useState<Set<string>>(new Set())
+
+  const fetchAlerts = useCallback(async () => {
+    const uid = auth.currentUser?.uid
+    if (!uid) { setLoading(false); return }
+    setLoading(true)
+    try {
+      // Fetch customers for name lookup
+      const custSnap = await getDocs(query(collection(db, 'customers'), where('user_id', '==', uid)))
+      const custMap: Record<string, string> = {}
+      custSnap.docs.forEach(d => {
+        const c = d.data()
+        custMap[d.id] = `${c.first_name} ${c.last_name}`
+      })
+
+      // Fetch loan tracks
+      const trackSnap = await getDocs(query(collection(db, 'loan_tracks'), where('user_id', '==', uid)))
+      const now = new Date()
+      const items: AlertItem[] = []
+
+      trackSnap.docs.forEach(d => {
+        const t = d.data()
+        if (!t.end_date) return
+        const endDate = new Date(t.end_date)
+        const daysLeft = Math.round((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        if (daysLeft < 0 || daysLeft > 180) return // only show tracks ending within 180 days
+        items.push({
+          id: d.id,
+          customerName: custMap[t.customer_id] ?? 'לקוח לא ידוע',
+          customerId: t.customer_id ?? '',
+          trackType: t.type ?? 'לא ידוע',
+          daysLeft,
+          status: 'פתוח',
+          amount: t.balance ?? t.amount ?? 0,
+          interestRate: t.interest_rate ?? 0,
+        })
+      })
+
+      items.sort((a, b) => a.daysLeft - b.daysLeft)
+      setAlerts(items)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchAlerts() }, [fetchAlerts])
+
+  const markHandled = (id: string) => setHandled(prev => new Set([...prev, id]))
 
   const filtered = alerts.filter(a => {
-    if (filter === 'urgent') return a.daysLeft < 60
+    if (filter === 'urgent')  return a.daysLeft < 60
     if (filter === 'warning') return a.daysLeft >= 60 && a.daysLeft < 120
-    if (filter === 'normal') return a.daysLeft >= 120
+    if (filter === 'normal')  return a.daysLeft >= 120
     return true
   })
 
-  const markHandled = (id: string) => setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: 'טופל' } : a))
+  const counts = {
+    all: alerts.length,
+    urgent: alerts.filter(a => a.daysLeft < 60).length,
+    warning: alerts.filter(a => a.daysLeft >= 60 && a.daysLeft < 120).length,
+    normal: alerts.filter(a => a.daysLeft >= 120).length,
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 size={32} style={{ color: '#059669' }} className="animate-spin" />
+      </div>
+    )
+  }
 
   return (
-    <div className="animate-fade-in space-y-4">
-      <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-        <Bell className="text-[#1a4f8a]" size={28} />
-        התראות מסלולים
-      </h1>
+    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
+            <Bell size={22} style={{ color: '#059669' }} />
+            התראות מסלולים
+          </h1>
+          <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>{alerts.length} התראות פעילות</p>
+        </div>
+      </div>
 
-      {/* Filter Tabs */}
-      <div className="flex gap-2">
-        {[
-          { key: 'all' as const, label: 'הכל', count: alerts.length },
-          { key: 'urgent' as const, label: 'דחוף', count: alerts.filter(a => a.daysLeft < 60).length },
-          { key: 'warning' as const, label: 'אזהרה', count: alerts.filter(a => a.daysLeft >= 60 && a.daysLeft < 120).length },
-          { key: 'normal' as const, label: 'תקין', count: alerts.filter(a => a.daysLeft >= 120).length },
-        ].map(f => (
-          <button key={f.key} onClick={() => setFilter(f.key)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === f.key ? 'bg-[#1a4f8a] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+      {/* Filter pills */}
+      <div className="flex gap-2 flex-wrap">
+        {([
+          { key: 'all' as const,     label: 'הכל',   count: counts.all,     bg: '#f5f4f2', color: '#57534e', activeBg: '#1c1917', activeColor: '#fafaf9' },
+          { key: 'urgent' as const,  label: 'דחוף',  count: counts.urgent,  bg: '#fee2e2', color: '#dc2626', activeBg: '#dc2626', activeColor: '#fff' },
+          { key: 'warning' as const, label: 'אזהרה', count: counts.warning, bg: '#fef3c7', color: '#d97706', activeBg: '#d97706', activeColor: '#fff' },
+          { key: 'normal' as const,  label: 'תקין',  count: counts.normal,  bg: '#d1fae5', color: '#065f46', activeBg: '#059669', activeColor: '#fff' },
+        ]).map(f => (
+          <button
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            className="px-4 py-2 text-[13px] font-semibold transition-all"
+            style={{
+              borderRadius: 20,
+              background: filter === f.key ? f.activeBg : f.bg,
+              color: filter === f.key ? f.activeColor : f.color,
+            }}
+          >
             {f.label} ({f.count})
           </button>
         ))}
       </div>
 
-      {/* Alert Cards */}
-      <div className="space-y-3">
-        {filtered.map(alert => {
-          const urgency = getUrgency(alert.daysLeft)
-          return (
-            <div key={alert.id} className={`bg-white rounded-xl shadow-sm border p-4 ${alert.status === 'טופל' ? 'opacity-60' : ''}`}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className={`w-3 h-3 rounded-full ${urgency.dot}`} />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium text-gray-900">{alert.customerName}</h3>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${urgency.color}`}>{alert.daysLeft} ימים</span>
-                      {alert.status === 'טופל' && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">טופל</span>}
+      {/* Alert cards */}
+      {filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20" style={cardStyle}>
+          <CheckCircle size={40} style={{ color: '#a7f3d0' }} className="mb-3" />
+          <p className="text-[15px] font-semibold" style={{ color: '#57534e' }}>אין התראות בקטגוריה זו</p>
+          <p className="text-[13px] mt-1" style={{ color: '#a8a29e' }}>כל המסלולים תקינים</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((alert, i) => {
+            const urgency = getUrgency(alert.daysLeft)
+            const isHandled = handled.has(alert.id)
+            return (
+              <div
+                key={alert.id}
+                style={{
+                  ...cardStyle,
+                  padding: '16px 20px',
+                  opacity: isHandled ? 0.5 : 1,
+                  animationName: 'fadeUp',
+                  animationDuration: '0.35s',
+                  animationDelay: `${i * 40}ms`,
+                  animationFillMode: 'backwards',
+                }}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: urgency.dot, flexShrink: 0 }} />
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-[14px] font-bold" style={{ color: '#1c1917' }}>{alert.customerName}</h3>
+                        <span
+                          className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                          style={{ background: urgency.bg, color: urgency.color }}
+                        >
+                          {alert.daysLeft} ימים
+                        </span>
+                        {isHandled && (
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#f5f4f2', color: '#a8a29e' }}>טופל</span>
+                        )}
+                      </div>
+                      <p className="text-[13px] mt-0.5" style={{ color: '#57534e' }}>
+                        מסלול {alert.trackType} · {formatCurrency(alert.amount)} · {alert.interestRate}%
+                      </p>
                     </div>
-                    <p className="text-sm text-gray-500">מסלול {alert.trackType} · ₪{alert.amount.toLocaleString()} · {alert.interestRate}%</p>
+                  </div>
+                  <div className="flex gap-2 flex-wrap shrink-0">
+                    <button
+                      onClick={() => navigate(`/customers/${alert.customerId}`)}
+                      className="flex items-center gap-1 text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-all hover:opacity-80"
+                      style={{ background: '#f5f4f2', color: '#57534e' }}
+                    >
+                      <User size={12} /> תיק לקוח
+                    </button>
+                    <button
+                      onClick={() => navigate('/refinance')}
+                      className="flex items-center gap-1 text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-all hover:opacity-80"
+                      style={{ background: '#d1fae5', color: '#065f46' }}
+                    >
+                      <RefreshCw size={12} /> מחשבון מחזור
+                    </button>
+                    {!isHandled && (
+                      <button
+                        onClick={() => markHandled(alert.id)}
+                        className="flex items-center gap-1 text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-all hover:opacity-80"
+                        style={{ background: '#d1fae5', color: '#065f46' }}
+                      >
+                        <CheckCircle size={12} /> טופל
+                      </button>
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => navigate(`/customers/${alert.customerId}`)} className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-200 flex items-center gap-1"><User size={12} /> תיק לקוח</button>
-                  <button onClick={() => navigate('/refinance')} className="text-xs bg-[#e8f0fe] text-[#1a4f8a] px-3 py-1.5 rounded-lg hover:bg-blue-100 flex items-center gap-1"><RefreshCw size={12} /> מחשבון מחזור</button>
-                  <button onClick={() => markHandled(alert.id)} className="text-xs bg-green-50 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-100 flex items-center gap-1"><CheckCircle size={12} /> טופל</button>
-                </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {filtered.length === 0 && (
-        <div className="text-center py-12">
-          <CheckCircle size={48} className="mx-auto text-green-300 mb-3" />
-          <p className="text-gray-500">אין התראות</p>
+            )
+          })}
         </div>
       )}
     </div>

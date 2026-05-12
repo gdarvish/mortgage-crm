@@ -54,7 +54,7 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     setSaving(true)
-    await settingsService.upsert({
+    const { error } = await settingsService.upsert({
       name: settings.name,
       title: settings.title,
       license_number: settings.licenseNumber,
@@ -70,26 +70,33 @@ export default function SettingsPage() {
       logo_url: settings.logo_url,
     })
     setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+    if (error) {
+      alert('שגיאה בשמירה: ' + error.message)
+    } else {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    }
   }
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setUploadingLogo(true)
-    const { url } = await settingsService.uploadLogo(file)
+    const { url, error } = await settingsService.uploadLogo(file)
     if (url) {
       setSettings(prev => ({ ...prev, logo_url: url }))
       await settingsService.upsert({ logo_url: url })
+    } else if (error) {
+      alert('שגיאה בהעלאת לוגו: ' + error.message)
     }
     setUploadingLogo(false)
+    e.target.value = ''
   }
 
   return (
     <div className="animate-fade-in space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-        <Settings className="text-[#1a4f8a]" size={28} />
+      <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
+        <Settings style={{ color: '#059669' }} size={24} />
         הגדרות
       </h1>
 

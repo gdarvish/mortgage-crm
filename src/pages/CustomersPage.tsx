@@ -87,7 +87,9 @@ export default function CustomersPage() {
       referral_partner_id: null,
       questionnaire_token: null,
     })
-    if (!error) {
+    if (error) {
+      alert('שגיאה ביצירת לקוח: ' + error.message)
+    } else {
       setShowNewModal(false)
       setNewCustomer({ first_name: '', last_name: '', id_number: '', phone: '', email: '', lead_source: '' })
       fetchCustomers(() => true)

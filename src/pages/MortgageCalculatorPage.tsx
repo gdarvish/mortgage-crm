@@ -162,7 +162,7 @@ export default function MortgageCalculatorPage() {
         <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>חשב תשלום חודשי לפי מסלולים</p>
       </div>
 
-      <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 1.4fr' }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-5">
         {/* ── LEFT COLUMN ── */}
         <div className="flex flex-col gap-4">
           {/* Property inputs */}

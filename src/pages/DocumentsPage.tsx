@@ -4,7 +4,8 @@ import { formatDate } from '@/lib/utils'
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore'
 import { db, auth } from '@/lib/firebase'
 import { documentService } from '@/services/documentService'
-import type { Document } from '@/types/database'
+import { customerService } from '@/services/customerService'
+import type { Document, Customer } from '@/types/database'
 
 const statusIcons: Record<string, { icon: typeof CheckCircle; color: string }> = {
   'תקין':    { icon: CheckCircle,  color: '#059669' },
@@ -27,12 +28,14 @@ type DocRow = Document & { customerName?: string }
 
 export default function DocumentsPage() {
   const [docs, setDocs] = useState<DocRow[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('הכל')
   const [statusFilter, setStatusFilter] = useState('הכל')
   const [uploading, setUploading] = useState(false)
   const [uploadType, setUploadType] = useState(docTypes[0])
+  const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const fetchDocs = useCallback(async () => {
@@ -69,11 +72,18 @@ export default function DocumentsPage() {
 
   useEffect(() => { fetchDocs() }, [fetchDocs])
 
+  useEffect(() => {
+    customerService.getAll().then(({ data }) => {
+      if (data) setCustomers(data)
+    })
+  }, [])
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
+    if (!file || !selectedCustomerId) return
     setUploading(true)
-    await documentService.upload('general', file, uploadType, 'general')
+    const { error } = await documentService.upload(selectedCustomerId, file, uploadType, 'general')
+    if (error) alert('שגיאה בהעלאה: ' + error.message)
     await fetchDocs()
     setUploading(false)
     e.target.value = ''
@@ -109,7 +119,18 @@ export default function DocumentsPage() {
           <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>מסמכים</h1>
           <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>{docs.length} מסמכים</p>
         </div>
-        <div className="flex gap-2 shrink-0 items-center">
+        <div className="flex gap-2 shrink-0 items-center flex-wrap justify-end">
+          <select
+            value={selectedCustomerId}
+            onChange={e => setSelectedCustomerId(e.target.value)}
+            className="text-[12px] px-3 py-2 outline-none"
+            style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, color: selectedCustomerId ? '#1c1917' : '#a8a29e', background: '#fff' }}
+          >
+            <option value="">בחר לקוח...</option>
+            {customers.map(c => (
+              <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
+            ))}
+          </select>
           <select
             value={uploadType}
             onChange={e => setUploadType(e.target.value)}
@@ -120,7 +141,10 @@ export default function DocumentsPage() {
           </select>
           <input type="file" hidden ref={fileInputRef} onChange={handleFileUpload} />
           <button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              if (!selectedCustomerId) { alert('בחר לקוח לפני ההעלאה'); return }
+              fileInputRef.current?.click()
+            }}
             disabled={uploading}
             className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
             style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}

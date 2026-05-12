@@ -46,7 +46,9 @@ export default function ReferralsPage() {
       notes: null,
       last_contact: null,
     })
-    if (!error) {
+    if (error) {
+      alert('שגיאה בשמירת שותף: ' + error.message)
+    } else {
       setShowNewModal(false)
       setNewPartner({ name: '', type: 'סוכן נדל"ן', phone: '', email: '', company: '' })
       fetchData()
