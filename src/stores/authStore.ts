@@ -5,6 +5,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   signOut as fbSignOut,
 } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
@@ -55,7 +56,8 @@ export const useAuthStore = create<AuthStore>((set, _get) => ({
   signUp: async (email: string, password: string) => {
     set({ loading: true })
     try {
-      await createUserWithEmailAndPassword(auth, email, password)
+      const cred = await createUserWithEmailAndPassword(auth, email, password)
+      await sendEmailVerification(cred.user)
       return { error: null }
     } catch (error) {
       set({ loading: false })
