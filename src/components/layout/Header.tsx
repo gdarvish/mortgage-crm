@@ -31,7 +31,7 @@ const mobileExtraItems = [
   { label: 'כלכלת משפחה', path: '/family',          icon: Heart },
 ]
 
-export default function Header({ }: HeaderProps) {
+export default function Header(_props: HeaderProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const [searchOpen, setSearchOpen] = useState(false)

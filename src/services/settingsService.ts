@@ -36,10 +36,10 @@ export const settingsService = {
 
   async uploadLogo(file: File): Promise<{ url: string | null; error: FirestoreError | null }> {
     try {
-      requireUserId()
+      const uid = requireUserId()
       const ext = file.name.split('.').pop()
       const fileName = `logo-${Date.now()}.${ext}`
-      const fileRef = ref(storage, `logos/${fileName}`)
+      const fileRef = ref(storage, `logos/${uid}/${fileName}`)
       await uploadBytes(fileRef, file)
       const url = await getDownloadURL(fileRef)
       return { url, error: null }

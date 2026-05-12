@@ -1,13 +1,18 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CheckCircle, Loader2 } from 'lucide-react'
+import { customerService } from '@/services/customerService'
+import type { Customer } from '@/types/database'
 
 const steps = ['פרטים אישיים', 'מצב משפחתי', 'הכנסות', 'נכסים', 'התחייבויות', 'מטרת המשכנתא']
 
 export default function QuestionnairePage() {
-  const { token: _ } = useParams()
+  const { token } = useParams()
+  const [customer, setCustomer] = useState<Customer | null>(null)
+  const [_loading, setLoading] = useState(true)
   const [currentStep, setCurrentStep] = useState(0)
-  const [submitted, setSubmitted] = useState(false)
+  const [_submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({
     firstName: '', lastName: '', idNumber: '', phone: '', address: '',
     maritalStatus: '', children: 0,
@@ -17,9 +22,41 @@ export default function QuestionnairePage() {
     purpose: 'דירה ראשונה', ownCapital: 0, requestedAmount: 0,
   })
 
+  useEffect(() => {
+    if (!token) return
+    customerService.getByQuestionnaireToken(token).then(({ data }) => {
+      if (data) {
+        setCustomer(data)
+        setForm(f => ({
+          ...f,
+          firstName: data.first_name,
+          lastName: data.last_name,
+          idNumber: data.id_number || '',
+          phone: data.phone || '',
+          address: data.address || '',
+          maritalStatus: data.marital_status || '',
+          children: data.children || 0,
+          income1: data.monthly_income || 0,
+          income2: data.partner_income || 0,
+          ownCapital: data.own_capital || 0,
+          existingLoans: data.existing_obligations || 0,
+        }))
+      }
+      setLoading(false)
+    })
+  }, [token])
+
   const update = (field: string, value: string | number | boolean) => setForm({ ...form, [field]: value })
 
-  if (submitted) {
+  if (_loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Loader2 size={32} className="text-[#1a4f8a] animate-spin" />
+      </div>
+    )
+  }
+
+  if (_submitted) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" dir="rtl">
         <div className="bg-white rounded-2xl shadow-lg p-8 text-center max-w-md">
@@ -132,7 +169,31 @@ export default function QuestionnairePage() {
                 הבא <ChevronLeft size={16} />
               </button>
             ) : (
-              <button onClick={() => setSubmitted(true)} className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700">
+              <button
+                onClick={async () => {
+                  if (!customer) return
+                  setSubmitting(true)
+                  await customerService.update(customer.id, {
+                    first_name: form.firstName,
+                    last_name: form.lastName,
+                    id_number: form.idNumber,
+                    phone: form.phone,
+                    address: form.address,
+                    marital_status: form.maritalStatus,
+                    children: form.children,
+                    monthly_income: form.income1,
+                    partner_income: form.income2,
+                    own_capital: form.ownCapital,
+                    existing_obligations: form.existingLoans,
+                    questionnaire_completed: true,
+                  })
+                  setSubmitting(false)
+                  setSubmitted(true)
+                }}
+                disabled={submitting}
+                className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {submitting && <Loader2 size={16} className="animate-spin" />}
                 שלח שאלון
               </button>
             )}

@@ -233,6 +233,21 @@ export default function CustomerDetailPage() {
     setSendingMsg(false)
   }
 
+  const generateToken = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+
+  const sendQuestionnaire = async () => {
+    if (!id) return
+    const token = generateToken()
+    const { error } = await customerService.update(id, { questionnaire_token: token })
+    if (error) {
+      alert('שגיאה ביצירת קישור: ' + error.message)
+      return
+    }
+    const url = `${window.location.origin}/questionnaire/${token}`
+    setMessageText(`שלום ${customer?.first_name}, אנא מלא את שאלון הפרטים בקישור הבא: ${url}`)
+    setActiveTab('communication')
+  }
+
   const saveCommission = async () => {
     if (!commission || !id) return
     setSaving(true)
@@ -755,7 +770,9 @@ export default function CustomerDetailPage() {
               className="inline-flex items-center gap-2 bg-green-50 text-green-700 border border-green-200 px-3 py-2 rounded-lg hover:bg-green-100 transition-colors text-sm">
               <Send size={16} />שלח הודעה
             </button>
-            <button className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm">
+            <button
+              onClick={sendQuestionnaire}
+              className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm">
               <ClipboardList size={16} />שלח שאלון
             </button>
             <button onClick={() => navigate('/calculator')}
