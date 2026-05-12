@@ -1,22 +1,39 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Filter, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
+import { Plus, Search, Loader2, X, Users } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { customerService } from '@/services/customerService'
 import type { Customer } from '@/types/database'
 
-const statusColors: Record<string, string> = {
-  'ליד': 'bg-blue-100 text-blue-700',
-  'פגישה': 'bg-yellow-100 text-yellow-700',
-  'מסמכים': 'bg-orange-100 text-orange-700',
-  'הגשה': 'bg-purple-100 text-purple-700',
-  'אישור': 'bg-green-100 text-green-700',
-  'סגירה': 'bg-emerald-100 text-emerald-700',
+const statusColors: Record<string, { bg: string; color: string }> = {
+  'ליד':    { bg: '#ede9fe', color: '#7c3aed' },
+  'פגישה':  { bg: '#fef3c7', color: '#b45309' },
+  'מסמכים': { bg: '#ffedd5', color: '#c2410c' },
+  'הגשה':   { bg: '#f3e8ff', color: '#9333ea' },
+  'אישור':  { bg: '#d1fae5', color: '#065f46' },
+  'סגירה':  { bg: '#a7f3d0', color: '#064e3b' },
 }
 
 const statuses = ['הכל', 'ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'סגירה']
 
-type SortField = 'name' | 'created_at' | 'monthly_income'
+const cardStyle = {
+  background: '#ffffff',
+  borderRadius: 20,
+  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
+  border: '1px solid #e7e5e4',
+}
+
+const inputStyle = {
+  width: '100%',
+  padding: '10px 12px',
+  border: '1.5px solid #e7e5e4',
+  borderRadius: 10,
+  fontSize: 14,
+  color: '#1c1917',
+  background: '#ffffff',
+  outline: 'none',
+  fontFamily: 'var(--font-heebo)',
+}
 
 export default function CustomersPage() {
   const navigate = useNavigate()
@@ -24,8 +41,6 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('הכל')
-  const [sortField, setSortField] = useState<SortField>('created_at')
-  const [sortAsc, setSortAsc] = useState(false)
   const [showNewModal, setShowNewModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [newCustomer, setNewCustomer] = useState({
@@ -39,11 +54,7 @@ export default function CustomersPage() {
       search: search || undefined,
     })
     if (!isMounted()) return
-    if (error) {
-      console.error('Error fetching customers:', error)
-    } else {
-      setCustomers(data || [])
-    }
+    if (!error) setCustomers(data || [])
     setLoading(false)
   }, [statusFilter, search])
 
@@ -53,10 +64,9 @@ export default function CustomersPage() {
     return () => { mounted = false }
   }, [fetchCustomers])
 
-  const handleCreateCustomer = async (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newCustomer.first_name || !newCustomer.last_name) return
-
     setSaving(true)
     const { error } = await customerService.create({
       ...newCustomer,
@@ -77,11 +87,7 @@ export default function CustomersPage() {
       referral_partner_id: null,
       questionnaire_token: null,
     })
-
-    if (error) {
-      console.error('Error creating customer:', error)
-      alert('שגיאה ביצירת לקוח: ' + error.message)
-    } else {
+    if (!error) {
       setShowNewModal(false)
       setNewCustomer({ first_name: '', last_name: '', id_number: '', phone: '', email: '', lead_source: '' })
       fetchCustomers(() => true)
@@ -89,214 +95,200 @@ export default function CustomersPage() {
     setSaving(false)
   }
 
-  const sorted = [...customers].sort((a, b) => {
-    let cmp = 0
-    if (sortField === 'name') cmp = `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
-    else if (sortField === 'created_at') cmp = (a.created_at || '').localeCompare(b.created_at || '')
-    else if (sortField === 'monthly_income') cmp = (a.monthly_income || 0) - (b.monthly_income || 0)
-    return sortAsc ? cmp : -cmp
-  })
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) setSortAsc(!sortAsc)
-    else { setSortField(field); setSortAsc(true) }
-  }
-
-  const renderSortIcon = (field: SortField) => {
-    if (sortField !== field) return <ChevronDown size={14} className="text-gray-300" />
-    return sortAsc ? <ChevronUp size={14} className="text-[#1a4f8a]" /> : <ChevronDown size={14} className="text-[#1a4f8a]" />
-  }
+  const statusCounts = statuses.reduce<Record<string, number>>((acc, s) => {
+    acc[s] = s === 'הכל' ? customers.length : customers.filter(c => c.status === s).length
+    return acc
+  }, {})
 
   return (
-    <div className="animate-fade-in space-y-4">
+    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">לקוחות ({customers.length})</h1>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>לקוחות</h1>
+          <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>{customers.length} לקוחות</p>
+        </div>
         <button
           onClick={() => setShowNewModal(true)}
-          className="inline-flex items-center gap-2 bg-[#1a4f8a] text-white px-4 py-2 rounded-lg hover:bg-[#143d6b] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.96] shrink-0"
+          style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
         >
-          <Plus size={18} />
+          <Plus size={15} />
           לקוח חדש
         </button>
       </div>
 
-      {/* Search + Filters */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+      {/* Status pills + search */}
+      <div style={{ ...cardStyle, padding: 16 }}>
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search size={16} className="absolute" style={{ right: 12, top: '50%', transform: 'translateY(-50%)', color: '#a8a29e' }} />
             <input
-              type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="חפש לפי שם, טלפון או ת.ז..."
-              className="w-full pr-10 pl-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] focus:border-transparent outline-none"
+              onChange={e => setSearch(e.target.value)}
+              placeholder="חפש לקוח..."
+              className="w-full pr-10 pl-4 py-2 outline-none text-[13px]"
+              style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, color: '#1c1917' }}
             />
           </div>
-          <div className="flex gap-1 flex-wrap">
-            {statuses.map((s) => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                  statusFilter === s
-                    ? 'bg-[#1a4f8a] text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
+          <div className="flex gap-1.5 flex-wrap">
+            {statuses.map(s => {
+              const sc = statusColors[s]
+              const active = statusFilter === s
+              return (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className="px-3 py-1.5 text-[12px] font-semibold transition-all"
+                  style={{
+                    borderRadius: 20,
+                    background: active ? (sc?.bg ?? '#d1fae5') : '#f5f4f2',
+                    color: active ? (sc?.color ?? '#065f46') : '#57534e',
+                    transform: active ? 'translateY(-2px)' : 'none',
+                    boxShadow: active ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  {s} <span className="opacity-60 ml-1">{statusCounts[s]}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
         {loading ? (
-          <div className="p-12 text-center">
-            <Loader2 size={32} className="mx-auto text-[#1a4f8a] animate-spin mb-3" />
-            <p className="text-gray-500">טוען לקוחות...</p>
+          <div className="flex items-center justify-center h-48">
+            <Loader2 size={28} style={{ color: '#059669' }} className="animate-spin" />
+          </div>
+        ) : customers.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <Users size={40} style={{ color: '#d6d3d1' }} className="mb-3" />
+            <p className="text-[15px] font-semibold" style={{ color: '#57534e' }}>אין לקוחות עדיין</p>
+            <p className="text-[13px] mt-1" style={{ color: '#a8a29e' }}>הוסף את הלקוח הראשון שלך</p>
           </div>
         ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="text-right p-3 text-sm font-medium text-gray-600 cursor-pointer" onClick={() => handleSort('name')}>
-                      <div className="flex items-center gap-1">שם {renderSortIcon('name')}</div>
-                    </th>
-                    <th className="text-right p-3 text-sm font-medium text-gray-600">ת.ז</th>
-                    <th className="text-right p-3 text-sm font-medium text-gray-600">טלפון</th>
-                    <th className="text-right p-3 text-sm font-medium text-gray-600">סטטוס</th>
-                    <th className="text-right p-3 text-sm font-medium text-gray-600">מקור</th>
-                    <th className="text-right p-3 text-sm font-medium text-gray-600 cursor-pointer" onClick={() => handleSort('monthly_income')}>
-                      <div className="flex items-center gap-1">הכנסה {renderSortIcon('monthly_income')}</div>
-                    </th>
-                    <th className="text-right p-3 text-sm font-medium text-gray-600 cursor-pointer" onClick={() => handleSort('created_at')}>
-                      <div className="flex items-center gap-1">תאריך {renderSortIcon('created_at')}</div>
-                    </th>
+          <table className="w-full">
+            <thead>
+              <tr style={{ background: '#faf9f7', borderBottom: '1px solid #f5f4f2' }}>
+                {['שם', 'ת.ז', 'טלפון', 'סטטוס', 'מקור', 'הכנסה', 'תאריך'].map(h => (
+                  <th key={h} className="text-right p-3 text-[11px] font-bold uppercase" style={{ color: '#a8a29e' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {customers.map((c, i) => {
+                const sc = statusColors[c.status] ?? { bg: '#f5f4f2', color: '#57534e' }
+                return (
+                  <tr
+                    key={c.id}
+                    onClick={() => navigate(`/customers/${c.id}`)}
+                    className="border-b cursor-pointer group"
+                    style={{
+                      borderColor: '#f5f4f2',
+                      animationName: 'fadeUp',
+                      animationDuration: '0.35s',
+                      animationDelay: `${i * 40}ms`,
+                      animationFillMode: 'backwards',
+                      transition: 'background 120ms',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#faf9f7')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <td className="p-3">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className="flex items-center justify-center text-[13px] font-bold text-white shrink-0"
+                          style={{ width: 34, height: 34, borderRadius: 10, background: '#059669', transition: 'transform 120ms' }}
+                        >
+                          {c.first_name.charAt(0)}
+                        </div>
+                        <span className="text-[13px] font-semibold" style={{ color: '#1c1917' }}>{c.first_name} {c.last_name}</span>
+                      </div>
+                    </td>
+                    <td className="p-3 text-[13px]" style={{ color: '#a8a29e' }} dir="ltr">{c.id_number || '—'}</td>
+                    <td className="p-3 text-[13px]" style={{ color: '#57534e' }} dir="ltr">{c.phone || '—'}</td>
+                    <td className="p-3">
+                      <span className="inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full" style={{ background: sc.bg, color: sc.color }}>
+                        {c.status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-[13px]" style={{ color: '#a8a29e' }}>{c.lead_source || '—'}</td>
+                    <td className="p-3 text-[13px] font-semibold" style={{ color: '#059669' }}>{c.monthly_income ? formatCurrency(c.monthly_income) : '—'}</td>
+                    <td className="p-3 text-[12px]" style={{ color: '#a8a29e' }}>{formatDate(c.created_at)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {sorted.map((customer) => (
-                    <tr
-                      key={customer.id}
-                      onClick={() => navigate(`/customers/${customer.id}`)}
-                      className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
-                    >
-                      <td className="p-3 font-medium text-gray-900">{customer.first_name} {customer.last_name}</td>
-                      <td className="p-3 text-gray-600 text-sm" dir="ltr">{customer.id_number || '—'}</td>
-                      <td className="p-3 text-gray-600 text-sm" dir="ltr">{customer.phone || '—'}</td>
-                      <td className="p-3">
-                        <span className={`text-xs px-2 py-1 rounded-full ${statusColors[customer.status] || 'bg-gray-100 text-gray-600'}`}>
-                          {customer.status}
-                        </span>
-                      </td>
-                      <td className="p-3 text-gray-600 text-sm">{customer.lead_source || '—'}</td>
-                      <td className="p-3 text-gray-600 text-sm">{customer.monthly_income ? formatCurrency(customer.monthly_income) : '—'}</td>
-                      <td className="p-3 text-gray-500 text-sm">{formatDate(customer.created_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {sorted.length === 0 && (
-              <div className="p-12 text-center">
-                <Filter size={48} className="mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-500">לא נמצאו לקוחות</p>
-                <p className="text-sm text-gray-400 mt-1">לחץ "לקוח חדש" כדי להוסיף את הלקוח הראשון</p>
-              </div>
-            )}
-          </>
+                )
+              })}
+            </tbody>
+          </table>
         )}
       </div>
 
-      {/* New Customer Modal */}
+      {/* New customer modal */}
       {showNewModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowNewModal(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-xl font-bold text-gray-900 mb-4">לקוח חדש</h2>
-            <form onSubmit={handleCreateCustomer} className="space-y-3">
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ background: 'rgba(28,25,23,0.5)' }}
+          onClick={() => setShowNewModal(false)}
+        >
+          <div
+            className="w-full max-w-lg animate-fade-in"
+            style={{ ...cardStyle, padding: 28 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-[17px] font-bold" style={{ color: '#1c1917' }}>לקוח חדש</h2>
+              <button onClick={() => setShowNewModal(false)} style={{ color: '#a8a29e' }}><X size={18} /></button>
+            </div>
+            <form onSubmit={handleCreate} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">שם פרטי *</label>
-                  <input
-                    value={newCustomer.first_name}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, first_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none"
-                    required
-                  />
+                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>שם פרטי *</label>
+                  <input required value={newCustomer.first_name} onChange={e => setNewCustomer(p => ({ ...p, first_name: e.target.value }))} style={inputStyle} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">שם משפחה *</label>
-                  <input
-                    value={newCustomer.last_name}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, last_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none"
-                    required
-                  />
+                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>שם משפחה *</label>
+                  <input required value={newCustomer.last_name} onChange={e => setNewCustomer(p => ({ ...p, last_name: e.target.value }))} style={inputStyle} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ת.ז</label>
-                  <input
-                    value={newCustomer.id_number}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, id_number: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none"
-                    dir="ltr"
-                  />
+                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>ת.ז</label>
+                  <input value={newCustomer.id_number} onChange={e => setNewCustomer(p => ({ ...p, id_number: e.target.value }))} style={inputStyle} dir="ltr" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
-                  <input
-                    value={newCustomer.phone}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none"
-                    dir="ltr"
-                  />
+                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>טלפון</label>
+                  <input value={newCustomer.phone} onChange={e => setNewCustomer(p => ({ ...p, phone: e.target.value }))} style={inputStyle} dir="ltr" />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
-                <input
-                  type="email"
-                  value={newCustomer.email}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none"
-                  dir="ltr"
-                />
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>אימייל</label>
+                <input type="email" value={newCustomer.email} onChange={e => setNewCustomer(p => ({ ...p, email: e.target.value }))} style={inputStyle} dir="ltr" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">מקור הגעה</label>
-                <select
-                  value={newCustomer.lead_source}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, lead_source: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none bg-white"
-                >
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>מקור הגעה</label>
+                <select value={newCustomer.lead_source} onChange={e => setNewCustomer(p => ({ ...p, lead_source: e.target.value }))} style={{ ...inputStyle }}>
                   <option value="">בחר...</option>
-                  <option>הפניה</option>
-                  <option>פייסבוק</option>
-                  <option>אינסטגרם</option>
-                  <option>אתר</option>
-                  <option>וואטסאפ</option>
-                  <option>טלפון</option>
+                  {['הפניה', 'פייסבוק', 'אינסטגרם', 'אתר', 'וואטסאפ', 'טלפון'].map(s => <option key={s}>{s}</option>)}
                 </select>
               </div>
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 bg-[#1a4f8a] text-white py-2 rounded-lg hover:bg-[#143d6b] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+                  style={{ borderRadius: 12, background: '#059669' }}
                 >
-                  {saving && <Loader2 size={16} className="animate-spin" />}
+                  {saving && <Loader2 size={15} className="animate-spin" />}
                   שמור
                 </button>
-                <button type="button" onClick={() => setShowNewModal(false)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setShowNewModal(false)}
+                  className="flex-1 py-2.5 text-[13px] font-semibold transition-all hover:opacity-80"
+                  style={{ borderRadius: 12, background: '#f5f4f2', color: '#57534e' }}
+                >
                   ביטול
                 </button>
               </div>

@@ -1,22 +1,38 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { UserPlus, Search, Phone, Mail, Star, ArrowLeftRight, Loader2, X } from 'lucide-react'
+import { UserPlus, Search, Phone, Mail, ArrowLeftRight, Loader2, X } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { leadService } from '@/services/leadService'
 import type { Lead, LeadStatus } from '@/types/database'
 
-const statusColors: Record<string, string> = {
-  'חדש': 'bg-blue-100 text-blue-700',
-  'יצירת קשר': 'bg-yellow-100 text-yellow-700',
-  'פגישה נקבעה': 'bg-purple-100 text-purple-700',
-  'הפך ללקוח': 'bg-green-100 text-green-700',
-  'נסגר': 'bg-gray-100 text-gray-500',
-}
-
 const sources = ['הכל', 'פייסבוק', 'אינסטגרם', 'אתר', 'וואטסאפ', 'הפניה', 'טלפון']
 const statusOptions: LeadStatus[] = ['חדש', 'יצירת קשר', 'פגישה נקבעה', 'הפך ללקוח', 'נסגר']
 
-const inputClass = 'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none text-sm'
+const columns: { key: LeadStatus; label: string; color: string; bg: string }[] = [
+  { key: 'חדש',         label: 'חדש',          color: '#7c3aed', bg: '#ede9fe' },
+  { key: 'יצירת קשר',  label: 'יצירת קשר',   color: '#b45309', bg: '#fef3c7' },
+  { key: 'פגישה נקבעה', label: 'פגישה נקבעה', color: '#9333ea', bg: '#f3e8ff' },
+  { key: 'הפך ללקוח',  label: 'הפך ללקוח',   color: '#065f46', bg: '#d1fae5' },
+]
+
+const cardStyle = {
+  background: '#ffffff',
+  borderRadius: 16,
+  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 4px 14px rgba(28,25,23,0.07)',
+  border: '1px solid #e7e5e4',
+}
+
+const inputStyle = {
+  width: '100%',
+  padding: '10px 12px',
+  border: '1.5px solid #e7e5e4',
+  borderRadius: 10,
+  fontSize: 14,
+  color: '#1c1917',
+  background: '#ffffff',
+  outline: 'none',
+  fontFamily: 'var(--font-heebo)',
+}
 
 export default function LeadsPage() {
   const navigate = useNavigate()
@@ -44,8 +60,7 @@ export default function LeadsPage() {
 
   useEffect(() => {
     let mounted = true
-    const isMounted = () => mounted
-    fetchLeads(isMounted)
+    fetchLeads(() => mounted)
     return () => { mounted = false }
   }, [fetchLeads])
 
@@ -69,13 +84,11 @@ export default function LeadsPage() {
     e.preventDefault()
     if (!newLead.name.trim()) return
     setSaving(true)
-
     const { error } = await leadService.create({
       ...newLead,
       status: 'חדש' as LeadStatus,
       referral_partner_id: null,
     })
-
     if (error) alert('שגיאה: ' + error.message)
     else {
       setShowNewModal(false)
@@ -85,143 +98,260 @@ export default function LeadsPage() {
     setSaving(false)
   }
 
+  const filtered = leads.filter(l => {
+    const matchSearch = !search || (l.name ?? '').includes(search) || (l.phone ?? '').includes(search)
+    const matchSource = sourceFilter === 'הכל' || l.source === sourceFilter
+    return matchSearch && matchSource
+  })
+
   return (
-    <div className="animate-fade-in space-y-4">
+    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">לידים ({leads.length})</h1>
-        <button onClick={() => setShowNewModal(true)}
-          className="inline-flex items-center gap-2 bg-[#1a4f8a] text-white px-4 py-2 rounded-lg hover:bg-[#143d6b] transition-colors">
-          <UserPlus size={18} />ליד חדש
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>לידים</h1>
+          <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>{leads.length} לידים</p>
+        </div>
+        <button
+          onClick={() => setShowNewModal(true)}
+          className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.96] shrink-0"
+          style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
+        >
+          <UserPlus size={15} />
+          ליד חדש
         </button>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+      <div style={{ background: '#ffffff', borderRadius: 16, border: '1px solid #e7e5e4', padding: 14 }}>
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)}
+            <Search size={16} className="absolute" style={{ right: 12, top: '50%', transform: 'translateY(-50%)', color: '#a8a29e' }} />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
               placeholder="חפש לפי שם או טלפון..."
-              className="w-full pr-10 pl-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] outline-none" />
+              className="w-full pr-10 pl-4 py-2 outline-none text-[13px]"
+              style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, color: '#1c1917' }}
+            />
           </div>
           <div className="flex gap-1 flex-wrap">
             {sources.map(s => (
-              <button key={s} onClick={() => setSourceFilter(s)}
-                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                  sourceFilter === s ? 'bg-[#1a4f8a] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}>{s}</button>
+              <button
+                key={s}
+                onClick={() => setSourceFilter(s)}
+                className="px-3 py-1.5 text-[12px] font-semibold transition-all"
+                style={{
+                  borderRadius: 20,
+                  background: sourceFilter === s ? '#059669' : '#f5f4f2',
+                  color: sourceFilter === s ? '#fff' : '#57534e',
+                }}
+              >{s}</button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Content */}
+      {/* Kanban board */}
       {loading ? (
-        <div className="bg-white rounded-xl p-12 text-center shadow-sm border border-gray-100">
-          <Loader2 size={32} className="mx-auto text-[#1a4f8a] animate-spin mb-3" />
-          <p className="text-gray-500">טוען לידים...</p>
-        </div>
-      ) : leads.length === 0 ? (
-        <div className="bg-white rounded-xl p-12 text-center shadow-sm border border-gray-100">
-          <UserPlus size={48} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500">לא נמצאו לידים</p>
-          <p className="text-sm text-gray-400 mt-1">לחץ "ליד חדש" להוספת ליד ראשון</p>
+        <div className="flex items-center justify-center h-48">
+          <Loader2 size={28} style={{ color: '#059669' }} className="animate-spin" />
         </div>
       ) : (
-        <div className="grid gap-3">
-          {leads.map(lead => (
-            <div key={lead.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#e8f0fe] flex items-center justify-center text-[#1a4f8a] font-bold">
-                    {(lead.name || '?').charAt(0)}
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-900">{lead.name || '—'}</h3>
-                    <div className="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
-                      {lead.phone && <span className="flex items-center gap-1" dir="ltr"><Phone size={12} /> {lead.phone}</span>}
-                      {lead.email && <span className="flex items-center gap-1" dir="ltr"><Mail size={12} /> {lead.email}</span>}
-                    </div>
-                  </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {columns.map(col => {
+            const colLeads = filtered.filter(l => l.status === col.key)
+            return (
+              <div key={col.key}>
+                {/* Column header */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span
+                    className="inline-block text-[12px] font-bold px-3 py-1 rounded-full"
+                    style={{ background: col.bg, color: col.color }}
+                  >{col.label}</span>
+                  <span className="text-[12px] font-semibold" style={{ color: '#a8a29e' }}>{colLeads.length}</span>
                 </div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-1">
-                    <Star size={14} className="text-yellow-500" />
-                    <span className="text-sm font-medium">{lead.score}/10</span>
-                  </div>
-                  {lead.source && <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{lead.source}</span>}
-                  <select value={lead.status}
-                    onChange={e => updateStatus(lead.id, e.target.value as LeadStatus)}
-                    className={`text-xs px-2 py-1 rounded-full border-0 cursor-pointer ${statusColors[lead.status] || 'bg-gray-100'}`}>
-                    {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  {lead.status !== 'הפך ללקוח' && lead.status !== 'נסגר' && (
-                    <button onClick={() => convertToCustomer(lead)}
-                      className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-lg hover:bg-green-100 flex items-center gap-1">
-                      <ArrowLeftRight size={12} />המר ללקוח
-                    </button>
-                  )}
+
+                {/* Cards */}
+                <div className="space-y-3">
+                  {colLeads.length === 0 ? (
+                    <div
+                      className="py-8 text-center text-[13px]"
+                      style={{ ...cardStyle, border: '1.5px dashed #e7e5e4', background: '#faf9f7', color: '#a8a29e' }}
+                    >
+                      אין לידים
+                    </div>
+                  ) : colLeads.map((lead, i) => (
+                    <div
+                      key={lead.id}
+                      className="group"
+                      style={{
+                        ...cardStyle,
+                        padding: '14px 16px',
+                        transition: 'transform 160ms, box-shadow 160ms, border-color 160ms',
+                        animationName: 'fadeUp',
+                        animationDuration: '0.35s',
+                        animationDelay: `${i * 50}ms`,
+                        animationFillMode: 'backwards',
+                        cursor: 'default',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.transform = 'translateY(-3px)'
+                        e.currentTarget.style.boxShadow = '0 4px 20px rgba(28,25,23,0.12)'
+                        e.currentTarget.style.borderColor = col.color + '40'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.transform = ''
+                        e.currentTarget.style.boxShadow = cardStyle.boxShadow
+                        e.currentTarget.style.borderColor = '#e7e5e4'
+                      }}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="text-[13px] font-bold" style={{ color: '#1c1917' }}>{lead.name || '—'}</h3>
+                        <div className="flex items-center gap-0.5">
+                          {Array.from({ length: 10 }).map((_, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                width: 5,
+                                height: 5,
+                                borderRadius: '50%',
+                                background: idx < (lead.score ?? 0) ? col.color : 'transparent',
+                                border: `1.5px solid ${idx < (lead.score ?? 0) ? col.color : '#d6d3d1'}`,
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      {lead.phone && (
+                        <div className="flex items-center gap-1.5 text-[12px] mb-1" style={{ color: '#57534e' }} dir="ltr">
+                          <Phone size={11} style={{ color: '#a8a29e' }} />
+                          {lead.phone}
+                        </div>
+                      )}
+                      {lead.email && (
+                        <div className="flex items-center gap-1.5 text-[12px] mb-1" style={{ color: '#57534e' }} dir="ltr">
+                          <Mail size={11} style={{ color: '#a8a29e' }} />
+                          {lead.email}
+                        </div>
+                      )}
+                      {lead.source && (
+                        <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full mt-1" style={{ background: '#f5f4f2', color: '#a8a29e' }}>
+                          {lead.source}
+                        </span>
+                      )}
+
+                      <div
+                        className="flex items-center justify-between mt-3 pt-3"
+                        style={{ borderTop: '1px solid #f5f4f2' }}
+                      >
+                        <p className="text-[11px]" style={{ color: '#a8a29e' }}>{formatDate(lead.created_at)}</p>
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={lead.status}
+                            onChange={e => updateStatus(lead.id, e.target.value as LeadStatus)}
+                            className="text-[11px] font-semibold outline-none cursor-pointer"
+                            style={{ background: 'transparent', color: col.color, border: 'none', padding: 0 }}
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                          {lead.status !== 'הפך ללקוח' && lead.status !== 'נסגר' && (
+                            <button
+                              onClick={() => convertToCustomer(lead)}
+                              className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                              style={{ background: '#d1fae5', color: '#065f46' }}
+                            >
+                              <ArrowLeftRight size={10} /> המר
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-              {lead.notes && <p className="text-sm text-gray-500 mt-2">{lead.notes}</p>}
-              <p className="text-xs text-gray-400 mt-1">{formatDate(lead.created_at)}</p>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
       {/* New Lead Modal */}
       {showNewModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowNewModal(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 animate-fade-in" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">ליד חדש</h2>
-              <button onClick={() => setShowNewModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={20} />
-              </button>
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ background: 'rgba(28,25,23,0.5)' }}
+          onClick={() => setShowNewModal(false)}
+        >
+          <div
+            className="w-full max-w-md animate-fade-in"
+            style={{ background: '#ffffff', borderRadius: 20, border: '1px solid #e7e5e4', padding: 28 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-[17px] font-bold" style={{ color: '#1c1917' }}>ליד חדש</h2>
+              <button onClick={() => setShowNewModal(false)} style={{ color: '#a8a29e' }}><X size={18} /></button>
             </div>
             <form onSubmit={handleCreateLead} className="space-y-3">
+              {[
+                { label: 'שם מלא *', field: 'name' as const, required: true },
+                { label: 'טלפון', field: 'phone' as const, dir: 'ltr' },
+                { label: 'אימייל', field: 'email' as const, dir: 'ltr', type: 'email' },
+              ].map(({ label, field, required, dir, type }) => (
+                <div key={field}>
+                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>{label}</label>
+                  <input
+                    required={required}
+                    type={type as 'text' | 'email' | undefined}
+                    dir={dir as 'ltr' | undefined}
+                    value={newLead[field]}
+                    onChange={e => setNewLead(p => ({ ...p, [field]: e.target.value }))}
+                    style={inputStyle}
+                  />
+                </div>
+              ))}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">שם מלא *</label>
-                <input className={inputClass} value={newLead.name} required
-                  onChange={e => setNewLead({ ...newLead, name: e.target.value })} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
-                <input className={inputClass} dir="ltr" value={newLead.phone}
-                  onChange={e => setNewLead({ ...newLead, phone: e.target.value })} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
-                <input type="email" className={inputClass} dir="ltr" value={newLead.email}
-                  onChange={e => setNewLead({ ...newLead, email: e.target.value })} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">מקור</label>
-                <select className={`${inputClass} bg-white`} value={newLead.source}
-                  onChange={e => setNewLead({ ...newLead, source: e.target.value })}>
-                  {sources.filter(s => s !== 'הכל').map(s => <option key={s} value={s}>{s}</option>)}
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>מקור</label>
+                <select value={newLead.source} onChange={e => setNewLead(p => ({ ...p, source: e.target.value }))} style={{ ...inputStyle }}>
+                  {sources.filter(s => s !== 'הכל').map(s => <option key={s}>{s}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">ציון (1-10)</label>
-                <input type="number" min={1} max={10} className={inputClass} value={newLead.score}
-                  onChange={e => setNewLead({ ...newLead, score: parseInt(e.target.value) || 5 })} />
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>ציון (1-10)</label>
+                <input
+                  type="number" min={1} max={10}
+                  value={newLead.score}
+                  onChange={e => setNewLead(p => ({ ...p, score: parseInt(e.target.value) || 5 }))}
+                  style={inputStyle}
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">הערות</label>
-                <textarea className={`${inputClass} min-h-[60px]`} value={newLead.notes}
-                  onChange={e => setNewLead({ ...newLead, notes: e.target.value })} />
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>הערות</label>
+                <textarea
+                  value={newLead.notes}
+                  onChange={e => setNewLead(p => ({ ...p, notes: e.target.value }))}
+                  style={{ ...inputStyle, minHeight: 64, resize: 'vertical' }}
+                />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="submit" disabled={saving}
-                  className="flex-1 bg-[#1a4f8a] text-white py-2 rounded-lg hover:bg-[#143d6b] disabled:opacity-50 flex items-center justify-center gap-2">
-                  {saving && <Loader2 size={16} className="animate-spin" />}
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+                  style={{ borderRadius: 12, background: '#059669' }}
+                >
+                  {saving && <Loader2 size={15} className="animate-spin" />}
                   שמור
                 </button>
-                <button type="button" onClick={() => setShowNewModal(false)}
-                  className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200">ביטול</button>
+                <button
+                  type="button"
+                  onClick={() => setShowNewModal(false)}
+                  className="flex-1 py-2.5 text-[13px] font-semibold transition-all hover:opacity-80"
+                  style={{ borderRadius: 12, background: '#f5f4f2', color: '#57534e' }}
+                >
+                  ביטול
+                </button>
               </div>
             </form>
           </div>

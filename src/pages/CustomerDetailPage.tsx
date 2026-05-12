@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowRight, MessageSquare, ClipboardList, Calculator, Upload,
@@ -11,6 +11,7 @@ import { customerService } from '@/services/customerService'
 import { taskService } from '@/services/taskService'
 import { messageService } from '@/services/messageService'
 import { commissionService } from '@/services/commissionService'
+import { documentService } from '@/services/documentService'
 import type {
   Customer, Document, Mortgage, LoanTrack, Message, Task, Commission, CustomerStatus
 } from '@/types/database'
@@ -107,6 +108,11 @@ export default function CustomerDetailPage() {
   const [messageText, setMessageText] = useState('')
   const [sendingMsg, setSendingMsg] = useState(false)
 
+  // Documents upload
+  const docFileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [docUploadType, setDocUploadType] = useState('תעודת זהות + ספח')
+
   // -------------------------------------------------------------------------
   // Fetch all customer data
   // -------------------------------------------------------------------------
@@ -199,6 +205,16 @@ export default function CustomerDetailPage() {
   const deleteTask = async (taskId: string) => {
     const { error } = await taskService.delete(taskId)
     if (!error) setTasks(prev => prev.filter(t => t.id !== taskId))
+  }
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !id) return
+    setUploadingDoc(true)
+    const { data } = await documentService.upload(id, file, docUploadType, 'required')
+    if (data) setDocuments(prev => [data, ...prev])
+    setUploadingDoc(false)
+    e.target.value = ''
   }
 
   const sendMessage = async (channel: Message['channel']) => {
@@ -412,9 +428,29 @@ export default function CustomerDetailPage() {
 
   const renderDocumentsTab = () => (
     <div className="space-y-3">
-      <p className="text-sm text-gray-500">
-        {documents.filter(d => d.status === 'תקין').length} / {documents.length} מסמכים תקינים
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500">
+          {documents.filter(d => d.status === 'תקין').length} / {documents.length} מסמכים תקינים
+        </p>
+        <div className="flex items-center gap-2">
+          <select
+            value={docUploadType}
+            onChange={e => setDocUploadType(e.target.value)}
+            className="text-xs px-2 py-1 border border-gray-200 rounded-lg bg-white outline-none"
+          >
+            {['תעודת זהות + ספח', '3 תלושי שכר', 'הסכם רכישה', 'נסח טאבו', 'דוח פלאש BDI', 'אחר'].map(t => <option key={t}>{t}</option>)}
+          </select>
+          <input type="file" hidden ref={docFileInputRef} onChange={handleDocUpload} />
+          <button
+            onClick={() => docFileInputRef.current?.click()}
+            disabled={uploadingDoc}
+            className="inline-flex items-center gap-1 text-xs bg-[#059669] text-white px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+          >
+            {uploadingDoc ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+            העלאה
+          </button>
+        </div>
+      </div>
       {documents.length === 0 && (
         <div className="text-center py-12 text-gray-400 text-sm">
           <FileText size={36} className="mx-auto mb-3 text-gray-300" />
@@ -440,9 +476,6 @@ export default function CustomerDetailPage() {
               <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
                 className="text-xs text-[#1a4f8a] hover:underline">צפה</a>
             )}
-            <button className="inline-flex items-center gap-1 text-xs text-[#1a4f8a] hover:text-[#143d6b] bg-white border border-gray-200 px-2 py-1 rounded-lg transition-colors">
-              <Upload size={14} />העלאה
-            </button>
           </div>
         </div>
       ))}

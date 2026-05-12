@@ -1,26 +1,89 @@
-import { useState } from 'react'
-import { Settings, Upload, Save, Eye, Trash2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Settings, Upload, Save, Eye, Trash2, Loader2, CheckCircle } from 'lucide-react'
 import { collection, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore'
 import { db, auth } from '@/lib/firebase'
+import { settingsService } from '@/services/settingsService'
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
-    name: 'ישראל ישראלי',
+    name: '',
     title: 'יועץ משכנתאות',
-    licenseNumber: '12345',
-    phone: '050-1234567',
-    email: 'advisor@example.com',
-    website: 'www.mortgage-advisor.co.il',
-    primaryColor: '#1a4f8a',
-    secondaryColor: '#e8f0fe',
+    licenseNumber: '',
+    phone: '',
+    email: '',
+    website: '',
+    primaryColor: '#059669',
+    secondaryColor: '#d1fae5',
     footerText: 'כל הזכויות שמורות © 2026',
     logoSize: 'medium',
     logoPosition: 'right',
     alertWindowMonths: 6,
+    logo_url: '',
   })
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    settingsService.get().then(({ data }) => {
+      if (data) {
+        setSettings(prev => ({
+          ...prev,
+          name: data.name ?? '',
+          title: data.title ?? 'יועץ משכנתאות',
+          licenseNumber: data.license_number ?? '',
+          phone: data.phone ?? '',
+          email: data.email ?? '',
+          website: data.website ?? '',
+          primaryColor: data.primary_color ?? '#059669',
+          secondaryColor: data.secondary_color ?? '#d1fae5',
+          footerText: data.footer_text ?? 'כל הזכויות שמורות © 2026',
+          logoSize: data.logo_size ?? 'medium',
+          logoPosition: data.logo_position ?? 'right',
+          alertWindowMonths: data.alert_window_months ?? 6,
+          logo_url: data.logo_url ?? '',
+        }))
+      }
+    })
+  }, [])
 
   const updateField = (field: string, value: string | number) => {
     setSettings(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    await settingsService.upsert({
+      name: settings.name,
+      title: settings.title,
+      license_number: settings.licenseNumber,
+      phone: settings.phone,
+      email: settings.email,
+      website: settings.website,
+      primary_color: settings.primaryColor,
+      secondary_color: settings.secondaryColor,
+      footer_text: settings.footerText,
+      logo_size: settings.logoSize,
+      logo_position: settings.logoPosition,
+      alert_window_months: settings.alertWindowMonths,
+      logo_url: settings.logo_url,
+    })
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingLogo(true)
+    const { url } = await settingsService.uploadLogo(file)
+    if (url) {
+      setSettings(prev => ({ ...prev, logo_url: url }))
+      await settingsService.upsert({ logo_url: url })
+    }
+    setUploadingLogo(false)
   }
 
   return (
@@ -34,9 +97,19 @@ export default function SettingsPage() {
         {/* Logo Upload */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <h2 className="font-semibold text-gray-900 mb-4">לוגו</h2>
-          <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-[#1a4f8a] transition-colors cursor-pointer">
-            <Upload size={32} className="mx-auto text-gray-400 mb-2" />
-            <p className="text-gray-600">גרור או לחץ להעלאת לוגו</p>
+          <input ref={logoInputRef} type="file" accept="image/*" hidden onChange={handleLogoUpload} />
+          <div
+            className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-[#059669] transition-colors cursor-pointer"
+            onClick={() => logoInputRef.current?.click()}
+          >
+            {uploadingLogo ? (
+              <Loader2 size={32} className="mx-auto text-[#059669] animate-spin mb-2" />
+            ) : settings.logo_url ? (
+              <img src={settings.logo_url} alt="לוגו" className="h-16 mx-auto mb-2 object-contain" />
+            ) : (
+              <Upload size={32} className="mx-auto text-gray-400 mb-2" />
+            )}
+            <p className="text-gray-600">{settings.logo_url ? 'לחץ להחלפת לוגו' : 'גרור או לחץ להעלאת לוגו'}</p>
             <p className="text-xs text-gray-400 mt-1">PNG, JPG, SVG עד 5MB</p>
           </div>
           <div className="grid grid-cols-2 gap-3 mt-4">
@@ -113,8 +186,13 @@ export default function SettingsPage() {
       </div>
 
       <div className="flex gap-3">
-        <button className="flex items-center gap-2 bg-[#1a4f8a] text-white px-6 py-2.5 rounded-lg hover:bg-[#143d6b] transition-colors">
-          <Save size={18} /> שמור הגדרות
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-2 bg-[#059669] text-white px-6 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+        >
+          {saving ? <Loader2 size={18} className="animate-spin" /> : saved ? <CheckCircle size={18} /> : <Save size={18} />}
+          {saved ? 'נשמר!' : 'שמור הגדרות'}
         </button>
         <button className="flex items-center gap-2 bg-gray-100 text-gray-700 px-6 py-2.5 rounded-lg hover:bg-gray-200 transition-colors">
           <Eye size={18} /> תצוגה מקדימה
@@ -137,7 +215,7 @@ function DangerZone() {
     if (!uid) return
     setDeleting(true)
     try {
-      const collections = ['customers', 'leads', 'tasks', 'alerts', 'commissions', 'loan_tracks', 'documents', 'messages']
+      const collections = ['customers', 'leads', 'tasks', 'alerts', 'commissions', 'loan_tracks', 'documents', 'messages', 'referral_partners']
       for (const col of collections) {
         const snap = await getDocs(query(collection(db, col), where('user_id', '==', uid)))
         await Promise.all(snap.docs.map(d => deleteDoc(doc(db, col, d.id))))

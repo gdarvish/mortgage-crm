@@ -1,88 +1,164 @@
-import { useState } from 'react'
-import { DollarSign, TrendingUp, Clock, CheckCircle } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { DollarSign, TrendingUp, Clock, CheckCircle, Loader2 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { commissionService } from '@/services/commissionService'
 
-const mockCommissions = [
-  { id: '1', customerName: 'דוד אברהם', loanAmount: 1800000, amount: 12600, status: 'שולם', paymentDate: '2026-03-15' },
-  { id: '2', customerName: 'שרה לוי', loanAmount: 1300000, amount: 9100, status: 'ממתין', paymentDate: null },
-  { id: '3', customerName: 'רחל מזרחי', loanAmount: 750000, amount: 5250, status: 'ממתין', paymentDate: null },
-  { id: '4', customerName: 'אמיר חדד', loanAmount: 950000, amount: 6650, status: 'שולם', paymentDate: '2026-02-20' },
-  { id: '5', customerName: 'יעקב שמעון', loanAmount: 1500000, amount: 10500, status: 'שולם', paymentDate: '2026-01-10' },
-]
+const hebrewMonths = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ']
 
-const monthlyData = [
-  { month: 'ינו', amount: 10500 }, { month: 'פבר', amount: 6650 }, { month: 'מרץ', amount: 12600 },
-  { month: 'אפר', amount: 0 },
-]
+type CommissionRow = {
+  id: string
+  customerName: string
+  loanAmount: number
+  amount: number
+  status: string
+  paymentDate: string | null
+  createdAt: string
+}
 
 export default function CommissionsPage() {
+  const [commissions, setCommissions] = useState<CommissionRow[]>([])
+  const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('הכל')
 
-  const filtered = mockCommissions.filter(c => statusFilter === 'הכל' || c.status === statusFilter)
-  const totalPaid = mockCommissions.filter(c => c.status === 'שולם').reduce((s, c) => s + c.amount, 0)
-  const totalPending = mockCommissions.filter(c => c.status === 'ממתין').reduce((s, c) => s + c.amount, 0)
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    const { data } = await commissionService.getAll()
+    if (data) {
+      setCommissions(data.map(c => ({
+        id: c.id,
+        customerName: c.customer
+          ? `${c.customer.first_name} ${c.customer.last_name}`
+          : 'לא ידוע',
+        loanAmount: c.mortgage?.loan_amount ?? 0,
+        amount: c.amount ?? 0,
+        status: c.status ?? 'ממתין',
+        paymentDate: c.payment_date ?? null,
+        createdAt: c.created_at ?? '',
+      })))
+    }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { fetchData() }, [fetchData])
+
+  const filtered = commissions.filter(c => statusFilter === 'הכל' || c.status === statusFilter)
+  const totalPaid    = commissions.filter(c => c.status === 'שולם').reduce((s, c) => s + c.amount, 0)
+  const totalPending = commissions.filter(c => c.status === 'ממתין').reduce((s, c) => s + c.amount, 0)
+
+  // Monthly bar chart — last 6 months
+  const now = new Date()
+  const monthlyData = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
+    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59)
+    const amount = commissions
+      .filter(c => c.status === 'שולם' && c.paymentDate && new Date(c.paymentDate) >= d && new Date(c.paymentDate) <= monthEnd)
+      .reduce((s, c) => s + c.amount, 0)
+    return { month: hebrewMonths[d.getMonth()], amount }
+  })
+
+  const cardStyle = {
+    background: '#ffffff',
+    borderRadius: 20,
+    boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
+    border: '1px solid #e7e5e4',
+    padding: '22px 24px',
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 size={32} style={{ color: '#059669' }} className="animate-spin" />
+      </div>
+    )
+  }
 
   return (
-    <div className="animate-fade-in space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-        <DollarSign className="text-[#1a4f8a]" size={28} />
-        עמלות
-      </h1>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4" style={{ borderRight: '4px solid #22c55e' }}>
-          <CheckCircle className="text-green-500" size={24} />
-          <div><p className="text-xl font-bold text-gray-900">{formatCurrency(totalPaid)}</p><p className="text-sm text-gray-500">שולם</p></div>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4" style={{ borderRight: '4px solid #f59e0b' }}>
-          <Clock className="text-yellow-500" size={24} />
-          <div><p className="text-xl font-bold text-gray-900">{formatCurrency(totalPending)}</p><p className="text-sm text-gray-500">ממתין</p></div>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4" style={{ borderRight: '4px solid #1a4f8a' }}>
-          <TrendingUp className="text-[#1a4f8a]" size={24} />
-          <div><p className="text-xl font-bold text-gray-900">{formatCurrency(totalPaid + totalPending)}</p><p className="text-sm text-gray-500">סה"כ</p></div>
-        </div>
+    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
+      <div>
+        <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>עמלות</h1>
+        <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>{commissions.length} עמלות במערכת</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">הכנסות לפי חודש</h2>
-          <ResponsiveContainer width="100%" height={250}>
+      {/* KPI cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { label: 'שולם',    value: totalPaid,              icon: CheckCircle, color: '#059669' },
+          { label: 'ממתין',   value: totalPending,           icon: Clock,       color: '#d97706' },
+          { label: 'סה"כ',    value: totalPaid + totalPending, icon: TrendingUp, color: '#059669' },
+        ].map((card) => (
+          <div key={card.label} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: card.color + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <card.icon size={20} style={{ color: card.color }} />
+            </div>
+            <div>
+              <p className="font-black tabular-nums" style={{ fontSize: 22, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>{formatCurrency(card.value)}</p>
+              <p className="text-[13px]" style={{ color: '#a8a29e' }}>{card.label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Chart */}
+        <div style={cardStyle}>
+          <p className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>הכנסות לפי חודש</p>
+          <ResponsiveContainer width="100%" height={220}>
             <BarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" />
-              <YAxis tickFormatter={v => `₪${(v / 1000).toFixed(0)}K`} />
-              <Tooltip formatter={(v) => formatCurrency(v as number)} />
-              <Bar dataKey="amount" fill="#1a4f8a" radius={[4, 4, 0, 0]} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#a8a29e' }} axisLine={false} tickLine={false} />
+              <YAxis tickFormatter={v => `₪${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 11, fill: '#a8a29e' }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 12 }} />
+              <Bar dataKey="amount" fill="#059669" radius={[6, 6, 0, 0]} animationDuration={750} />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-          <div className="p-4 border-b border-gray-100 flex items-center gap-2">
-            <h2 className="font-semibold text-gray-900">רשימת עמלות</h2>
+        {/* List */}
+        <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+          <div className="flex items-center gap-2 px-6 py-4 border-b" style={{ borderColor: '#f5f4f2' }}>
+            <DollarSign size={16} style={{ color: '#059669' }} />
+            <h2 className="text-[15px] font-bold" style={{ color: '#1c1917' }}>רשימת עמלות</h2>
             <div className="flex gap-1 mr-auto">
               {['הכל', 'שולם', 'ממתין'].map(s => (
-                <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-1 text-xs rounded-lg ${statusFilter === s ? 'bg-[#1a4f8a] text-white' : 'bg-gray-100 text-gray-600'}`}>{s}</button>
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className="px-3 py-1 text-[12px] font-semibold transition-all"
+                  style={{
+                    borderRadius: 20,
+                    background: statusFilter === s ? '#059669' : '#f5f4f2',
+                    color: statusFilter === s ? '#fff' : '#57534e',
+                  }}
+                >{s}</button>
               ))}
             </div>
           </div>
-          <div className="divide-y divide-gray-50">
-            {filtered.map(c => (
-              <div key={c.id} className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900">{c.customerName}</p>
-                  <p className="text-sm text-gray-500">הלוואה: {formatCurrency(c.loanAmount)}</p>
+          {filtered.length === 0 ? (
+            <div className="py-12 text-center text-[13px]" style={{ color: '#a8a29e' }}>אין עמלות</div>
+          ) : (
+            <div className="divide-y" style={{ borderColor: '#f5f4f2' }}>
+              {filtered.map(c => (
+                <div key={c.id} className="flex items-center justify-between px-6 py-3">
+                  <div>
+                    <p className="text-[13px] font-semibold" style={{ color: '#1c1917' }}>{c.customerName}</p>
+                    {c.loanAmount > 0 && <p className="text-[12px]" style={{ color: '#a8a29e' }}>הלוואה: {formatCurrency(c.loanAmount)}</p>}
+                  </div>
+                  <div className="text-left flex flex-col items-end gap-1">
+                    <p className="font-black tabular-nums text-[15px]" style={{ color: '#059669' }}>{formatCurrency(c.amount)}</p>
+                    <span
+                      className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                      style={{
+                        background: c.status === 'שולם' ? '#d1fae5' : '#fef3c7',
+                        color: c.status === 'שולם' ? '#065f46' : '#b45309',
+                      }}
+                    >{c.status}</span>
+                    {c.paymentDate && <p className="text-[11px]" style={{ color: '#a8a29e' }}>{formatDate(c.paymentDate)}</p>}
+                  </div>
                 </div>
-                <div className="text-left">
-                  <p className="font-bold text-[#1a4f8a]">{formatCurrency(c.amount)}</p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${c.status === 'שולם' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{c.status}</span>
-                  {c.paymentDate && <p className="text-xs text-gray-400 mt-1">{formatDate(c.paymentDate)}</p>}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
