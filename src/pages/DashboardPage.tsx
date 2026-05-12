@@ -68,86 +68,91 @@ export default function DashboardPage() {
       return
     }
 
-    const [customersSnap, tasksSnap, alertsSnap, commissionsSnap] = await Promise.all([
-      getDocs(query(collection(db, 'customers'), where('user_id', '==', uid), orderBy('created_at', 'desc'))),
-      getDocs(query(
-        collection(db, 'tasks'),
-        where('user_id', '==', uid),
-        where('status', '!=', 'הושלמה'),
-        orderBy('due_date', 'asc'),
-        limit(10)
-      )),
-      getDocs(query(
-        collection(db, 'alerts'),
-        where('user_id', '==', uid),
-        where('status', '==', 'פתוח'),
-        orderBy('days_until_end', 'asc'),
-        limit(10)
-      )),
-      getDocs(query(collection(db, 'commissions'), where('user_id', '==', uid), where('status', '==', 'שולם'))),
-    ])
-
-    const customersData = fromDocs<Customer>(customersSnap.docs)
-    setCustomers(customersData)
-
-    const tasksData = fromDocs<Task>(tasksSnap.docs)
-    const taskCustomerIds = Array.from(new Set(tasksData.map(t => t.customer_id).filter(Boolean) as string[]))
-    const customerMap: Record<string, string> = {}
-    await Promise.all(taskCustomerIds.map(async (cid) => {
-      const snap = await getDoc(doc(db, 'customers', cid))
-      if (snap.exists()) {
-        const c = fromDoc<Customer>(snap)
-        customerMap[cid] = `${c.first_name} ${c.last_name}`
-      }
-    }))
-    setTasks(tasksData.map(t => ({
-      ...t,
-      customer_name: t.customer_id ? customerMap[t.customer_id] : undefined,
-    })))
-
-    const alertsData = fromDocs<Alert>(alertsSnap.docs)
-    if (alertsData.length > 0) {
-      const alertCustomerIds = Array.from(new Set(alertsData.map(a => a.customer_id)))
-      const alertTrackIds = Array.from(new Set(alertsData.map(a => a.loan_track_id).filter(Boolean) as string[]))
-
-      const [custMap, trackMap] = await Promise.all([
-        (async () => {
-          const map: Record<string, string> = {}
-          await Promise.all(alertCustomerIds.map(async (cid) => {
-            const snap = await getDoc(doc(db, 'customers', cid))
-            if (snap.exists()) {
-              const c = fromDoc<Customer>(snap)
-              map[cid] = `${c.first_name} ${c.last_name}`
-            }
-          }))
-          return map
-        })(),
-        (async () => {
-          const map: Record<string, string> = {}
-          await Promise.all(alertTrackIds.map(async (tid) => {
-            const snap = await getDoc(doc(db, 'loan_tracks', tid))
-            if (snap.exists()) {
-              const t = fromDoc<LoanTrack>(snap)
-              map[tid] = t.type || '—'
-            }
-          }))
-          return map
-        })(),
+    try {
+      const [customersSnap, tasksSnap, alertsSnap, commissionsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'customers'), where('user_id', '==', uid), orderBy('created_at', 'desc'))),
+        getDocs(query(
+          collection(db, 'tasks'),
+          where('user_id', '==', uid),
+          orderBy('due_date', 'asc'),
+          limit(50)
+        )),
+        getDocs(query(
+          collection(db, 'alerts'),
+          where('user_id', '==', uid),
+          where('status', '==', 'פתוח'),
+          orderBy('days_until_end', 'asc'),
+          limit(10)
+        )),
+        getDocs(query(collection(db, 'commissions'), where('user_id', '==', uid), where('status', '==', 'שולם'))),
       ])
 
-      setAlerts(alertsData.map(a => ({
-        ...a,
-        customer_name: custMap[a.customer_id] || 'לא ידוע',
-        track_type: a.loan_track_id ? (trackMap[a.loan_track_id] || '—') : '—',
+      const customersData = fromDocs<Customer>(customersSnap.docs)
+      setCustomers(customersData)
+
+      const tasksData = fromDocs<Task>(tasksSnap.docs)
+        .filter(t => t.status !== 'הושלמה')
+        .slice(0, 10)
+      const taskCustomerIds = Array.from(new Set(tasksData.map(t => t.customer_id).filter(Boolean) as string[]))
+      const customerMap: Record<string, string> = {}
+      await Promise.all(taskCustomerIds.map(async (cid) => {
+        const snap = await getDoc(doc(db, 'customers', cid))
+        if (snap.exists()) {
+          const c = fromDoc<Customer>(snap)
+          customerMap[cid] = `${c.first_name} ${c.last_name}`
+        }
+      }))
+      setTasks(tasksData.map(t => ({
+        ...t,
+        customer_name: t.customer_id ? customerMap[t.customer_id] : undefined,
       })))
-    } else {
-      setAlerts([])
+
+      const alertsData = fromDocs<Alert>(alertsSnap.docs)
+      if (alertsData.length > 0) {
+        const alertCustomerIds = Array.from(new Set(alertsData.map(a => a.customer_id)))
+        const alertTrackIds = Array.from(new Set(alertsData.map(a => a.loan_track_id).filter(Boolean) as string[]))
+
+        const [custMap, trackMap] = await Promise.all([
+          (async () => {
+            const map: Record<string, string> = {}
+            await Promise.all(alertCustomerIds.map(async (cid) => {
+              const snap = await getDoc(doc(db, 'customers', cid))
+              if (snap.exists()) {
+                const c = fromDoc<Customer>(snap)
+                map[cid] = `${c.first_name} ${c.last_name}`
+              }
+            }))
+            return map
+          })(),
+          (async () => {
+            const map: Record<string, string> = {}
+            await Promise.all(alertTrackIds.map(async (tid) => {
+              const snap = await getDoc(doc(db, 'loan_tracks', tid))
+              if (snap.exists()) {
+                const t = fromDoc<LoanTrack>(snap)
+                map[tid] = t.type || '—'
+              }
+            }))
+            return map
+          })(),
+        ])
+
+        setAlerts(alertsData.map(a => ({
+          ...a,
+          customer_name: custMap[a.customer_id] || 'לא ידוע',
+          track_type: a.loan_track_id ? (trackMap[a.loan_track_id] || '—') : '—',
+        })))
+      } else {
+        setAlerts([])
+      }
+
+      const commissionsData = fromDocs<Commission>(commissionsSnap.docs)
+      setCommissionTotal(commissionsData.reduce((sum, c) => sum + (c.amount || 0), 0))
+    } catch (e) {
+      console.error('Dashboard fetchData failed', e)
+    } finally {
+      setLoading(false)
     }
-
-    const commissionsData = fromDocs<Commission>(commissionsSnap.docs)
-    setCommissionTotal(commissionsData.reduce((sum, c) => sum + (c.amount || 0), 0))
-
-    setLoading(false)
   }, [])
 
   useEffect(() => {
