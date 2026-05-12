@@ -30,18 +30,24 @@ export default function LeadsPage() {
     name: '', phone: '', email: '', source: 'פייסבוק', score: 5, notes: '',
   })
 
-  const fetchLeads = useCallback(async () => {
+  const fetchLeads = useCallback(async (isMounted: () => boolean) => {
     setLoading(true)
     const { data, error } = await leadService.getAll({
       source: sourceFilter !== 'הכל' ? sourceFilter : undefined,
       search: search || undefined,
     })
+    if (!isMounted()) return
     if (error) console.error(error)
     else setLeads(data || [])
     setLoading(false)
   }, [sourceFilter, search])
 
-  useEffect(() => { fetchLeads() }, [fetchLeads])
+  useEffect(() => {
+    let mounted = true
+    const isMounted = () => mounted
+    fetchLeads(isMounted)
+    return () => { mounted = false }
+  }, [fetchLeads])
 
   const updateStatus = async (id: string, status: LeadStatus) => {
     const { error } = await leadService.update(id, { status })
@@ -74,7 +80,7 @@ export default function LeadsPage() {
     else {
       setShowNewModal(false)
       setNewLead({ name: '', phone: '', email: '', source: 'פייסבוק', score: 5, notes: '' })
-      fetchLeads()
+      fetchLeads(() => true)
     }
     setSaving(false)
   }

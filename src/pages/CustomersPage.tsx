@@ -32,12 +32,13 @@ export default function CustomersPage() {
     first_name: '', last_name: '', id_number: '', phone: '', email: '', lead_source: '',
   })
 
-  const fetchCustomers = useCallback(async () => {
+  const fetchCustomers = useCallback(async (isMounted: () => boolean) => {
     setLoading(true)
     const { data, error } = await customerService.getAll({
       status: statusFilter !== 'הכל' ? statusFilter : undefined,
       search: search || undefined,
     })
+    if (!isMounted()) return
     if (error) {
       console.error('Error fetching customers:', error)
     } else {
@@ -47,7 +48,9 @@ export default function CustomersPage() {
   }, [statusFilter, search])
 
   useEffect(() => {
-    fetchCustomers()
+    let mounted = true
+    fetchCustomers(() => mounted)
+    return () => { mounted = false }
   }, [fetchCustomers])
 
   const handleCreateCustomer = async (e: React.FormEvent) => {
@@ -81,7 +84,7 @@ export default function CustomersPage() {
     } else {
       setShowNewModal(false)
       setNewCustomer({ first_name: '', last_name: '', id_number: '', phone: '', email: '', lead_source: '' })
-      fetchCustomers()
+      fetchCustomers(() => true)
     }
     setSaving(false)
   }
@@ -99,7 +102,7 @@ export default function CustomersPage() {
     else { setSortField(field); setSortAsc(true) }
   }
 
-  const SortIcon = ({ field }: { field: SortField }) => {
+  const renderSortIcon = (field: SortField) => {
     if (sortField !== field) return <ChevronDown size={14} className="text-gray-300" />
     return sortAsc ? <ChevronUp size={14} className="text-[#1a4f8a]" /> : <ChevronDown size={14} className="text-[#1a4f8a]" />
   }
@@ -163,17 +166,17 @@ export default function CustomersPage() {
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
                     <th className="text-right p-3 text-sm font-medium text-gray-600 cursor-pointer" onClick={() => handleSort('name')}>
-                      <div className="flex items-center gap-1">שם <SortIcon field="name" /></div>
+                      <div className="flex items-center gap-1">שם {renderSortIcon('name')}</div>
                     </th>
                     <th className="text-right p-3 text-sm font-medium text-gray-600">ת.ז</th>
                     <th className="text-right p-3 text-sm font-medium text-gray-600">טלפון</th>
                     <th className="text-right p-3 text-sm font-medium text-gray-600">סטטוס</th>
                     <th className="text-right p-3 text-sm font-medium text-gray-600">מקור</th>
                     <th className="text-right p-3 text-sm font-medium text-gray-600 cursor-pointer" onClick={() => handleSort('monthly_income')}>
-                      <div className="flex items-center gap-1">הכנסה <SortIcon field="monthly_income" /></div>
+                      <div className="flex items-center gap-1">הכנסה {renderSortIcon('monthly_income')}</div>
                     </th>
                     <th className="text-right p-3 text-sm font-medium text-gray-600 cursor-pointer" onClick={() => handleSort('created_at')}>
-                      <div className="flex items-center gap-1">תאריך <SortIcon field="created_at" /></div>
+                      <div className="flex items-center gap-1">תאריך {renderSortIcon('created_at')}</div>
                     </th>
                   </tr>
                 </thead>

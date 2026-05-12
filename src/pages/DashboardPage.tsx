@@ -53,19 +53,24 @@ function useCountUp(target: number, duration = 1100, active = true) {
   const frameRef = useRef<number>(0)
 
   useEffect(() => {
+    let mounted = true
     if (!active || target === 0) {
-      setCount(target)
+      if (mounted) setCount(prev => prev === target ? prev : target)
       return
     }
     const start = performance.now()
     const animate = (now: number) => {
+      if (!mounted) return
       const progress = Math.min((now - start) / duration, 1)
       const eased = 1 - Math.pow(1 - progress, 3)
       setCount(Math.round(eased * target))
       if (progress < 1) frameRef.current = requestAnimationFrame(animate)
     }
     frameRef.current = requestAnimationFrame(animate)
-    return () => cancelAnimationFrame(frameRef.current)
+    return () => {
+      mounted = false
+      cancelAnimationFrame(frameRef.current)
+    }
   }, [target, duration, active])
 
   return count
@@ -145,7 +150,7 @@ export default function DashboardPage() {
   const [commissionTotal, setCommissionTotal] = useState(0)
   const [checkedTasks, setCheckedTasks] = useState<Set<string>>(new Set())
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isMounted: () => boolean) => {
     setLoading(true)
     const uid = auth.currentUser?.uid
     if (!uid) {
@@ -173,6 +178,7 @@ export default function DashboardPage() {
       ])
 
       const customersData = fromDocs<Customer>(customersSnap.docs)
+      if (!isMounted()) return
       setCustomers(customersData)
 
       const tasksData = fromDocs<Task>(tasksSnap.docs)
@@ -187,6 +193,7 @@ export default function DashboardPage() {
           customerMap[cid] = `${c.first_name} ${c.last_name}`
         }
       }))
+      if (!isMounted()) return
       setTasks(tasksData.map(t => ({
         ...t,
         customer_name: t.customer_id ? customerMap[t.customer_id] : undefined,
@@ -222,16 +229,19 @@ export default function DashboardPage() {
           })(),
         ])
 
+        if (!isMounted()) return
         setAlerts(alertsData.map(a => ({
           ...a,
           customer_name: custMap[a.customer_id] || 'לא ידוע',
           track_type: a.loan_track_id ? (trackMap[a.loan_track_id] || '—') : '—',
         })))
       } else {
+        if (!isMounted()) return
         setAlerts([])
       }
 
       const commissionsData = fromDocs<Commission>(commissionsSnap.docs)
+      if (!isMounted()) return
       setCommissionTotal(commissionsData.reduce((sum, c) => sum + (c.amount || 0), 0))
     } catch (e) {
       console.error('Dashboard fetchData failed', e)
@@ -241,7 +251,9 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    fetchData()
+    let mounted = true
+    fetchData(() => mounted)
+    return () => { mounted = false }
   }, [fetchData])
 
   const toggleTask = async (id: string) => {

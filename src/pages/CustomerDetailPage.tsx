@@ -110,11 +110,12 @@ export default function CustomerDetailPage() {
   // -------------------------------------------------------------------------
   // Fetch all customer data
   // -------------------------------------------------------------------------
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (isMounted: () => boolean) => {
     if (!id) return
     setLoading(true)
 
     const { data: full } = await customerService.getById(id)
+    if (!isMounted()) return
     if (full) {
       setCustomer(full)
       setStatusValue(full.status)
@@ -146,7 +147,11 @@ export default function CustomerDetailPage() {
     setLoading(false)
   }, [id])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => {
+    let mounted = true
+    fetchAll(() => mounted)
+    return () => { mounted = false }
+  }, [fetchAll])
 
   // -------------------------------------------------------------------------
   // Save handlers
