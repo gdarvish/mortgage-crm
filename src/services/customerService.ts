@@ -14,8 +14,8 @@ import {
   type QueryConstraint,
   Timestamp,
 } from 'firebase/firestore'
-import { db, auth } from '@/lib/firebase'
-import { fromDoc, fromDocs, requireUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { db } from '@/lib/firebase'
+import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type {
   Customer,
   CustomerWithRelations,
@@ -44,7 +44,7 @@ function matchesSearch(c: Customer, search: string): boolean {
 export const customerService = {
   async getAll(filters?: { status?: string; search?: string }): Promise<{ data: Customer[] | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const constraints: QueryConstraint[] = [where('user_id', '==', uid)]
       if (filters?.status) constraints.push(where('status', '==', filters.status))
       // No orderBy — sort client-side to avoid composite index requirement
@@ -79,8 +79,7 @@ export const customerService = {
 
   async getById(id: string): Promise<{ data: CustomerWithRelations | null; error: FirestoreError | null }> {
     try {
-      const uid = auth.currentUser?.uid
-      if (!uid) return { data: null, error: null }
+      const uid = await awaitUserId()
       const customerSnap = await getDoc(doc(db, COL, id))
       if (!customerSnap.exists()) return { data: null, error: null }
       const customer = fromDoc<Customer>(customerSnap)
@@ -148,7 +147,7 @@ export const customerService = {
 
   async create(customer: Omit<Customer, 'id' | 'created_at' | 'updated_at'>): Promise<{ data: Customer | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const payload = {
         ...customer,
         user_id: uid,
@@ -203,7 +202,7 @@ export const customerService = {
   },
 
   async getStats(): Promise<{ activeCustomers: number; monthlyDeals: number; weeklyLeads: number }> {
-    const uid = requireUserId()
+    const uid = await awaitUserId()
     const now = new Date()
     const startOfMonth = Timestamp.fromDate(new Date(now.getFullYear(), now.getMonth(), 1))
     const startOfWeek = Timestamp.fromDate(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000))

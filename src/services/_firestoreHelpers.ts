@@ -4,6 +4,7 @@ import {
   Timestamp,
   serverTimestamp,
 } from 'firebase/firestore'
+import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 
 export type FirestoreError = { message: string; code?: string }
@@ -17,6 +18,17 @@ export function requireUserId(): string {
   const uid = auth.currentUser?.uid
   if (!uid) throw new Error('Not authenticated')
   return uid
+}
+
+export async function awaitUserId(): Promise<string> {
+  if (auth.currentUser?.uid) return auth.currentUser.uid
+  return new Promise((resolve, reject) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe()
+      if (user?.uid) resolve(user.uid)
+      else reject(new Error('Not authenticated'))
+    })
+  })
 }
 
 function tsToIso(value: unknown): unknown {

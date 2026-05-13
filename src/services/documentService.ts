@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { db, storage } from '@/lib/firebase'
-import { fromDoc, fromDocs, requireUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { Document } from '@/types/database'
 
 const COL = 'documents'
@@ -45,7 +45,7 @@ export const documentService = {
     category: string
   ): Promise<{ data: Document | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const storagePath = `documents/${customerId}/${Date.now()}-${file.name}`
       const fileRef = ref(storage, storagePath)
       await uploadBytes(fileRef, file)

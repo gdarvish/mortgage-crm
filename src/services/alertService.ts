@@ -11,7 +11,7 @@ import {
   type QueryConstraint,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { fromDoc, fromDocs, requireUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { Alert, AlertWithCustomer, Customer, LoanTrack } from '@/types/database'
 
 const COL = 'alerts'
@@ -44,7 +44,7 @@ async function attachRelations(alerts: Alert[]): Promise<AlertWithCustomer[]> {
 export const alertService = {
   async getAll(filters?: { status?: string; urgency?: 'urgent' | 'warning' | 'normal' }): Promise<{ data: AlertWithCustomer[] | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const constraints: QueryConstraint[] = [where('user_id', '==', uid)]
       if (filters?.status) constraints.push(where('status', '==', filters.status))
       if (filters?.urgency === 'urgent') constraints.push(where('days_until_end', '<', 60))
@@ -85,7 +85,7 @@ export const alertService = {
 
   async getActiveCount(): Promise<{ count: number; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const res = await getCountFromServer(
         query(collection(db, COL), where('user_id', '==', uid), where('status', '==', 'פתוח'))
       )

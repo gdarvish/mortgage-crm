@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { db, storage } from '@/lib/firebase'
-import { fromDoc, requireUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDoc, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { AdvisorSettings } from '@/types/database'
 
 const SETTINGS_DOC = 'profile'
@@ -13,7 +13,7 @@ function settingsRef(uid: string) {
 export const settingsService = {
   async get(): Promise<{ data: AdvisorSettings | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const snap = await getDoc(settingsRef(uid))
       if (!snap.exists()) return { data: null, error: null }
       return { data: fromDoc<AdvisorSettings>(snap), error: null }
@@ -24,7 +24,7 @@ export const settingsService = {
 
   async upsert(settings: Partial<AdvisorSettings>): Promise<{ data: AdvisorSettings | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const ref = settingsRef(uid)
       await setDoc(ref, { ...settings, user_id: uid }, { merge: true })
       const snap = await getDoc(ref)
@@ -36,7 +36,7 @@ export const settingsService = {
 
   async uploadLogo(file: File): Promise<{ url: string | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const ext = file.name.split('.').pop()
       const fileName = `logo-${Date.now()}.${ext}`
       const fileRef = ref(storage, `logos/${uid}/${fileName}`)

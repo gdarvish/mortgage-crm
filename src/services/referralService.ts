@@ -12,7 +12,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { fromDoc, fromDocs, requireUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { ReferralPartner } from '@/types/database'
 
 const COL = 'referral_partners'
@@ -20,7 +20,7 @@ const COL = 'referral_partners'
 export const referralService = {
   async getAll(): Promise<{ data: ReferralPartner[] | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const q = query(
         collection(db, COL),
         where('user_id', '==', uid),
@@ -45,7 +45,7 @@ export const referralService = {
 
   async create(partner: Omit<ReferralPartner, 'id' | 'created_at'>): Promise<{ data: ReferralPartner | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const payload = {
         ...partner,
         user_id: uid,

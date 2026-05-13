@@ -14,7 +14,7 @@ import {
   type QueryConstraint,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { fromDoc, fromDocs, requireUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { Task, Customer } from '@/types/database'
 
 const COL = 'tasks'
@@ -43,7 +43,7 @@ async function attachCustomerNames(tasks: Task[]): Promise<TaskWithCustomer[]> {
 export const taskService = {
   async getAll(filters?: { status?: string; customerId?: string; dueDate?: string }): Promise<{ data: TaskWithCustomer[] | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const constraints: QueryConstraint[] = [where('user_id', '==', uid)]
       if (filters?.status) constraints.push(where('status', '==', filters.status))
       if (filters?.customerId) constraints.push(where('customer_id', '==', filters.customerId))
@@ -61,7 +61,7 @@ export const taskService = {
 
   async getTodayTasks(): Promise<{ data: TaskWithCustomer[] | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const endOfDay = new Date()
       endOfDay.setHours(23, 59, 59, 999)
 
@@ -86,7 +86,7 @@ export const taskService = {
 
   async create(task: Omit<Task, 'id' | 'created_at'>): Promise<{ data: Task | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const payload = {
         ...task,
         user_id: uid,

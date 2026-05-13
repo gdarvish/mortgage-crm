@@ -12,7 +12,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { fromDoc, fromDocs, requireUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type {
   Mortgage,
   MortgageWithTracks,
@@ -63,7 +63,7 @@ export const mortgageService = {
 
   async create(mortgage: Omit<Mortgage, 'id' | 'created_at'>): Promise<{ data: Mortgage | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const payload = {
         ...mortgage,
         user_id: uid,
@@ -101,7 +101,7 @@ export const mortgageService = {
 
   async addTrack(track: Omit<LoanTrack, 'id' | 'created_at'>): Promise<{ data: LoanTrack | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const payload = {
         ...track,
         user_id: uid,
@@ -138,7 +138,7 @@ export const mortgageService = {
 
   async addBankResponse(response: Omit<BankResponse, 'id' | 'created_at'>): Promise<{ data: BankResponse | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const payload = {
         ...response,
         user_id: uid,

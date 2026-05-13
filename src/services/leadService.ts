@@ -13,7 +13,7 @@ import {
   type QueryConstraint,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { fromDoc, fromDocs, requireUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { Lead, Customer } from '@/types/database'
 
 const COL = 'leads'
@@ -29,7 +29,7 @@ function matchesSearch(lead: Lead, search: string): boolean {
 export const leadService = {
   async getAll(filters?: { status?: string; source?: string; search?: string }): Promise<{ data: Lead[] | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const constraints: QueryConstraint[] = [where('user_id', '==', uid)]
       if (filters?.status) constraints.push(where('status', '==', filters.status))
       if (filters?.source) constraints.push(where('source', '==', filters.source))
@@ -46,7 +46,7 @@ export const leadService = {
 
   async create(lead: Omit<Lead, 'id' | 'created_at'>): Promise<{ data: Lead | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const payload = {
         ...lead,
         user_id: uid,
@@ -84,7 +84,7 @@ export const leadService = {
 
   async convertToCustomer(leadId: string): Promise<{ data: Customer | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const leadRef = doc(db, COL, leadId)
       const leadSnap = await getDoc(leadRef)
       if (!leadSnap.exists()) return { data: null, error: { message: 'Lead not found' } }

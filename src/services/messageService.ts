@@ -10,7 +10,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { fromDoc, fromDocs, requireUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { Message } from '@/types/database'
 
 const COL = 'messages'
@@ -40,7 +40,7 @@ export const messageService = {
 
   async create(message: Omit<Message, 'id' | 'sent_at'>): Promise<{ data: Message | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const payload = {
         ...message,
         user_id: uid,

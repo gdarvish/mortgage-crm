@@ -13,7 +13,7 @@ import {
   type QueryConstraint,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { fromDoc, fromDocs, requireUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { Commission, Customer, Mortgage } from '@/types/database'
 
 const COL = 'commissions'
@@ -55,7 +55,7 @@ async function attachRelations(commissions: Commission[]): Promise<CommissionWit
 export const commissionService = {
   async getAll(filters?: { status?: string; period?: { from: string; to: string } }): Promise<{ data: CommissionWithRelations[] | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const constraints: QueryConstraint[] = [where('user_id', '==', uid)]
       if (filters?.status) constraints.push(where('status', '==', filters.status))
       if (filters?.period) {
@@ -77,7 +77,7 @@ export const commissionService = {
 
   async create(commission: Omit<Commission, 'id' | 'created_at'>): Promise<{ data: Commission | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = await awaitUserId()
       const payload = {
         ...commission,
         user_id: uid,
@@ -104,7 +104,7 @@ export const commissionService = {
   },
 
   async getStats() {
-    const uid = requireUserId()
+    const uid = await awaitUserId()
     const now = new Date()
     const startOfMonth = Timestamp.fromDate(new Date(now.getFullYear(), now.getMonth(), 1))
     const startOfYear = Timestamp.fromDate(new Date(now.getFullYear(), 0, 1))
