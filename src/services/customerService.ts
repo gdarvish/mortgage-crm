@@ -14,7 +14,7 @@ import {
   type QueryConstraint,
   Timestamp,
 } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { db, auth } from '@/lib/firebase'
 import { fromDoc, fromDocs, requireUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type {
   Customer,
@@ -79,7 +79,8 @@ export const customerService = {
 
   async getById(id: string): Promise<{ data: CustomerWithRelations | null; error: FirestoreError | null }> {
     try {
-      const uid = requireUserId()
+      const uid = auth.currentUser?.uid
+      if (!uid) return { data: null, error: null }
       const customerSnap = await getDoc(doc(db, COL, id))
       if (!customerSnap.exists()) return { data: null, error: null }
       const customer = fromDoc<Customer>(customerSnap)

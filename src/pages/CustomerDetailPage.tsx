@@ -7,6 +7,7 @@ import {
   Trash2, Loader2, Save,
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { useAuthStore } from '@/stores/authStore'
 import { customerService } from '@/services/customerService'
 import { taskService } from '@/services/taskService'
 import { messageService } from '@/services/messageService'
@@ -80,6 +81,7 @@ const inputClass =
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuthStore()
   const [activeTab, setActiveTab] = useState<TabKey>('personal')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -151,13 +153,14 @@ export default function CustomerDetailPage() {
     }
 
     setLoading(false)
-  }, [id])
+  }, [id, user])
 
   useEffect(() => {
+    if (!user) return
     let mounted = true
     fetchAll(() => mounted)
     return () => { mounted = false }
-  }, [fetchAll])
+  }, [fetchAll, user])
 
   // -------------------------------------------------------------------------
   // Save handlers
