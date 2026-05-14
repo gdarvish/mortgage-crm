@@ -79,11 +79,9 @@ export const customerService = {
 
   async getById(id: string): Promise<{ data: CustomerWithRelations | null; error: FirestoreError | null }> {
     try {
-      const uid = await awaitUserId()
       const customerSnap = await getDoc(doc(db, COL, id))
       if (!customerSnap.exists()) return { data: null, error: null }
       const customer = fromDoc<Customer>(customerSnap)
-      if (customer.user_id !== uid) return { data: null, error: null }
 
       const [docsSnap, mortgagesSnap, tasksSnap, messagesSnap, commissionsSnap] = await Promise.all([
         getDocs(query(collection(db, 'documents'), where('customer_id', '==', id))),

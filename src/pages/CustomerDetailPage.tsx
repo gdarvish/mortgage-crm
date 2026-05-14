@@ -85,6 +85,7 @@ export default function CustomerDetailPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('personal')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   // Real data state
   const [customer, setCustomer] = useState<Customer | null>(null)
@@ -122,8 +123,9 @@ export default function CustomerDetailPage() {
     if (!id) return
     setLoading(true)
 
-    const { data: full } = await customerService.getById(id)
+    const { data: full, error: fetchErr } = await customerService.getById(id)
     if (!isMounted()) return
+    if (fetchErr) setFetchError(fetchErr.message)
     if (full) {
       setCustomer(full)
       setStatusValue(full.status)
@@ -290,6 +292,7 @@ export default function CustomerDetailPage() {
     return (
       <div className="text-center py-16 text-gray-500">
         לקוח לא נמצא
+        {fetchError && <p className="text-xs text-red-400 mt-2">{fetchError}</p>}
         <button onClick={() => navigate('/customers')} className="block mx-auto mt-4 text-[#1a4f8a] hover:underline text-sm">
           חזרה לרשימת לקוחות
         </button>
