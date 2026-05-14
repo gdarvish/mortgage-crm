@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Settings, Upload, Save, Eye, Trash2, Loader2, CheckCircle } from 'lucide-react'
+import { Settings, Upload, Save, Eye, Trash2, Loader2, CheckCircle, X } from 'lucide-react'
 import { collection, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore'
 import { db, auth } from '@/lib/firebase'
 import { settingsService } from '@/services/settingsService'
@@ -23,6 +23,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   const logoInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -201,10 +202,69 @@ export default function SettingsPage() {
           {saving ? <Loader2 size={18} className="animate-spin" /> : saved ? <CheckCircle size={18} /> : <Save size={18} />}
           {saved ? 'נשמר!' : 'שמור הגדרות'}
         </button>
-        <button className="flex items-center gap-2 bg-gray-100 text-gray-700 px-6 py-2.5 rounded-lg hover:bg-gray-200 transition-colors">
-          <Eye size={18} /> תצוגה מקדימה
+        <button
+          onClick={() => setShowPreview(true)}
+          title="ראה איך ייראו מסמכים והצעות שנשלחים ללקוחות עם הלוגו, הצבעים והפרטים שהוגדרו"
+          className="flex items-center gap-2 bg-gray-100 text-gray-700 px-6 py-2.5 rounded-lg hover:bg-gray-200 transition-colors"
+        >
+          <Eye size={18} /> תצוגה מקדימה למסמכי לקוח
         </button>
       </div>
+
+      {showPreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowPreview(false)}
+        >
+          <div
+            className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden animate-fade-in"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900">תצוגה מקדימה</h3>
+              <button onClick={() => setShowPreview(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4" style={{ direction: 'rtl' }}>
+              <div
+                className="rounded-xl p-5 flex items-center gap-4"
+                style={{ background: settings.secondaryColor, justifyContent: settings.logoPosition === 'center' ? 'center' : settings.logoPosition === 'left' ? 'flex-start' : 'flex-end' }}
+              >
+                {settings.logo_url && (
+                  <img
+                    src={settings.logo_url}
+                    alt="לוגו"
+                    style={{ height: settings.logoSize === 'small' ? 36 : settings.logoSize === 'large' ? 72 : 52 }}
+                    className="object-contain"
+                  />
+                )}
+                <div className="text-right">
+                  <p className="font-bold text-lg" style={{ color: settings.primaryColor }}>{settings.name || 'שם היועץ'}</p>
+                  <p className="text-sm text-gray-700">{settings.title}</p>
+                  {settings.licenseNumber && <p className="text-xs text-gray-600">רישיון: {settings.licenseNumber}</p>}
+                </div>
+              </div>
+              <div className="rounded-xl border border-gray-200 p-5">
+                <h4 className="font-bold text-base mb-2" style={{ color: settings.primaryColor }}>הצעת תמהיל לדוגמה</h4>
+                <p className="text-sm text-gray-600 mb-3">סכום הלוואה: ₪1,200,000 · תקופה: 25 שנה</p>
+                <button
+                  className="px-4 py-2 rounded-lg text-white text-sm font-semibold"
+                  style={{ background: settings.primaryColor }}
+                >
+                  אישור הצעה
+                </button>
+              </div>
+              <div className="text-center text-xs text-gray-400 pt-2 border-t border-gray-100">
+                {settings.footerText}
+                {(settings.phone || settings.email) && (
+                  <p className="mt-1" dir="ltr">{[settings.phone, settings.email].filter(Boolean).join(' · ')}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Danger Zone */}
       <DangerZone />

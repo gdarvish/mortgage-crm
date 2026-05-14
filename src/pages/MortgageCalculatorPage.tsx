@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
-import { Plus, Sparkles, AlertTriangle, CheckCircle, Download, Save, X } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
+import { Plus, Sparkles, AlertTriangle, CheckCircle, Download, Save, X, Loader2 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -12,7 +13,11 @@ import {
   type TrackInput,
   type GraceType,
 } from '@/utils/mortgageCalculations'
-import type { LoanTrackType, PropertyType } from '@/types/database'
+import { mortgageService } from '@/services/mortgageService'
+import { customerService } from '@/services/customerService'
+import type { LoanTrackType, PropertyType, Customer } from '@/types/database'
+
+const MAX_MIXES_PER_CUSTOMER = 3
 
 const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
 
@@ -87,6 +92,25 @@ function InputField({
 }
 
 export default function MortgageCalculatorPage() {
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const customerId = searchParams.get('customerId')
+
+  const [customer, setCustomer] = useState<Customer | null>(null)
+  const [existingMixesCount, setExistingMixesCount] = useState(0)
+  const [savingMix, setSavingMix] = useState(false)
+
+  useEffect(() => {
+    if (!customerId) return
+    customerService.getById(customerId).then(({ data }) => {
+      if (!data) return
+      setCustomer(data)
+      setExistingMixesCount((data.mortgages || []).length)
+      if (data.monthly_income) setMonthlyIncome(data.monthly_income)
+      if (data.own_capital) setOwnCapital(data.own_capital)
+    })
+  }, [customerId])
+
   const [propertyPrice, setPropertyPrice] = useState(1500000)
   const [ownCapital, setOwnCapital] = useState(300000)
   const [propertyType, setPropertyType] = useState<PropertyType>('דירה_ראשונה')
@@ -144,6 +168,59 @@ export default function MortgageCalculatorPage() {
     setTracks(recommendations[idx].tracks)
     setActiveRecommendation(idx)
   }
+
+  const saveMixToCustomer = async () => {
+    if (!customerId) {
+      alert('כדי לשמור תמהיל ללקוח, פתח/י את המחשבון מתוך כרטיס הלקוח (לחיצה על "צור תמהיל" בתיק הלקוח).')
+      return
+    }
+    if (existingMixesCount >= MAX_MIXES_PER_CUSTOMER) {
+      alert(`לא ניתן לשמור יותר מ-${MAX_MIXES_PER_CUSTOMER} תמהילים ללקוח. מחק תמהיל קיים כדי להוסיף חדש.`)
+      return
+    }
+    if (tracks.length === 0) {
+      alert('אין מסלולים לשמירה')
+      return
+    }
+    setSavingMix(true)
+    try {
+      const { data: mortgage, error: mErr } = await mortgageService.create({
+        customer_id: customerId,
+        type: 'חדשה',
+        property_price: propertyPrice,
+        property_type: propertyType,
+        own_capital: ownCapital,
+        loan_amount: loanAmount,
+        status: 'טיוטה',
+        compliance_status: null,
+        notes: null,
+      })
+      if (mErr || !mortgage) {
+        alert('שגיאה בשמירת התמהיל: ' + (mErr?.message ?? 'unknown'))
+        return
+      }
+      for (const t of tracks) {
+        await mortgageService.addTrack({
+          mortgage_id: mortgage.id,
+          type: t.type,
+          amount: t.amount,
+          interest_rate: t.interestRate,
+          period_months: t.periodMonths,
+          monthly_payment: Math.round(effectiveMonthlyPayment(t)),
+          is_existing: false,
+          start_date: null,
+          end_date: null,
+        })
+      }
+      setExistingMixesCount(c => c + 1)
+      alert(`התמהיל נשמר בהצלחה (${existingMixesCount + 1}/${MAX_MIXES_PER_CUSTOMER})`)
+      navigate(`/customers/${customerId}`)
+    } finally {
+      setSavingMix(false)
+    }
+  }
+
+  const handleDownloadPDF = () => window.print()
 
   const cardStyle = {
     background: '#ffffff',
@@ -283,14 +360,24 @@ export default function MortgageCalculatorPage() {
 
           {/* Actions */}
           <div style={{ ...cardStyle, padding: '18px 24px' }} className="flex flex-col gap-2">
+            {customer && (
+              <div className="text-[12px] text-center pb-1" style={{ color: '#57534e' }}>
+                לקוח: <span className="font-semibold" style={{ color: '#1c1917' }}>{customer.first_name} {customer.last_name}</span>
+                {' · '}תמהילים: {existingMixesCount}/{MAX_MIXES_PER_CUSTOMER}
+              </div>
+            )}
             <button
-              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97]"
+              onClick={saveMixToCustomer}
+              disabled={savingMix || (!!customerId && existingMixesCount >= MAX_MIXES_PER_CUSTOMER)}
+              title={!customerId ? 'פתח את המחשבון מתוך כרטיס לקוח כדי לשמור תמהיל' : ''}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
             >
-              <Save size={15} />
-              שמור תמהיל ללקוח
+              {savingMix ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              {customerId ? 'שמור תמהיל ללקוח' : 'שמור תמהיל ללקוח (פתח מתיק לקוח)'}
             </button>
             <button
+              onClick={handleDownloadPDF}
               className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold transition-all hover:opacity-80"
               style={{ borderRadius: 12, background: '#f5f4f2', color: '#57534e' }}
             >

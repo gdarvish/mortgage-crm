@@ -4,7 +4,7 @@ import {
   ArrowRight, MessageSquare, ClipboardList, Calculator, Upload,
   Send, Plus, Check, Mail, Phone, MapPin, User, CreditCard,
   FileText, Home, MessagesSquare, ListTodo, Banknote, ExternalLink,
-  Trash2, Loader2, Save,
+  Trash2, Loader2, Save, Eye, Download,
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
@@ -13,6 +13,7 @@ import { taskService } from '@/services/taskService'
 import { messageService } from '@/services/messageService'
 import { commissionService } from '@/services/commissionService'
 import { documentService } from '@/services/documentService'
+import { mortgageService } from '@/services/mortgageService'
 import type {
   Customer, Document, Mortgage, LoanTrack, Message, Task, Commission, CustomerStatus
 } from '@/types/database'
@@ -42,12 +43,12 @@ const tabs: Tab[] = [
 ]
 
 const statusColors: Record<string, string> = {
-  'ליד': 'bg-blue-100 text-blue-700',
-  'פגישה': 'bg-yellow-100 text-yellow-700',
+  'ליד':    'bg-violet-100 text-violet-700',
+  'פגישה':  'bg-amber-100 text-amber-700',
   'מסמכים': 'bg-orange-100 text-orange-700',
-  'הגשה': 'bg-purple-100 text-purple-700',
-  'אישור': 'bg-green-100 text-green-700',
-  'סגירה': 'bg-emerald-100 text-emerald-700',
+  'הגשה':   'bg-fuchsia-100 text-fuchsia-700',
+  'אישור':  'bg-emerald-100 text-emerald-700',
+  'סגירה':  'bg-emerald-200 text-emerald-800',
 }
 
 const priorityColors: Record<string, string> = {
@@ -73,7 +74,7 @@ const docStatusIcon = (status: string) => {
 }
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none text-sm'
 
 // ---------------------------------------------------------------------------
 // Component
@@ -186,16 +187,24 @@ export default function CustomerDetailPage() {
   }
 
   const addTask = async () => {
-    if (!newTask.title.trim() || !id) return
+    if (!id) return
+    if (!newTask.title.trim()) {
+      alert('יש להזין תיאור משימה')
+      return
+    }
     const { data, error } = await taskService.create({
       customer_id: id,
-      title: newTask.title,
+      title: newTask.title.trim(),
       due_date: newTask.due_date || null,
       priority: newTask.priority as Task['priority'],
       status: 'פתוחה',
       notes: null,
     })
-    if (data && !error) {
+    if (error) {
+      alert('שגיאה בהוספת משימה: ' + error.message)
+      return
+    }
+    if (data) {
       setTasks(prev => [data, ...prev])
       setNewTask({ title: '', due_date: '', priority: 'בינונית' })
     }
@@ -220,6 +229,13 @@ export default function CustomerDetailPage() {
     if (data) setDocuments(prev => [data, ...prev])
     setUploadingDoc(false)
     e.target.value = ''
+  }
+
+  const deleteDocument = async (docId: string) => {
+    if (!window.confirm('האם למחוק את המסמך?')) return
+    const { error } = await documentService.delete(docId)
+    if (error) { alert('שגיאה במחיקה: ' + error.message); return }
+    setDocuments(prev => prev.filter(d => d.id !== docId))
   }
 
   const sendMessage = async (channel: Message['channel']) => {
@@ -283,7 +299,7 @@ export default function CustomerDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="text-[#1a4f8a] animate-spin" />
+        <Loader2 size={32} className="text-[#059669] animate-spin" />
       </div>
     )
   }
@@ -293,7 +309,7 @@ export default function CustomerDetailPage() {
       <div className="text-center py-16 text-gray-500">
         לקוח לא נמצא
         {fetchError && <p className="text-xs text-red-400 mt-2">{fetchError}</p>}
-        <button onClick={() => navigate('/customers')} className="block mx-auto mt-4 text-[#1a4f8a] hover:underline text-sm">
+        <button onClick={() => navigate('/customers')} className="block mx-auto mt-4 text-[#059669] hover:underline text-sm">
           חזרה לרשימת לקוחות
         </button>
       </div>
@@ -379,7 +395,7 @@ export default function CustomerDetailPage() {
         </div>
         <div className="md:col-span-2 flex justify-end pt-2">
           <button onClick={savePersonal} disabled={saving}
-            className="inline-flex items-center gap-2 bg-[#1a4f8a] text-white px-6 py-2 rounded-lg hover:bg-[#143d6b] transition-colors text-sm disabled:opacity-50">
+            className="inline-flex items-center gap-2 bg-[#059669] text-white px-6 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             שמור שינויים
           </button>
@@ -439,7 +455,7 @@ export default function CustomerDetailPage() {
       </div>
       <div className="md:col-span-2 flex justify-end pt-2">
         <button onClick={saveFinancial} disabled={saving}
-          className="inline-flex items-center gap-2 bg-[#1a4f8a] text-white px-6 py-2 rounded-lg hover:bg-[#143d6b] transition-colors text-sm disabled:opacity-50">
+          className="inline-flex items-center gap-2 bg-[#059669] text-white px-6 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
           {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
           שמור שינויים
         </button>
@@ -494,17 +510,52 @@ export default function CustomerDetailPage() {
               doc.status === 'ממתין' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
             }`}>{doc.status}</span>
             {doc.file_url && (
-              <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-[#1a4f8a] hover:underline">צפה</a>
+              <>
+                <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
+                  title="פתח את המסמך בלשונית חדשה"
+                  className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md text-[#059669] hover:bg-emerald-50">
+                  <Eye size={13} /> צפה
+                </a>
+                <a href={doc.file_url} download={doc.file_name || undefined}
+                  title="הורד את המסמך"
+                  className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md text-gray-600 hover:bg-gray-100">
+                  <Download size={13} />
+                </a>
+              </>
             )}
+            <button
+              onClick={() => deleteDocument(doc.id)}
+              title="מחק מסמך"
+              className="inline-flex items-center text-xs px-2 py-1 rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+              <Trash2 size={13} />
+            </button>
           </div>
         </div>
       ))}
     </div>
   )
 
+  const deleteMortgage = async (mortgageId: string) => {
+    if (!window.confirm('האם למחוק את התמהיל הזה?')) return
+    const { error } = await mortgageService.delete(mortgageId)
+    if (error) { alert('שגיאה במחיקה: ' + error.message); return }
+    setMortgages(prev => prev.filter(m => m.id !== mortgageId))
+  }
+
+  const MAX_MIXES = 3
   const renderMortgagesTab = () => (
     <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500">תמהילים שמורים: {mortgages.length}/{MAX_MIXES}</p>
+        <button
+          onClick={() => navigate(`/calculator?customerId=${id}`)}
+          disabled={mortgages.length >= MAX_MIXES}
+          className="inline-flex items-center gap-1 text-xs bg-[#059669] text-white px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+          title={mortgages.length >= MAX_MIXES ? `הגעת למקסימום ${MAX_MIXES} תמהילים` : ''}
+        >
+          <Plus size={13} /> תמהיל חדש
+        </button>
+      </div>
       {mortgages.length === 0 && (
         <div className="text-center py-12 text-gray-400 text-sm">
           <Home size={36} className="mx-auto mb-3 text-gray-300" />
@@ -531,10 +582,17 @@ export default function CustomerDetailPage() {
                   {mortgage.loan_amount ? `סכום הלוואה: ${formatCurrency(mortgage.loan_amount)}` : ''}
                 </p>
               </div>
-              <button onClick={() => navigate('/calculator')}
-                className="inline-flex items-center gap-1 text-sm text-[#1a4f8a] hover:text-[#143d6b] transition-colors">
-                <ExternalLink size={14} />מחשבון
-              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => navigate(`/calculator?customerId=${id}`)}
+                  className="inline-flex items-center gap-1 text-sm text-[#059669] hover:text-[#047857] transition-colors">
+                  <ExternalLink size={14} />מחשבון
+                </button>
+                <button onClick={() => deleteMortgage(mortgage.id)}
+                  title="מחק תמהיל"
+                  className="text-gray-300 hover:text-red-500 transition-colors">
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
             {tracks.length > 0 && (
               <div className="p-4">
@@ -609,7 +667,7 @@ export default function CustomerDetailPage() {
         {messages.map(msg => (
           <div key={msg.id} className={`flex ${msg.direction === 'נשלח' ? 'justify-start' : 'justify-end'}`}>
             <div className={`max-w-[75%] rounded-xl p-3 ${
-              msg.direction === 'נשלח' ? 'bg-[#1a4f8a] text-white rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+              msg.direction === 'נשלח' ? 'bg-[#059669] text-white rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-bl-sm'
             }`}>
               <span className={`text-xs font-medium ${msg.direction === 'נשלח' ? 'text-blue-200' : 'text-gray-500'}`}>
                 {msg.channel} · {msg.direction}
@@ -645,7 +703,7 @@ export default function CustomerDetailPage() {
               {['נמוכה', 'בינונית', 'גבוהה', 'דחופה'].map(p => <option key={p} value={p}>{p}</option>)}
             </select>
             <button onClick={addTask}
-              className="bg-[#1a4f8a] text-white px-3 py-2 rounded-lg hover:bg-[#143d6b] transition-colors">
+              className="bg-[#059669] text-white px-3 py-2 rounded-lg hover:bg-[#047857] transition-colors">
               <Plus size={18} />
             </button>
           </div>
@@ -663,7 +721,7 @@ export default function CustomerDetailPage() {
             <div className="flex items-center gap-3">
               <button onClick={() => toggleTask(task)}
                 className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                  task.status === 'הושלמה' ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-[#1a4f8a]'
+                  task.status === 'הושלמה' ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-[#059669]'
                 }`}>
                 {task.status === 'הושלמה' && <Check size={14} />}
               </button>
@@ -722,7 +780,7 @@ export default function CustomerDetailPage() {
         </div>
         <div className="flex justify-end">
           <button onClick={saveCommission} disabled={saving}
-            className="inline-flex items-center gap-2 bg-[#1a4f8a] text-white px-6 py-2 rounded-lg hover:bg-[#143d6b] transition-colors text-sm disabled:opacity-50">
+            className="inline-flex items-center gap-2 bg-[#059669] text-white px-6 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             שמור שינויים
           </button>
@@ -745,18 +803,19 @@ export default function CustomerDetailPage() {
   // Main render
   // -------------------------------------------------------------------------
   return (
-    <div className="animate-fade-in space-y-4">
+    <div className="animate-fade-in space-y-4 max-w-[1360px] mx-auto" style={{ fontFamily: 'var(--font-heebo)' }}>
       {/* Back */}
       <button onClick={() => navigate('/customers')}
-        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#1a4f8a] transition-colors">
+        className="inline-flex items-center gap-1 text-sm transition-colors hover:opacity-80"
+        style={{ color: '#a8a29e' }}>
         <ArrowRight size={16} />חזרה לרשימת לקוחות
       </button>
 
       {/* Header */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+      <div className="p-5" style={{ background: '#ffffff', borderRadius: 20, boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)', border: '1px solid #e7e5e4' }}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-[#1a4f8a] text-white rounded-full flex items-center justify-center text-lg font-bold">
+            <div className="w-12 h-12 bg-[#059669] text-white rounded-full flex items-center justify-center text-lg font-bold">
               {customer.first_name[0]}{customer.last_name[0]}
             </div>
             <div>
@@ -781,7 +840,7 @@ export default function CustomerDetailPage() {
               className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm">
               <ClipboardList size={16} />שלח שאלון
             </button>
-            <button onClick={() => navigate('/calculator')}
+            <button onClick={() => navigate(`/calculator?customerId=${id}`)}
               className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg hover:bg-purple-100 transition-colors text-sm">
               <Calculator size={16} />צור תמהיל
             </button>
@@ -800,7 +859,7 @@ export default function CustomerDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="overflow-hidden" style={{ background: '#ffffff', borderRadius: 20, boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)', border: '1px solid #e7e5e4' }}>
         <div className="flex overflow-x-auto border-b border-gray-100">
           {tabs.map(tab => {
             const Icon = tab.icon
@@ -808,7 +867,7 @@ export default function CustomerDetailPage() {
             return (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
-                  isActive ? 'border-[#1a4f8a] text-[#1a4f8a]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  isActive ? 'border-[#059669] text-[#059669]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}>
                 <Icon size={16} />{tab.label}
               </button>
