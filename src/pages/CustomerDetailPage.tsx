@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowRight, MessageSquare, ClipboardList, Calculator, Upload,
@@ -7,7 +7,12 @@ import {
   Trash2, Loader2, Save,
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
+import { customerService } from '@/services/customerService'
+import { taskService } from '@/services/taskService'
+import { messageService } from '@/services/messageService'
+import { commissionService } from '@/services/commissionService'
+import { documentService } from '@/services/documentService'
 import type {
   Customer, Document, Mortgage, LoanTrack, Message, Task, Commission, CustomerStatus
 } from '@/types/database'
@@ -76,6 +81,7 @@ const inputClass =
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuthStore()
   const [activeTab, setActiveTab] = useState<TabKey>('personal')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -104,56 +110,57 @@ export default function CustomerDetailPage() {
   const [messageText, setMessageText] = useState('')
   const [sendingMsg, setSendingMsg] = useState(false)
 
+  // Documents upload
+  const docFileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [docUploadType, setDocUploadType] = useState('תעודת זהות + ספח')
+
   // -------------------------------------------------------------------------
   // Fetch all customer data
   // -------------------------------------------------------------------------
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (isMounted: () => boolean) => {
     if (!id) return
     setLoading(true)
 
-    const [custRes, docsRes, mortRes, msgRes, taskRes, commRes] = await Promise.all([
-      supabase.from('customers').select('*').eq('id', id).single(),
-      supabase.from('documents').select('*').eq('customer_id', id).order('uploaded_at', { ascending: false }),
-      supabase.from('mortgages').select('*, loan_tracks(*)').eq('customer_id', id).order('created_at', { ascending: false }),
-      supabase.from('messages').select('*').eq('customer_id', id).order('sent_at', { ascending: true }),
-      supabase.from('tasks').select('*').eq('customer_id', id).order('due_date', { ascending: true }),
-      supabase.from('commissions').select('*').eq('customer_id', id).limit(1).maybeSingle(),
-    ])
-
-    if (custRes.data) {
-      const c = custRes.data as Customer
-      setCustomer(c)
-      setStatusValue(c.status)
+    const { data: full } = await customerService.getById(id)
+    if (!isMounted()) return
+    if (full) {
+      setCustomer(full)
+      setStatusValue(full.status)
       setPersonal({
-        first_name: c.first_name || '',
-        last_name: c.last_name || '',
-        id_number: c.id_number || '',
-        phone: c.phone || '',
-        email: c.email || '',
-        address: c.address || '',
-        marital_status: c.marital_status || 'רווק',
-        children: c.children || 0,
+        first_name: full.first_name || '',
+        last_name: full.last_name || '',
+        id_number: full.id_number || '',
+        phone: full.phone || '',
+        email: full.email || '',
+        address: full.address || '',
+        marital_status: full.marital_status || 'רווק',
+        children: full.children || 0,
       })
       setFinancial({
-        monthly_income: c.monthly_income || 0,
-        partner_income: c.partner_income || 0,
-        own_capital: c.own_capital || 0,
-        existing_obligations: c.existing_obligations || 0,
-        lead_source: c.lead_source || '',
-        notes: c.notes || '',
+        monthly_income: full.monthly_income || 0,
+        partner_income: full.partner_income || 0,
+        own_capital: full.own_capital || 0,
+        existing_obligations: full.existing_obligations || 0,
+        lead_source: full.lead_source || '',
+        notes: full.notes || '',
       })
+      setDocuments(full.documents || [])
+      setMortgages((full.mortgages || []) as MortgageWithTracks[])
+      setMessages(full.messages || [])
+      setTasks(full.tasks || [])
+      setCommission((full.commissions && full.commissions[0]) || null)
     }
 
-    if (docsRes.data) setDocuments(docsRes.data as Document[])
-    if (mortRes.data) setMortgages(mortRes.data as MortgageWithTracks[])
-    if (msgRes.data) setMessages(msgRes.data as Message[])
-    if (taskRes.data) setTasks(taskRes.data as Task[])
-    if (commRes.data) setCommission(commRes.data as Commission)
-
     setLoading(false)
-  }, [id])
+  }, [id, user])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => {
+    if (!user) return
+    let mounted = true
+    fetchAll(() => mounted)
+    return () => { mounted = false }
+  }, [fetchAll, user])
 
   // -------------------------------------------------------------------------
   // Save handlers
@@ -161,10 +168,7 @@ export default function CustomerDetailPage() {
   const savePersonal = async () => {
     if (!id) return
     setSaving(true)
-    const { error } = await supabase.from('customers').update({
-      ...personal,
-      status: statusValue,
-    }).eq('id', id)
+    const { error } = await customerService.update(id, { ...personal, status: statusValue })
     if (!error) setCustomer(prev => prev ? { ...prev, ...personal, status: statusValue } : prev)
     else alert('שגיאה בשמירה: ' + error.message)
     setSaving(false)
@@ -173,7 +177,7 @@ export default function CustomerDetailPage() {
   const saveFinancial = async () => {
     if (!id) return
     setSaving(true)
-    const { error } = await supabase.from('customers').update(financial).eq('id', id)
+    const { error } = await customerService.update(id, financial)
     if (!error) setCustomer(prev => prev ? { ...prev, ...financial } : prev)
     else alert('שגיאה בשמירה: ' + error.message)
     setSaving(false)
@@ -181,65 +185,92 @@ export default function CustomerDetailPage() {
 
   const addTask = async () => {
     if (!newTask.title.trim() || !id) return
-    const { data, error } = await supabase.from('tasks').insert({
+    const { data, error } = await taskService.create({
       customer_id: id,
       title: newTask.title,
       due_date: newTask.due_date || null,
       priority: newTask.priority as Task['priority'],
       status: 'פתוחה',
-    }).select().single()
+      notes: null,
+    })
     if (data && !error) {
-      setTasks(prev => [data as Task, ...prev])
+      setTasks(prev => [data, ...prev])
       setNewTask({ title: '', due_date: '', priority: 'בינונית' })
     }
   }
 
   const toggleTask = async (task: Task) => {
     const newStatus = task.status === 'הושלמה' ? 'פתוחה' : 'הושלמה'
-    const { error } = await supabase.from('tasks').update({ status: newStatus }).eq('id', task.id)
+    const { error } = await taskService.update(task.id, { status: newStatus })
     if (!error) setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t))
   }
 
   const deleteTask = async (taskId: string) => {
-    const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+    const { error } = await taskService.delete(taskId)
     if (!error) setTasks(prev => prev.filter(t => t.id !== taskId))
+  }
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !id) return
+    setUploadingDoc(true)
+    const { data } = await documentService.upload(id, file, docUploadType, 'required')
+    if (data) setDocuments(prev => [data, ...prev])
+    setUploadingDoc(false)
+    e.target.value = ''
   }
 
   const sendMessage = async (channel: Message['channel']) => {
     if (!messageText.trim() || !id) return
     setSendingMsg(true)
-    const { data, error } = await supabase.from('messages').insert({
+    const { data, error } = await messageService.create({
       customer_id: id,
       channel,
       direction: 'נשלח',
       content: messageText,
-    }).select().single()
+    })
     if (data && !error) {
-      setMessages(prev => [...prev, data as Message])
+      setMessages(prev => [...prev, data])
       setMessageText('')
     }
     setSendingMsg(false)
+  }
+
+  const generateToken = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+
+  const sendQuestionnaire = async () => {
+    if (!id) return
+    const token = generateToken()
+    const { error } = await customerService.update(id, { questionnaire_token: token })
+    if (error) {
+      alert('שגיאה ביצירת קישור: ' + error.message)
+      return
+    }
+    const url = `${window.location.origin}/questionnaire/${token}`
+    setMessageText(`שלום ${customer?.first_name}, אנא מלא את שאלון הפרטים בקישור הבא: ${url}`)
+    setActiveTab('communication')
   }
 
   const saveCommission = async () => {
     if (!commission || !id) return
     setSaving(true)
     if (commission.id) {
-      await supabase.from('commissions').update({
+      await commissionService.update(commission.id, {
         amount: commission.amount,
         status: commission.status,
         payment_date: commission.payment_date,
         notes: commission.notes,
-      }).eq('id', commission.id)
+      })
     } else {
-      const { data } = await supabase.from('commissions').insert({
+      const { data } = await commissionService.create({
         customer_id: id,
+        mortgage_id: null,
         amount: commission.amount,
         status: commission.status,
         payment_date: commission.payment_date,
         notes: commission.notes,
-      }).select().single()
-      if (data) setCommission(data as Commission)
+      })
+      if (data) setCommission(data)
     }
     setSaving(false)
   }
@@ -415,9 +446,29 @@ export default function CustomerDetailPage() {
 
   const renderDocumentsTab = () => (
     <div className="space-y-3">
-      <p className="text-sm text-gray-500">
-        {documents.filter(d => d.status === 'תקין').length} / {documents.length} מסמכים תקינים
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500">
+          {documents.filter(d => d.status === 'תקין').length} / {documents.length} מסמכים תקינים
+        </p>
+        <div className="flex items-center gap-2">
+          <select
+            value={docUploadType}
+            onChange={e => setDocUploadType(e.target.value)}
+            className="text-xs px-2 py-1 border border-gray-200 rounded-lg bg-white outline-none"
+          >
+            {['תעודת זהות + ספח', '3 תלושי שכר', 'הסכם רכישה', 'נסח טאבו', 'דוח פלאש BDI', 'אחר'].map(t => <option key={t}>{t}</option>)}
+          </select>
+          <input type="file" hidden ref={docFileInputRef} onChange={handleDocUpload} />
+          <button
+            onClick={() => docFileInputRef.current?.click()}
+            disabled={uploadingDoc}
+            className="inline-flex items-center gap-1 text-xs bg-[#059669] text-white px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+          >
+            {uploadingDoc ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+            העלאה
+          </button>
+        </div>
+      </div>
       {documents.length === 0 && (
         <div className="text-center py-12 text-gray-400 text-sm">
           <FileText size={36} className="mx-auto mb-3 text-gray-300" />
@@ -443,9 +494,6 @@ export default function CustomerDetailPage() {
               <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
                 className="text-xs text-[#1a4f8a] hover:underline">צפה</a>
             )}
-            <button className="inline-flex items-center gap-1 text-xs text-[#1a4f8a] hover:text-[#143d6b] bg-white border border-gray-200 px-2 py-1 rounded-lg transition-colors">
-              <Upload size={14} />העלאה
-            </button>
           </div>
         </div>
       ))}
@@ -725,12 +773,24 @@ export default function CustomerDetailPage() {
               className="inline-flex items-center gap-2 bg-green-50 text-green-700 border border-green-200 px-3 py-2 rounded-lg hover:bg-green-100 transition-colors text-sm">
               <Send size={16} />שלח הודעה
             </button>
-            <button className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm">
+            <button
+              onClick={sendQuestionnaire}
+              className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm">
               <ClipboardList size={16} />שלח שאלון
             </button>
             <button onClick={() => navigate('/calculator')}
               className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg hover:bg-purple-100 transition-colors text-sm">
               <Calculator size={16} />צור תמהיל
+            </button>
+            <button
+              onClick={async () => {
+                if (!window.confirm('האם למחוק לקוח זה? פעולה זו בלתי הפיכה.')) return
+                const { error } = await customerService.delete(id!)
+                if (error) { alert('שגיאה במחיקה: ' + error.message); return }
+                navigate('/customers')
+              }}
+              className="inline-flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 px-3 py-2 rounded-lg hover:bg-red-100 transition-colors text-sm">
+              <Trash2 size={16} />מחק לקוח
             </button>
           </div>
         </div>

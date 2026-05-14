@@ -1,10 +1,19 @@
 import { create } from 'zustand'
-import type { User, Session, AuthError } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import {
+  type User,
+  type AuthError,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signOut as fbSignOut,
+} from 'firebase/auth'
+import { auth } from '@/lib/firebase'
 
 interface AuthState {
   user: User | null
-  session: Session | null
   loading: boolean
   initialized: boolean
 }
@@ -13,74 +22,66 @@ interface AuthActions {
   initialize: () => () => void
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>
   signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>
+  signInWithGoogle: () => Promise<{ error: AuthError | null }>
   signOut: () => Promise<void>
 }
 
 export type AuthStore = AuthState & AuthActions
 
-export const useAuthStore = create<AuthStore>((set, _get) => ({
+export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
-  session: null,
   loading: true,
   initialized: false,
 
   initialize: () => {
-    // Get the initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       set({
-        session,
-        user: session?.user ?? null,
+        user,
         loading: false,
         initialized: true,
       })
     })
 
-    // Subscribe to auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      set({
-        session,
-        user: session?.user ?? null,
-        loading: false,
-      })
-    })
-
-    // Return unsubscribe function for cleanup
-    return () => {
-      subscription.unsubscribe()
-    }
+    return unsubscribe
   },
 
   signIn: async (email: string, password: string) => {
     set({ loading: true })
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    if (error) {
+    try {
+      await signInWithEmailAndPassword(auth, email, password)
+      return { error: null }
+    } catch (error) {
       set({ loading: false })
+      return { error: error as AuthError }
     }
-    // On success, onAuthStateChange will update the state
-    return { error }
   },
 
   signUp: async (email: string, password: string) => {
     set({ loading: true })
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    })
-    if (error) {
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password)
+      await sendEmailVerification(cred.user)
+      return { error: null }
+    } catch (error) {
       set({ loading: false })
+      return { error: error as AuthError }
     }
-    // On success, onAuthStateChange will update the state
-    return { error }
+  },
+
+  signInWithGoogle: async () => {
+    set({ loading: true })
+    try {
+      const provider = new GoogleAuthProvider()
+      await signInWithPopup(auth, provider)
+      return { error: null }
+    } catch (error) {
+      set({ loading: false })
+      return { error: error as AuthError }
+    }
   },
 
   signOut: async () => {
     set({ loading: true })
-    await supabase.auth.signOut()
-    // onAuthStateChange will set user/session to null
+    await fbSignOut(auth)
   },
 }))

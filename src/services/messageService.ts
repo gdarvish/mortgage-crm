@@ -1,25 +1,57 @@
-import { supabase } from '@/lib/supabase'
+import {
+  collection,
+  getDoc,
+  getDocs,
+  doc,
+  query,
+  where,
+  addDoc,
+  deleteDoc,
+  serverTimestamp,
+} from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { Message } from '@/types/database'
 
-export const messageService = {
-  async getByCustomer(customerId: string) {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('customer_id', customerId)
-      .order('sent_at', { ascending: false })
+const COL = 'messages'
 
-    return { data: data as Message[] | null, error }
+export const messageService = {
+  async getByCustomer(customerId: string): Promise<{ data: Message[] | null; error: FirestoreError | null }> {
+    try {
+      const snap = await getDocs(
+        query(collection(db, COL), where('customer_id', '==', customerId))
+      )
+      const data = fromDocs<Message>(snap.docs)
+        .sort((a, b) => new Date(a.sent_at || 0).getTime() - new Date(b.sent_at || 0).getTime())
+      return { data, error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 
-  async create(message: Omit<Message, 'id' | 'sent_at'>) {
-    const { data, error } = await supabase
-      .from('messages')
-      .insert(message as Record<string, unknown>)
-      .select()
-      .single()
+  async delete(id: string): Promise<{ error: FirestoreError | null }> {
+    try {
+      await deleteDoc(doc(db, COL, id))
+      return { error: null }
+    } catch (e) {
+      return { error: toError(e) }
+    }
+  },
 
-    return { data: data as Message | null, error }
+  async create(message: Omit<Message, 'id' | 'sent_at'>): Promise<{ data: Message | null; error: FirestoreError | null }> {
+    try {
+      const uid = await awaitUserId()
+      const payload = {
+        ...message,
+        user_id: uid,
+        sent_at: serverTimestamp(),
+      }
+      const ref = await addDoc(collection(db, COL), payload)
+      const snap = await getDoc(ref)
+      return { data: fromDoc<Message>(snap), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 
   sendWhatsApp(phone: string, message: string) {

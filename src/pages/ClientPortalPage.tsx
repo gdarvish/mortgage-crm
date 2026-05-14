@@ -1,5 +1,8 @@
+import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { Home, FileText, Upload, CheckCircle, Clock, XCircle, PenTool } from 'lucide-react'
+import { Home, FileText, Upload, CheckCircle, Clock, XCircle, PenTool, Loader2 } from 'lucide-react'
+import { customerService } from '@/services/customerService'
+import type { CustomerWithRelations } from '@/types/database'
 
 const mockPortalData = {
   advisorName: 'ישראל ישראלי',
@@ -30,7 +33,44 @@ const statusIcon = (status: string) => {
 }
 
 export default function ClientPortalPage() {
-  const { token: _token } = useParams()
+  const { token } = useParams()
+  const [customer, setCustomer] = useState<CustomerWithRelations | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!token) return
+    // Note: This needs a dedicated service method for portal token
+    // For now we use questionnaire token as a fallback for demo
+    customerService.getByQuestionnaireToken(token).then(({ data }) => {
+      if (data) {
+        customerService.getById(data.id).then(({ data: full }) => {
+          if (full) setCustomer(full)
+          setLoading(false)
+        })
+      } else {
+        setLoading(false)
+      }
+    })
+  }, [token])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Loader2 size={32} className="text-[#1a4f8a] animate-spin" />
+      </div>
+    )
+  }
+
+  if (!customer) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" dir="rtl">
+        <div className="bg-white rounded-2xl shadow-lg p-8 text-center max-w-md">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">הקישור אינו בתוקף</h1>
+          <p className="text-gray-600">נא לפנות ליועץ המשכנתאות לקבלת קישור חדש לפורטל.</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
@@ -48,13 +88,17 @@ export default function ClientPortalPage() {
       <div className="max-w-2xl mx-auto p-4 -mt-4 space-y-4">
         {/* Status Card */}
         <div className="bg-white rounded-xl shadow-sm p-5">
-          <h2 className="text-lg font-bold text-gray-900">שלום {mockPortalData.customerName}!</h2>
+          <h2 className="text-lg font-bold text-gray-900">שלום {customer.first_name}!</h2>
           <div className="mt-3 flex items-center gap-3">
             <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-sm font-medium">
-              שלב: {mockPortalData.status}
+              שלב: {customer.status}
             </span>
           </div>
-          <p className="text-gray-600 mt-3 text-sm">{mockPortalData.statusDescription}</p>
+          <p className="text-gray-600 mt-3 text-sm">
+            {customer.status === 'מסמכים'
+              ? 'אנחנו בשלב איסוף המסמכים. אנא העלה את המסמכים החסרים.'
+              : `התיק שלך נמצא בסטטוס ${customer.status}.`}
+          </p>
         </div>
 
         {/* Documents Checklist */}
@@ -64,7 +108,7 @@ export default function ClientPortalPage() {
             צ'קליסט מסמכים
           </h2>
           <div className="space-y-3">
-            {mockPortalData.documents.map((doc, idx) => (
+            {customer.documents?.map((doc, idx) => (
               <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-2">
                   {statusIcon(doc.status)}
@@ -83,6 +127,9 @@ export default function ClientPortalPage() {
                 )}
               </div>
             ))}
+            {(!customer.documents || customer.documents.length === 0) && (
+              <p className="text-sm text-gray-400 text-center py-4">אין מסמכים דרושים כרגע</p>
+            )}
           </div>
         </div>
 

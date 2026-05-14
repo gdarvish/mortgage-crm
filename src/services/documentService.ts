@@ -1,71 +1,106 @@
-import { supabase } from '@/lib/supabase'
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  serverTimestamp,
+} from 'firebase/firestore'
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import { db, storage } from '@/lib/firebase'
+import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { Document } from '@/types/database'
 
-export const documentService = {
-  async getByCustomer(customerId: string) {
-    const { data, error } = await supabase
-      .from('documents')
-      .select('*')
-      .eq('customer_id', customerId)
-      .order('uploaded_at', { ascending: false })
+const COL = 'documents'
 
-    return { data: data as Document[] | null, error }
+interface DocumentRecord extends Document {
+  storage_path?: string | null
+}
+
+export const documentService = {
+  async getByCustomer(customerId: string): Promise<{ data: Document[] | null; error: FirestoreError | null }> {
+    try {
+      const snap = await getDocs(
+        query(
+          collection(db, COL),
+          where('customer_id', '==', customerId),
+          orderBy('uploaded_at', 'desc')
+        )
+      )
+      return { data: fromDocs<Document>(snap.docs), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
   },
 
-  async upload(customerId: string, file: File, type: string, category: string) {
-    const fileName = `${customerId}/${Date.now()}-${file.name}`
+  async upload(
+    customerId: string,
+    file: File,
+    type: string,
+    category: string
+  ): Promise<{ data: Document | null; error: FirestoreError | null }> {
+    try {
+      const uid = await awaitUserId()
+      const storagePath = `documents/${customerId}/${Date.now()}-${file.name}`
+      const fileRef = ref(storage, storagePath)
+      await uploadBytes(fileRef, file)
+      const fileUrl = await getDownloadURL(fileRef)
 
-    const { error: uploadError } = await supabase.storage
-      .from('documents')
-      .upload(fileName, file)
-
-    if (uploadError) return { data: null, error: uploadError }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('documents')
-      .getPublicUrl(fileName)
-
-    const { data, error } = await supabase
-      .from('documents')
-      .insert({
+      const payload = {
         customer_id: customerId,
+        user_id: uid,
         type,
         category,
-        file_url: publicUrl,
+        file_url: fileUrl,
         file_name: file.name,
         file_size: file.size,
         status: 'ממתין',
-      })
-      .select()
-      .single()
-
-    return { data: data as Document | null, error }
-  },
-
-  async updateStatus(id: string, status: string) {
-    const { data, error } = await supabase
-      .from('documents')
-      .update({ status })
-      .eq('id', id)
-      .select()
-      .single()
-
-    return { data: data as Document | null, error }
-  },
-
-  async delete(id: string, fileUrl: string) {
-    // Extract path from URL for storage deletion
-    const path = fileUrl.split('/documents/')[1]
-    if (path) {
-      await supabase.storage.from('documents').remove([path])
+        storage_path: storagePath,
+        uploaded_at: serverTimestamp(),
+      }
+      const docRef = await addDoc(collection(db, COL), payload)
+      const snap = await getDoc(docRef)
+      return { data: fromDoc<Document>(snap), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
     }
+  },
 
-    const { error } = await supabase
-      .from('documents')
-      .delete()
-      .eq('id', id)
+  async updateStatus(id: string, status: string): Promise<{ data: Document | null; error: FirestoreError | null }> {
+    try {
+      const ref = doc(db, COL, id)
+      await updateDoc(ref, { status })
+      const snap = await getDoc(ref)
+      return { data: fromDoc<Document>(snap), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
+  },
 
-    return { error }
+  async delete(id: string, _fileUrl?: string): Promise<{ error: FirestoreError | null }> {
+    try {
+      const docRef = doc(db, COL, id)
+      const snap = await getDoc(docRef)
+      if (snap.exists()) {
+        const record = fromDoc<DocumentRecord>(snap)
+        if (record.storage_path) {
+          try {
+            await deleteObject(ref(storage, record.storage_path))
+          } catch {
+            // file may already be gone; proceed with metadata delete
+          }
+        }
+      }
+      await deleteDoc(docRef)
+      return { error: null }
+    } catch (e) {
+      return { error: toError(e) }
+    }
   },
 
   getChecklist(borrowerType: 'שכיר' | 'עצמאי') {

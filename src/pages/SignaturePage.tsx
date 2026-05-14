@@ -1,13 +1,26 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { PenTool, CheckCircle, RotateCcw } from 'lucide-react'
+import { PenTool, CheckCircle, RotateCcw, Loader2 } from 'lucide-react'
+import { customerService } from '@/services/customerService'
+import type { Customer } from '@/types/database'
 
 export default function SignaturePage() {
-  const { token: _token } = useParams()
+  const { token } = useParams()
+  const [customer, setCustomer] = useState<Customer | null>(null)
+  const [loading, setLoading] = useState(true)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [signed, setSigned] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!token) return
+    customerService.getBySignatureToken(token).then(({ data }) => {
+      if (data) setCustomer(data)
+      setLoading(false)
+    })
+  }, [token])
 
   const getPos = (e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current!
@@ -47,6 +60,25 @@ export default function SignaturePage() {
     if (!ctx) return
     ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height)
     setSigned(false)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Loader2 size={32} className="text-[#1a4f8a] animate-spin" />
+      </div>
+    )
+  }
+
+  if (!customer && !submitted) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" dir="rtl">
+        <div className="bg-white rounded-2xl shadow-lg p-8 text-center max-w-md">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">הקישור אינו בתוקף</h1>
+          <p className="text-gray-600">נא לפנות ליועץ המשכנתאות לקבלת קישור חדש לחתימה.</p>
+        </div>
+      </div>
+    )
   }
 
   if (submitted) {
@@ -105,11 +137,18 @@ export default function SignaturePage() {
           </div>
 
           <button
-            onClick={() => setSubmitted(true)}
-            disabled={!signed}
+            onClick={() => {
+              setSubmitting(true)
+              // In a real app, we would upload the signature to storage here
+              setTimeout(() => {
+                setSubmitting(false)
+                setSubmitted(true)
+              }, 1500)
+            }}
+            disabled={!signed || submitting}
             className="w-full mt-4 bg-[#1a4f8a] text-white py-3 rounded-lg hover:bg-[#143d6b] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            <CheckCircle size={18} />
+            {submitting ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />}
             אשר וחתום
           </button>
         </div>

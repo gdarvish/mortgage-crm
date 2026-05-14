@@ -1,126 +1,230 @@
 import { useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { Menu, Search, Bell, X } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import {
+  LayoutDashboard, Users, UserPlus, FileText, Calculator,
+  Bell, DollarSign, Settings, Menu, Search, X, Share2,
+  RefreshCw, Layers, TrendingUp, Heart, MessageSquare,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface HeaderProps {
-  onMenuToggle: () => void
-  sidebarCollapsed: boolean
+  sidebarCollapsed?: boolean
 }
 
-const routeTitles: Record<string, string> = {
-  '/dashboard': 'דשבורד',
-  '/customers': 'לקוחות',
-  '/leads': 'לידים',
-  '/documents': 'מסמכים',
-  '/calculator': 'מחשבון משכנתא',
-  '/refinance': 'מחזור משכנתא',
-  '/consolidation': 'איחוד הלוואות',
-  '/alerts': 'התראות',
-  '/communication': 'תקשורת',
-  '/commissions': 'עמלות',
-  '/referrals': 'מפנים',
-  '/interest-rates': 'ריביות',
-  '/family-economics': 'כלכלת משפחה',
-  '/settings': 'הגדרות',
-}
+const navItems = [
+  { label: 'דשבורד',   path: '/dashboard',   icon: LayoutDashboard },
+  { label: 'לקוחות',   path: '/customers',   icon: Users },
+  { label: 'לידים',    path: '/leads',        icon: UserPlus },
+  { label: 'מסמכים',   path: '/documents',   icon: FileText },
+  { label: 'מחשבון',   path: '/calculator',  icon: Calculator },
+  { label: 'התראות',   path: '/alerts',      icon: Bell },
+  { label: 'עמלות',    path: '/commissions', icon: DollarSign },
+  { label: 'הגדרות',   path: '/settings',    icon: Settings },
+]
 
-function getPageTitle(pathname: string): string {
-  // Exact match first
-  if (routeTitles[pathname]) return routeTitles[pathname]
+const mobileExtraItems = [
+  { label: 'תקשורת',       path: '/communication', icon: MessageSquare },
+  { label: 'שותפי הפניה', path: '/referrals',     icon: Share2 },
+  { label: 'ריביות',       path: '/rates',          icon: TrendingUp },
+  { label: 'מחזור',        path: '/refinance',      icon: RefreshCw },
+  { label: 'איחוד הלוואות', path: '/consolidation', icon: Layers },
+  { label: 'כלכלת משפחה', path: '/family',          icon: Heart },
+]
 
-  // Try matching the base path (e.g., /customers/123 -> /customers)
-  const basePath = '/' + pathname.split('/').filter(Boolean)[0]
-  if (routeTitles[basePath]) return routeTitles[basePath]
-
-  return 'דשבורד'
-}
-
-export default function Header({ onMenuToggle }: Omit<HeaderProps, 'sidebarCollapsed'> & { sidebarCollapsed?: boolean }) {
+export default function Header(_props: HeaderProps) {
   const location = useLocation()
+  const navigate = useNavigate()
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
 
-  const pageTitle = getPageTitle(location.pathname)
+  const notificationCount = 0
 
-  // Notification count - this would come from a store in production
-  const notificationCount = 3
+  function isActive(path: string) {
+    if (path === '/dashboard') return location.pathname === path || location.pathname === '/'
+    return location.pathname.startsWith(path)
+  }
+
+  const handleNav = (path: string) => {
+    navigate(path)
+    setMenuOpen(false)
+  }
+
+  const allMobileItems = [...navItems, ...mobileExtraItems]
 
   return (
-    <header
-      className={cn(
-        'sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-gray-100 bg-white px-4 shadow-sm transition-all duration-300 lg:px-6',
-      )}
-    >
-      {/* Mobile menu toggle */}
-      <button
-        onClick={onMenuToggle}
-        className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 lg:hidden"
-        aria-label="פתח תפריט"
+    <>
+      <header
+        className="sticky top-0 z-[100] flex items-center w-full shrink-0"
+        style={{ height: 58, background: '#1c1917' }}
       >
-        <Menu className="h-5 w-5" />
-      </button>
-
-      {/* Page title */}
-      <h1 className="text-xl font-bold text-gray-900 font-[var(--font-heebo)]">
-        {pageTitle}
-      </h1>
-
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Search bar */}
-      <div
-        className={cn(
-          'relative transition-all duration-200',
-          searchOpen ? 'w-64' : 'w-auto'
-        )}
-      >
-        {searchOpen ? (
-          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5">
-            <Search className="h-4 w-4 shrink-0 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="חיפוש לקוחות, לידים..."
-              className="w-full border-none bg-transparent text-sm text-gray-900 placeholder-gray-400 outline-none"
-              autoFocus
-            />
-            <button
-              onClick={() => {
-                setSearchOpen(false)
-                setSearchQuery('')
-              }}
-              className="shrink-0 text-gray-400 hover:text-gray-600"
-              aria-label="סגור חיפוש"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        ) : (
+        {/* Logo */}
+        <div className="flex items-center px-4 shrink-0">
           <button
-            onClick={() => setSearchOpen(true)}
-            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-            aria-label="חיפוש"
+            onClick={() => navigate('/dashboard')}
+            className="flex items-center justify-center text-white font-black text-lg transition-transform duration-200 hover:scale-110 hover:-rotate-[4deg]"
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              background: '#059669',
+              boxShadow: '0 4px 12px rgba(5,150,105,0.5)',
+            }}
+            aria-label="דשבורד"
           >
-            <Search className="h-5 w-5" />
+            מ
           </button>
-        )}
-      </div>
+        </div>
 
-      {/* Notifications */}
-      <button
-        className="relative rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-        aria-label="התראות"
-      >
-        <Bell className="h-5 w-5" />
-        {notificationCount > 0 && (
-          <span className="absolute -top-0.5 -left-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-            {notificationCount > 99 ? '99+' : notificationCount}
-          </span>
-        )}
-      </button>
-    </header>
+        {/* Divider */}
+        <div className="w-px self-stretch my-3 shrink-0" style={{ background: '#292524' }} />
+
+        {/* Nav links — desktop only */}
+        <nav className="hidden lg:flex items-stretch flex-1 h-full overflow-x-auto">
+          {navItems.map((item) => {
+            const active = isActive(item.path)
+            return (
+              <button
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                className={cn(
+                  'relative flex items-center gap-1.5 px-3 h-full text-[13px] transition-all duration-150 whitespace-nowrap shrink-0',
+                  active ? 'font-semibold' : 'hover:bg-[#292524]/50 font-medium'
+                )}
+                style={{
+                  color: active ? '#fafaf9' : '#a8a29e',
+                  background: active ? '#292524' : undefined,
+                  borderBottom: active ? '2px solid #059669' : '2px solid transparent',
+                }}
+              >
+                <item.icon size={14} />
+                {item.label}
+              </button>
+            )
+          })}
+        </nav>
+
+        {/* Mobile menu toggle */}
+        <button
+          onClick={() => setMenuOpen(o => !o)}
+          className="lg:hidden flex items-center justify-center mx-2 transition-colors hover:text-[#fafaf9]"
+          style={{ width: 36, height: 36, borderRadius: 10, color: '#a8a29e' }}
+          aria-label="פתח תפריט"
+        >
+          {menuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+
+        {/* Spacer (mobile) */}
+        <div className="flex-1 lg:hidden" />
+
+        {/* Right side actions */}
+        <div className="flex items-center gap-1 px-3 shrink-0">
+          {/* Search */}
+          {searchOpen ? (
+            <div
+              className="flex items-center gap-2 px-3"
+              style={{
+                height: 36,
+                borderRadius: 10,
+                border: '1px solid #292524',
+                background: '#292524',
+                width: 220,
+              }}
+            >
+              <Search size={14} className="shrink-0" style={{ color: '#a8a29e' }} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="חיפוש לקוחות, לידים..."
+                className="w-full bg-transparent text-[13px] outline-none placeholder:text-[#a8a29e]"
+                style={{ color: '#fafaf9' }}
+                autoFocus
+              />
+              <button
+                onClick={() => { setSearchOpen(false); setSearchQuery('') }}
+                className="shrink-0 transition-colors hover:text-[#fafaf9]"
+                style={{ color: '#a8a29e' }}
+                aria-label="סגור חיפוש"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="flex items-center justify-center transition-colors hover:text-[#fafaf9]"
+              style={{ width: 36, height: 36, borderRadius: 10, color: '#a8a29e' }}
+              aria-label="חיפוש"
+            >
+              <Search size={16} />
+            </button>
+          )}
+
+          {/* Bell */}
+          <button
+            className="relative flex items-center justify-center transition-all duration-200 hover:rotate-[-15deg] hover:scale-110"
+            style={{ width: 36, height: 36, borderRadius: 10, color: '#a8a29e' }}
+            aria-label="התראות"
+            onClick={() => navigate('/alerts')}
+          >
+            <Bell size={16} />
+            {notificationCount > 0 && (
+              <span
+                className="absolute top-[7px] right-[7px] rounded-full bg-red-500"
+                style={{ width: 8, height: 8 }}
+              />
+            )}
+          </button>
+
+          {/* Avatar */}
+          <button
+            className="flex items-center justify-center text-white font-bold text-sm transition-transform duration-150 hover:scale-[1.08]"
+            style={{ width: 36, height: 36, borderRadius: 10, background: '#059669' }}
+            aria-label="פרופיל"
+            onClick={() => navigate('/settings')}
+          >
+            מ
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile drawer overlay */}
+      {menuOpen && (
+        <div
+          className="fixed inset-0 z-[90] lg:hidden"
+          style={{ background: 'rgba(28,25,23,0.6)' }}
+          onClick={() => setMenuOpen(false)}
+        >
+          <div
+            className="absolute top-[58px] right-0 h-full overflow-y-auto animate-fade-in"
+            style={{ width: 260, background: '#1c1917' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="py-3">
+              {allMobileItems.map((item) => {
+                const active = isActive(item.path)
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => handleNav(item.path)}
+                    className="w-full flex items-center gap-3 px-5 py-3 text-[14px] transition-colors text-right"
+                    style={{
+                      color: active ? '#fafaf9' : '#a8a29e',
+                      background: active ? '#292524' : 'transparent',
+                      borderRight: active ? '3px solid #059669' : '3px solid transparent',
+                      fontWeight: active ? 600 : 400,
+                    }}
+                  >
+                    <item.icon size={16} />
+                    {item.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
