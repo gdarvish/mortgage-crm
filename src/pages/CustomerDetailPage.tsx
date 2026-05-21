@@ -6,7 +6,7 @@ import {
   FileText, Home, MessagesSquare, ListTodo, Banknote, ExternalLink,
   Trash2, Loader2, Save,
 } from 'lucide-react'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, generateToken, tokenExpiration } from '@/lib/utils'
 import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
 import { toast, ConfirmDialog } from '@/components/ui'
 import { useAuthStore } from '@/stores/authStore'
@@ -271,12 +271,13 @@ export default function CustomerDetailPage() {
     setSendingMsg(false)
   }
 
-  const generateToken = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
-
   const sendQuestionnaire = async () => {
     if (!id) return
     const token = generateToken()
-    const { error } = await customerService.update(id, { questionnaire_token: token })
+    const { error } = await customerService.update(id, {
+      questionnaire_token: token,
+      questionnaire_token_expires_at: tokenExpiration(30),
+    })
     if (error) {
       toast.error('שגיאה ביצירת קישור', error.message)
       return
@@ -284,6 +285,7 @@ export default function CustomerDetailPage() {
     const url = `${window.location.origin}/questionnaire/${token}`
     setMessageText(`שלום ${customer?.first_name}, אנא מלא את שאלון הפרטים בקישור הבא: ${url}`)
     setActiveTab('communication')
+    toast.success('קישור השאלון נוצר', 'הקישור בתוקף ל-30 יום')
   }
 
   const saveCommission = async () => {

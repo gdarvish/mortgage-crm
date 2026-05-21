@@ -1,17 +1,34 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, CheckCircle, Loader2 } from 'lucide-react'
-import { customerService } from '@/services/customerService'
+import { ChevronLeft, ChevronRight, CheckCircle, Loader2, AlertCircle } from 'lucide-react'
+import { httpsCallable } from 'firebase/functions'
+import { functions } from '@/lib/firebase'
 import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
 import { toast } from '@/components/ui'
-import type { Customer } from '@/types/database'
 
 const steps = ['פרטים אישיים', 'מצב משפחתי', 'הכנסות', 'נכסים', 'התחייבויות', 'מטרת המשכנתא']
 
+interface QuestionnaireCustomer {
+  id: string
+  first_name: string
+  last_name: string
+  id_number: string
+  phone: string
+  address: string
+  marital_status: string
+  children: number
+  monthly_income: number
+  partner_income: number
+  own_capital: number
+  existing_obligations: number
+  questionnaire_completed: boolean
+}
+
 export default function QuestionnairePage() {
   const { token } = useParams()
-  const [customer, setCustomer] = useState<Customer | null>(null)
+  const [customer, setCustomer] = useState<QuestionnaireCustomer | null>(null)
   const [_loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   const [_submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -25,9 +42,15 @@ export default function QuestionnairePage() {
   })
 
   useEffect(() => {
-    if (!token) return
-    customerService.getByQuestionnaireToken(token).then(({ data }) => {
-      if (data) {
+    if (!token) {
+      setLoadError('קישור לא תקין')
+      setLoading(false)
+      return
+    }
+    const fn = httpsCallable(functions, 'getCustomerByQuestionnaireToken')
+    fn({ token })
+      .then((res) => {
+        const data = res.data as QuestionnaireCustomer
         setCustomer(data)
         setForm(f => ({
           ...f,
@@ -43,9 +66,15 @@ export default function QuestionnairePage() {
           ownCapital: data.own_capital || 0,
           existingLoans: data.existing_obligations || 0,
         }))
-      }
-      setLoading(false)
-    })
+      })
+      .catch((e: { code?: string }) => {
+        if (e.code === 'functions/deadline-exceeded') {
+          setLoadError('הקישור פג תוקף. אנא פנה ליועץ המשכנתאות לקבלת קישור חדש.')
+        } else {
+          setLoadError('הקישור אינו תקין. אנא בדוק את הכתובת או פנה ליועץ המשכנתאות.')
+        }
+      })
+      .finally(() => setLoading(false))
   }, [token])
 
   const [qErrors, setQErrors] = useState<FormErrors>({})
@@ -76,6 +105,18 @@ export default function QuestionnairePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <Loader2 size={32} className="text-[#1a4f8a] animate-spin" />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" dir="rtl">
+        <div className="bg-white rounded-2xl shadow-lg p-8 text-center max-w-md">
+          <AlertCircle size={56} className="mx-auto text-red-500 mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">לא ניתן לטעון את השאלון</h1>
+          <p className="text-gray-600">{loadError}</p>
+        </div>
       </div>
     )
   }
@@ -220,22 +261,34 @@ export default function QuestionnairePage() {
                     return
                   }
                   setSubmitting(true)
-                  await customerService.update(customer.id, {
-                    first_name: form.firstName,
-                    last_name: form.lastName,
-                    id_number: form.idNumber,
-                    phone: form.phone,
-                    address: form.address,
-                    marital_status: form.maritalStatus,
-                    children: form.children,
-                    monthly_income: form.income1,
-                    partner_income: form.income2,
-                    own_capital: form.ownCapital,
-                    existing_obligations: form.existingLoans,
-                    questionnaire_completed: true,
-                  })
-                  setSubmitting(false)
-                  setSubmitted(true)
+                  try {
+                    const submit = httpsCallable(functions, 'submitQuestionnaire')
+                    await submit({
+                      token,
+                      payload: {
+                        first_name: form.firstName,
+                        last_name: form.lastName,
+                        id_number: form.idNumber,
+                        phone: form.phone,
+                        address: form.address,
+                        marital_status: form.maritalStatus,
+                        children: form.children,
+                        monthly_income: form.income1,
+                        partner_income: form.income2,
+                        own_capital: form.ownCapital,
+                        existing_obligations: form.existingLoans,
+                      },
+                    })
+                    setSubmitted(true)
+                  } catch (err) {
+                    if ((err as { code?: string }).code === 'functions/deadline-exceeded') {
+                      toast.error('הקישור פג תוקף', 'אנא פנה ליועץ לקבלת קישור חדש')
+                    } else {
+                      toast.error('שגיאה בשליחת השאלון', 'אנא נסה שוב')
+                    }
+                  } finally {
+                    setSubmitting(false)
+                  }
                 }}
                 disabled={submitting}
                 className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"

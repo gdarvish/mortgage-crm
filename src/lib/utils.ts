@@ -61,3 +61,21 @@ export function calculateMonthlyPayment(
 export function generateToken(): string {
   return crypto.randomUUID()
 }
+
+/**
+ * חישוב תאריך תפוגה לטוקן ציבורי (ISO).
+ * @param daysValid מספר ימי תוקף (ברירת מחדל 30)
+ */
+export function tokenExpiration(daysValid = 30): string {
+  const date = new Date()
+  date.setDate(date.getDate() + daysValid)
+  return date.toISOString()
+}
+
+/**
+ * בדיקה אם טוקן פג תוקף. טוקנים ישנים ללא תאריך תפוגה נחשבים תקפים.
+ */
+export function isTokenExpired(expiresAt?: string | null): boolean {
+  if (!expiresAt) return false
+  return new Date(expiresAt).getTime() < Date.now()
+}

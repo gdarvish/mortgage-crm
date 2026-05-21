@@ -17,6 +17,12 @@ async function findCustomerByToken(token: string) {
   return snap.empty ? null : snap.docs[0]
 }
 
+/** בדיקת תפוגת טוקן. טוקנים ישנים ללא תאריך תפוגה נחשבים תקפים. */
+function isExpired(expiresAt: unknown): boolean {
+  if (!expiresAt || typeof expiresAt !== 'string') return false
+  return new Date(expiresAt).getTime() < Date.now()
+}
+
 export const getCustomerByQuestionnaireToken = onCall({ region: REGION }, async (req) => {
   const token = req.data?.token
   if (!token || typeof token !== 'string') {
@@ -26,10 +32,22 @@ export const getCustomerByQuestionnaireToken = onCall({ region: REGION }, async 
   if (!docSnap) throw new HttpsError('not-found', 'Customer not found')
 
   const data = docSnap.data()
+  if (isExpired(data.questionnaire_token_expires_at)) {
+    throw new HttpsError('deadline-exceeded', 'Token expired')
+  }
   return {
     id: docSnap.id,
-    first_name: data.first_name,
-    last_name: data.last_name,
+    first_name: data.first_name ?? '',
+    last_name: data.last_name ?? '',
+    id_number: data.id_number ?? '',
+    phone: data.phone ?? '',
+    address: data.address ?? '',
+    marital_status: data.marital_status ?? '',
+    children: data.children ?? 0,
+    monthly_income: data.monthly_income ?? 0,
+    partner_income: data.partner_income ?? 0,
+    own_capital: data.own_capital ?? 0,
+    existing_obligations: data.existing_obligations ?? 0,
     questionnaire_completed: data.questionnaire_completed ?? false,
   }
 })
@@ -44,9 +62,13 @@ export const submitQuestionnaire = onCall({ region: REGION }, async (req) => {
   }
   const docSnap = await findCustomerByToken(token)
   if (!docSnap) throw new HttpsError('not-found', 'Customer not found')
+  if (isExpired(docSnap.data().questionnaire_token_expires_at)) {
+    throw new HttpsError('deadline-exceeded', 'Token expired')
+  }
 
   const allowed: Record<string, unknown> = {}
   const allowedKeys = [
+    'first_name', 'last_name', 'id_number',
     'phone', 'email', 'address', 'marital_status', 'children',
     'monthly_income', 'partner_income', 'own_capital', 'existing_obligations', 'notes',
   ]
@@ -54,6 +76,9 @@ export const submitQuestionnaire = onCall({ region: REGION }, async (req) => {
     if (key in payload) allowed[key] = (payload as Record<string, unknown>)[key]
   }
   allowed.questionnaire_completed = true
+  // Burn the token after a successful submission.
+  allowed.questionnaire_token = null
+  allowed.questionnaire_token_expires_at = null
   allowed.updated_at = FieldValue.serverTimestamp()
 
   await docSnap.ref.update(allowed)

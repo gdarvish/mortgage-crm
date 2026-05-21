@@ -124,6 +124,7 @@ export interface Customer {
   notes: string | null
   referral_partner_id: string | null
   questionnaire_token: string | null
+  questionnaire_token_expires_at?: string | null
   questionnaire_completed: boolean
   created_at: string
   updated_at: string
@@ -182,9 +183,16 @@ export interface Signature {
   id: string
   customer_id: string
   document_type: string | null
+  document_name?: string | null
+  customer_name?: string | null
   signature_url: string | null
   signed_at: string | null
+  signed_ip?: string | null
+  signed_user_agent?: string | null
+  signer_name?: string | null
+  signer_id?: string | null
   token: string | null
+  token_expires_at?: string | null
   status: 'ממתין' | 'נחתם'
 }
 
