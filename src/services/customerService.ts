@@ -5,6 +5,8 @@ import {
   getDocs,
   query,
   where,
+  orderBy,
+  startAfter,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -12,6 +14,7 @@ import {
   limit,
   getCountFromServer,
   type QueryConstraint,
+  type QueryDocumentSnapshot,
   Timestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -54,6 +57,40 @@ export const customerService = {
       data.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
       if (filters?.search) data = data.filter((c) => matchesSearch(c, filters.search!))
       return { data, error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
+  },
+
+  async getPaginated(opts: {
+    pageSize?: number
+    cursor?: QueryDocumentSnapshot | null
+    statusFilter?: string
+  }): Promise<{
+    data: { items: Customer[]; nextCursor: QueryDocumentSnapshot | null; hasMore: boolean } | null
+    error: FirestoreError | null
+  }> {
+    try {
+      const uid = await awaitUserId()
+      const pageSize = opts.pageSize ?? 25
+      const constraints: QueryConstraint[] = [where('user_id', '==', uid)]
+      if (opts.statusFilter) constraints.push(where('status', '==', opts.statusFilter))
+      constraints.push(orderBy('created_at', 'desc'))
+      if (opts.cursor) constraints.push(startAfter(opts.cursor))
+      // Fetch one extra row to detect whether another page exists.
+      constraints.push(limit(pageSize + 1))
+
+      const snap = await getDocs(query(collection(db, COL), ...constraints))
+      const docs = snap.docs.slice(0, pageSize)
+      const hasMore = snap.docs.length > pageSize
+      return {
+        data: {
+          items: fromDocs<Customer>(docs),
+          nextCursor: docs.length > 0 ? docs[docs.length - 1] : null,
+          hasMore,
+        },
+        error: null,
+      }
     } catch (e) {
       return { data: null, error: toError(e) }
     }

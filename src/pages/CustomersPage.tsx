@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Loader2, X, Users } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { useCustomers, useCreateCustomer } from '@/hooks/queries/useCustomers'
+import { useCreateCustomer } from '@/hooks/queries/useCustomers'
+import { useCustomersInfinite } from '@/hooks/queries/useCustomersInfinite'
 import { toast } from '@/components/ui'
 
 const statusColors: Record<string, { bg: string; color: string }> = {
@@ -44,11 +45,40 @@ export default function CustomersPage() {
     first_name: '', last_name: '', id_number: '', phone: '', email: '', lead_source: '',
   })
 
-  const { data: customers = [], isLoading: loading } = useCustomers({
-    status: statusFilter !== 'הכל' ? statusFilter : undefined,
-    search: search || undefined,
-  })
+  const {
+    data,
+    isLoading: loading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useCustomersInfinite({ statusFilter: statusFilter !== 'הכל' ? statusFilter : undefined })
   const createCustomer = useCreateCustomer()
+
+  const allCustomers = useMemo(() => data?.pages.flatMap(p => p.items) ?? [], [data])
+  // Search filters the pages loaded so far (Firestore has no substring search).
+  const customers = useMemo(() => {
+    if (!search) return allCustomers
+    const needle = search.toLowerCase()
+    return allCustomers.filter(c =>
+      c.first_name.toLowerCase().includes(needle) ||
+      c.last_name.toLowerCase().includes(needle) ||
+      (c.phone?.toLowerCase().includes(needle) ?? false) ||
+      (c.id_number?.toLowerCase().includes(needle) ?? false)
+    )
+  }, [allCustomers, search])
+
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage()
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault()
@@ -213,6 +243,13 @@ export default function CustomersPage() {
           </table>
         )}
       </div>
+
+      {/* Infinite-scroll sentinel */}
+      {hasNextPage && (
+        <div ref={sentinelRef} className="flex items-center justify-center py-4">
+          {isFetchingNextPage && <Loader2 size={20} style={{ color: '#059669' }} className="animate-spin" />}
+        </div>
+      )}
 
       {/* New customer modal */}
       {showNewModal && (
