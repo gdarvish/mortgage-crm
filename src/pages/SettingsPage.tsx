@@ -225,23 +225,15 @@ function DangerZone() {
     if (!uid) return
     setDeleting(true)
     try {
-      // Phase 1: delete all user_id-scoped collections
+      // Delete every user-scoped collection — each doc carries user_id,
+      // which the Firestore rules require the query to filter on.
       const userScoped = [
-        'customers', 'leads', 'tasks', 'alerts', 'commissions',
-        'documents', 'messages', 'referral_partners', 'mortgages', 'bank_responses',
+        'customers', 'leads', 'tasks', 'alerts', 'commissions', 'documents',
+        'messages', 'referral_partners', 'mortgages', 'loan_tracks', 'bank_responses',
       ]
       for (const col of userScoped) {
         const snap = await getDocs(query(collection(db, col), where('user_id', '==', uid)))
         await Promise.all(snap.docs.map(d => deleteDoc(doc(db, col, d.id))))
-      }
-
-      // Phase 2: delete loan_tracks via mortgage_id (no user_id on these docs)
-      const mortSnap = await getDocs(query(collection(db, 'mortgages'), where('user_id', '==', uid)))
-      const mortIds = mortSnap.docs.map(d => d.id)
-      for (let i = 0; i < mortIds.length; i += 30) {
-        const chunk = mortIds.slice(i, i + 30)
-        const ts = await getDocs(query(collection(db, 'loan_tracks'), where('mortgage_id', 'in', chunk)))
-        await Promise.all(ts.docs.map(d => deleteDoc(doc(db, 'loan_tracks', d.id))))
       }
 
       setDone(true)
