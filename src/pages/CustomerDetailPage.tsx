@@ -4,7 +4,7 @@ import {
   ArrowRight, MessageSquare, ClipboardList, Calculator, Upload,
   Send, Plus, Check, Mail, Phone, MapPin, User, CreditCard,
   FileText, Home, MessagesSquare, ListTodo, Banknote, ExternalLink,
-  Trash2, Loader2, Save,
+  Trash2, Loader2, Save, PenTool,
 } from 'lucide-react'
 import { formatCurrency, formatDate, generateToken, tokenExpiration } from '@/lib/utils'
 import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
@@ -15,6 +15,7 @@ import { taskService } from '@/services/taskService'
 import { messageService } from '@/services/messageService'
 import { commissionService } from '@/services/commissionService'
 import { documentService } from '@/services/documentService'
+import { signatureService } from '@/services/signatureService'
 import type {
   Customer, Document, Mortgage, LoanTrack, Message, Task, Commission, CustomerStatus
 } from '@/types/database'
@@ -286,6 +287,22 @@ export default function CustomerDetailPage() {
     setMessageText(`שלום ${customer?.first_name}, אנא מלא את שאלון הפרטים בקישור הבא: ${url}`)
     setActiveTab('communication')
     toast.success('קישור השאלון נוצר', 'הקישור בתוקף ל-30 יום')
+  }
+
+  const sendSignatureRequest = async () => {
+    if (!id || !customer) return
+    const { data, error } = await signatureService.createRequest({
+      customer_id: id,
+      customer_name: `${customer.first_name} ${customer.last_name}`,
+      document_name: 'ייפוי כוח',
+    })
+    if (error || !data) {
+      toast.error('שגיאה ביצירת בקשת חתימה', error?.message)
+      return
+    }
+    setMessageText(`שלום ${customer.first_name}, אנא חתום/חתמי על המסמך בקישור הבא: ${data.url}`)
+    setActiveTab('communication')
+    toast.success('קישור החתימה נוצר', 'הקישור בתוקף ל-14 יום')
   }
 
   const saveCommission = async () => {
@@ -820,6 +837,11 @@ export default function CustomerDetailPage() {
               onClick={sendQuestionnaire}
               className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm">
               <ClipboardList size={16} />שלח שאלון
+            </button>
+            <button
+              onClick={sendSignatureRequest}
+              className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 border border-amber-200 px-3 py-2 rounded-lg hover:bg-amber-100 transition-colors text-sm">
+              <PenTool size={16} />שלח לחתימה
             </button>
             <button onClick={() => navigate('/calculator')}
               className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg hover:bg-purple-100 transition-colors text-sm">

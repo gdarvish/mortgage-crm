@@ -2,6 +2,8 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { onDocumentDeleted } from 'firebase-functions/v2/firestore'
 import { initializeApp } from 'firebase-admin/app'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
+import { getStorage } from 'firebase-admin/storage'
+import { randomUUID } from 'node:crypto'
 
 initializeApp()
 const db = getFirestore()
@@ -94,30 +96,75 @@ export const getSignatureByToken = onCall({ region: REGION }, async (req) => {
   if (snap.empty) throw new HttpsError('not-found', 'Signature request not found')
   const docSnap = snap.docs[0]
   const data = docSnap.data()
+  if (data.status === 'נחתם') {
+    throw new HttpsError('already-exists', 'Signature already completed')
+  }
+  if (isExpired(data.token_expires_at)) {
+    throw new HttpsError('deadline-exceeded', 'Token expired')
+  }
   return {
     id: docSnap.id,
-    customer_id: data.customer_id,
-    document_type: data.document_type,
-    status: data.status,
+    document_name: data.document_name ?? data.document_type ?? 'מסמך לחתימה',
+    customer_name: data.customer_name ?? '',
+    document_type: data.document_type ?? null,
   }
 })
 
 export const submitSignature = onCall({ region: REGION }, async (req) => {
-  const { token, signature_url } = req.data ?? {}
+  const { token, signer_name, signer_id, signature_dataurl, user_agent } = req.data ?? {}
   if (!token || typeof token !== 'string') {
     throw new HttpsError('invalid-argument', 'token is required')
   }
-  if (!signature_url || typeof signature_url !== 'string') {
-    throw new HttpsError('invalid-argument', 'signature_url is required')
+  if (!signer_name || !signer_id || !signature_dataurl) {
+    throw new HttpsError('invalid-argument', 'Missing required signature fields')
   }
+
   const snap = await db.collection('signatures').where('token', '==', token).limit(1).get()
   if (snap.empty) throw new HttpsError('not-found', 'Signature request not found')
-  await snap.docs[0].ref.update({
-    signature_url,
-    signed_at: FieldValue.serverTimestamp(),
-    status: 'נחתם',
+  const sigDoc = snap.docs[0]
+  const sigData = sigDoc.data()
+  if (sigData.status === 'נחתם') {
+    throw new HttpsError('already-exists', 'Signature already completed')
+  }
+  if (isExpired(sigData.token_expires_at)) {
+    throw new HttpsError('deadline-exceeded', 'Token expired')
+  }
+
+  // Decode the base64 PNG and upload it to Storage.
+  const matches = String(signature_dataurl).match(/^data:image\/png;base64,(.+)$/)
+  if (!matches) throw new HttpsError('invalid-argument', 'Invalid signature format')
+  const buffer = Buffer.from(matches[1], 'base64')
+
+  const downloadToken = randomUUID()
+  const path = `signatures/${sigData.customer_id}/${sigDoc.id}.png`
+  const bucket = getStorage().bucket()
+  await bucket.file(path).save(buffer, {
+    contentType: 'image/png',
+    metadata: {
+      metadata: {
+        firebaseStorageDownloadTokens: downloadToken,
+        signer_name: String(signer_name),
+        signer_id: String(signer_id),
+        signed_at: new Date().toISOString(),
+      },
+    },
   })
-  return { ok: true }
+  const signatureUrl =
+    `https://firebasestorage.googleapis.com/v0/b/${bucket.name}` +
+    `/o/${encodeURIComponent(path)}?alt=media&token=${downloadToken}`
+
+  await sigDoc.ref.update({
+    status: 'נחתם',
+    signed_at: FieldValue.serverTimestamp(),
+    signer_name: String(signer_name),
+    signer_id: String(signer_id),
+    signature_url: signatureUrl,
+    signed_ip: req.rawRequest?.ip ?? 'unknown',
+    signed_user_agent: user_agent ? String(user_agent) : null,
+    token: null,
+  })
+
+  return { ok: true, signature_url: signatureUrl }
 })
 
 async function deleteWhere(collection: string, field: string, value: string) {
