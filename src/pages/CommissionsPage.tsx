@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { DollarSign, TrendingUp, Clock, CheckCircle, Loader2 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { commissionService } from '@/services/commissionService'
+import { useCommissions } from '@/hooks/queries/useCommissions'
 
 const hebrewMonths = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ']
 
@@ -17,30 +17,21 @@ type CommissionRow = {
 }
 
 export default function CommissionsPage() {
-  const [commissions, setCommissions] = useState<CommissionRow[]>([])
-  const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('הכל')
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    const { data } = await commissionService.getAll()
-    if (data) {
-      setCommissions(data.map(c => ({
-        id: c.id,
-        customerName: c.customer
-          ? `${c.customer.first_name} ${c.customer.last_name}`
-          : 'לא ידוע',
-        loanAmount: c.mortgage?.loan_amount ?? 0,
-        amount: c.amount ?? 0,
-        status: c.status ?? 'ממתין',
-        paymentDate: c.payment_date ?? null,
-        createdAt: c.created_at ?? '',
-      })))
-    }
-    setLoading(false)
-  }, [])
+  const { data: rawCommissions = [], isLoading: loading } = useCommissions()
 
-  useEffect(() => { fetchData() }, [fetchData])
+  const commissions: CommissionRow[] = rawCommissions.map(c => ({
+    id: c.id,
+    customerName: c.customer
+      ? `${c.customer.first_name} ${c.customer.last_name}`
+      : 'לא ידוע',
+    loanAmount: c.mortgage?.loan_amount ?? 0,
+    amount: c.amount ?? 0,
+    status: c.status ?? 'ממתין',
+    paymentDate: c.payment_date ?? null,
+    createdAt: c.created_at ?? '',
+  }))
 
   const filtered = commissions.filter(c => statusFilter === 'הכל' || c.status === statusFilter)
   const totalPaid    = commissions.filter(c => c.status === 'שולם').reduce((s, c) => s + c.amount, 0)

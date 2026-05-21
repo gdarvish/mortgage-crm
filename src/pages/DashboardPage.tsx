@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Users, TrendingUp, UserPlus, DollarSign, Bell, AlertTriangle,
@@ -9,20 +9,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer,
 } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  where,
-  limit,
-  updateDoc,
-} from 'firebase/firestore'
-import { db, auth } from '@/lib/firebase'
-import { fromDoc, fromDocs } from '@/services/_firestoreHelpers'
-import { settingsService } from '@/services/settingsService'
-import type { Customer, Task, Alert, Commission, LoanTrack } from '@/types/database'
+import { useDashboardData, useCompleteTask } from '@/hooks/queries/useDashboard'
 
 const statusOrder = ['ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'סגירה']
 const hebrewMonths = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ']
@@ -38,15 +25,6 @@ const PIPELINE_COLORS: Record<string, string> = {
 }
 
 const SOURCE_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6', '#dc2626', '#10b981']
-
-interface DashboardAlert extends Alert {
-  customer_name?: string
-  track_type?: string
-}
-
-interface DashboardTask extends Task {
-  customer_name?: string
-}
 
 function useCountUp(target: number, duration = 1100, active = true) {
   const [count, setCount] = useState(0)
@@ -143,124 +121,25 @@ function KpiCard({
 
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(true)
-  const [advisorName, setAdvisorName] = useState('')
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [tasks, setTasks] = useState<DashboardTask[]>([])
-  const [alerts, setAlerts] = useState<DashboardAlert[]>([])
-  const [commissionTotal, setCommissionTotal] = useState(0)
   const [checkedTasks, setCheckedTasks] = useState<Set<string>>(new Set())
 
-  const fetchData = useCallback(async (isMounted: () => boolean) => {
-    setLoading(true)
-    const uid = auth.currentUser?.uid
-    if (!uid) {
-      setLoading(false)
-      return
-    }
+  const { data, isLoading: loading } = useDashboardData()
+  const completeTask = useCompleteTask()
 
-    try {
-      const [customersSnap, tasksSnap, alertsSnap, commissionsSnap] = await Promise.all([
-        getDocs(query(collection(db, 'customers'), where('user_id', '==', uid))),
-        getDocs(query(collection(db, 'tasks'), where('user_id', '==', uid), limit(50))),
-        getDocs(query(collection(db, 'alerts'), where('user_id', '==', uid), where('status', '==', 'פתוח'), limit(8))),
-        getDocs(query(collection(db, 'commissions'), where('user_id', '==', uid), where('status', '==', 'שולם'))),
-      ])
+  const advisorName = data?.advisorName ?? ''
+  const customers = data?.customers ?? []
+  const tasks = data?.tasks ?? []
+  const alerts = data?.alerts ?? []
+  const commissionTotal = data?.commissionTotal ?? 0
 
-      const customersData = fromDocs<Customer>(customersSnap.docs)
-        .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
-      if (!isMounted()) return
-      setCustomers(customersData)
-
-      const tasksData = fromDocs<Task>(tasksSnap.docs)
-        .filter(t => t.status !== 'הושלמה')
-        .sort((a, b) => new Date(a.due_date || 0).getTime() - new Date(b.due_date || 0).getTime())
-        .slice(0, 10)
-      const taskCustomerIds = Array.from(new Set(tasksData.map(t => t.customer_id).filter(Boolean) as string[]))
-      const customerMap: Record<string, string> = {}
-      await Promise.all(taskCustomerIds.map(async (cid) => {
-        const snap = await getDoc(doc(db, 'customers', cid))
-        if (snap.exists()) {
-          const c = fromDoc<Customer>(snap)
-          customerMap[cid] = `${c.first_name} ${c.last_name}`
-        }
-      }))
-      if (!isMounted()) return
-      setTasks(tasksData.map(t => ({
-        ...t,
-        customer_name: t.customer_id ? customerMap[t.customer_id] : undefined,
-      })))
-
-      const alertsData = fromDocs<Alert>(alertsSnap.docs)
-      if (alertsData.length > 0) {
-        const alertCustomerIds = Array.from(new Set(alertsData.map(a => a.customer_id)))
-        const alertTrackIds = Array.from(new Set(alertsData.map(a => a.loan_track_id).filter(Boolean) as string[]))
-
-        const [custMap, trackMap] = await Promise.all([
-          (async () => {
-            const map: Record<string, string> = {}
-            await Promise.all(alertCustomerIds.map(async (cid) => {
-              const snap = await getDoc(doc(db, 'customers', cid))
-              if (snap.exists()) {
-                const c = fromDoc<Customer>(snap)
-                map[cid] = `${c.first_name} ${c.last_name}`
-              }
-            }))
-            return map
-          })(),
-          (async () => {
-            const map: Record<string, string> = {}
-            await Promise.all(alertTrackIds.map(async (tid) => {
-              const snap = await getDoc(doc(db, 'loan_tracks', tid))
-              if (snap.exists()) {
-                const t = fromDoc<LoanTrack>(snap)
-                map[tid] = t.type || '—'
-              }
-            }))
-            return map
-          })(),
-        ])
-
-        if (!isMounted()) return
-        setAlerts(alertsData.map(a => ({
-          ...a,
-          customer_name: custMap[a.customer_id] || 'לא ידוע',
-          track_type: a.loan_track_id ? (trackMap[a.loan_track_id] || '—') : '—',
-        })))
-      } else {
-        if (!isMounted()) return
-        setAlerts([])
-      }
-
-      const commissionsData = fromDocs<Commission>(commissionsSnap.docs)
-      if (!isMounted()) return
-      setCommissionTotal(commissionsData.reduce((sum, c) => sum + (c.amount || 0), 0))
-    } catch (e) {
-      console.error('Dashboard fetchData failed', e)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    let mounted = true
-    fetchData(() => mounted)
-    settingsService.get().then(({ data }) => {
-      if (data?.name) setAdvisorName(data.name)
-    })
-    return () => { mounted = false }
-  }, [fetchData])
-
-  const toggleTask = async (id: string) => {
+  const toggleTask = (id: string) => {
     setCheckedTasks(prev => new Set(prev).add(id))
-    setTimeout(async () => {
-      try {
-        await updateDoc(doc(db, 'tasks', id), { status: 'הושלמה' })
-        setTasks(prev => prev.filter(t => t.id !== id))
-      } catch (e) {
-        console.error('toggleTask failed', e)
-      }
-      setCheckedTasks(prev => { const s = new Set(prev); s.delete(id); return s })
+    setTimeout(() => {
+      completeTask.mutate(id, {
+        onSettled: () => {
+          setCheckedTasks(prev => { const s = new Set(prev); s.delete(id); return s })
+        },
+      })
     }, 380)
   }
 

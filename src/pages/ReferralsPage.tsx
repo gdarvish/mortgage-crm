@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { Share2, Plus, Phone, TrendingUp, Loader2, X } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { referralService } from '@/services/referralService'
+import { useReferrals, useCreateReferral } from '@/hooks/queries/useReferrals'
 import { toast } from '@/components/ui'
-import type { ReferralPartner } from '@/types/database'
 
 const partnerTypes = ['סוכן נדל"ן', 'עו"ד', 'רו"ח', 'לקוח קיים', 'אחר']
 
@@ -15,47 +14,38 @@ const cardStyle = {
 }
 
 export default function ReferralsPage() {
-  const [partners, setPartners] = useState<ReferralPartner[]>([])
-  const [loading, setLoading] = useState(true)
   const [showNewModal, setShowNewModal] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [newPartner, setNewPartner] = useState({
     name: '', type: 'סוכן נדל"ן', phone: '', email: '', company: '',
   })
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    const { data } = await referralService.getAll()
-    if (data) setPartners(data)
-    setLoading(false)
-  }, [])
+  const { data: partners = [], isLoading: loading } = useReferrals()
+  const createReferral = useCreateReferral()
 
-  useEffect(() => { fetchData() }, [fetchData])
-
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleCreate = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newPartner.name.trim()) return
-    setSaving(true)
-    const { error } = await referralService.create({
-      name: newPartner.name,
-      type: newPartner.type,
-      phone: newPartner.phone,
-      email: newPartner.email,
-      company: newPartner.company,
-      total_referrals: 0,
-      converted_referrals: 0,
-      notes: null,
-      last_contact: null,
-    })
-    if (error) {
-      toast.error('שגיאה בשמירת שותף', error.message)
-    } else {
-      setShowNewModal(false)
-      setNewPartner({ name: '', type: 'סוכן נדל"ן', phone: '', email: '', company: '' })
-      toast.success('השותף נשמר בהצלחה')
-      fetchData()
-    }
-    setSaving(false)
+    createReferral.mutate(
+      {
+        name: newPartner.name,
+        type: newPartner.type,
+        phone: newPartner.phone,
+        email: newPartner.email,
+        company: newPartner.company,
+        total_referrals: 0,
+        converted_referrals: 0,
+        notes: null,
+        last_contact: null,
+      },
+      {
+        onSuccess: () => {
+          setShowNewModal(false)
+          setNewPartner({ name: '', type: 'סוכן נדל"ן', phone: '', email: '', company: '' })
+          toast.success('השותף נשמר בהצלחה')
+        },
+        onError: (err) => toast.error('שגיאה בשמירת שותף', err.message),
+      }
+    )
   }
 
   const inputStyle = {
@@ -207,11 +197,11 @@ export default function ReferralsPage() {
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={createReferral.isPending}
                   className="flex-1 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
                   style={{ borderRadius: 12, background: '#059669' }}
                 >
-                  {saving ? 'שומר...' : 'שמור'}
+                  {createReferral.isPending ? 'שומר...' : 'שמור'}
                 </button>
                 <button
                   type="button"

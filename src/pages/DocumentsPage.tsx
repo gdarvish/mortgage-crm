@@ -1,12 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { FileText, Upload, Download, Search, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Trash2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { collection, getDocs, query, where } from 'firebase/firestore'
-import { db, auth } from '@/lib/firebase'
-import { documentService } from '@/services/documentService'
-import { customerService } from '@/services/customerService'
+import { useDocuments, useUploadDocument, useDeleteDocument, type DocumentWithCustomer } from '@/hooks/queries/useDocuments'
+import { useCustomers } from '@/hooks/queries/useCustomers'
 import { toast, ConfirmDialog } from '@/components/ui'
-import type { Document, Customer } from '@/types/database'
 
 const statusIcons: Record<string, { icon: typeof CheckCircle; color: string }> = {
   'תקין':    { icon: CheckCircle,  color: '#059669' },
@@ -25,88 +22,47 @@ const cardStyle = {
   border: '1px solid #e7e5e4',
 }
 
-type DocRow = Document & { customerName?: string }
+type DocRow = DocumentWithCustomer
 
 export default function DocumentsPage() {
-  const [docs, setDocs] = useState<DocRow[]>([])
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('הכל')
   const [statusFilter, setStatusFilter] = useState('הכל')
-  const [uploading, setUploading] = useState(false)
   const [uploadType, setUploadType] = useState(docTypes[0])
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [docToDelete, setDocToDelete] = useState<DocRow | null>(null)
-  const [deletingDoc, setDeletingDoc] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const fetchDocs = useCallback(async () => {
-    const uid = auth.currentUser?.uid
-    if (!uid) { setLoading(false); return }
-    setLoading(true)
-    try {
-      // No orderBy — sort client-side to avoid composite index requirement
-      const snap = await getDocs(
-        query(collection(db, 'documents'), where('user_id', '==', uid))
-      )
-      const rows: DocRow[] = snap.docs.map(d => {
-        const data = d.data()
-        return {
-          id: d.id,
-          ...data,
-          uploaded_at: data.uploaded_at?.toDate?.()?.toISOString() ?? data.uploaded_at ?? '',
-        } as DocRow
-      })
-      rows.sort((a, b) => new Date(b.uploaded_at || 0).getTime() - new Date(a.uploaded_at || 0).getTime())
-      const custSnap = await getDocs(
-        query(collection(db, 'customers'), where('user_id', '==', uid))
-      )
-      const custMap: Record<string, string> = {}
-      custSnap.docs.forEach(d => {
-        const c = d.data()
-        custMap[d.id] = `${c.first_name} ${c.last_name}`
-      })
-      rows.forEach(r => { if (r.customer_id) r.customerName = custMap[r.customer_id] ?? '' })
-      setDocs(rows)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const { data: docs = [], isLoading: loading } = useDocuments()
+  const { data: customers = [] } = useCustomers()
+  const uploadDocument = useUploadDocument()
+  const deleteDocument = useDeleteDocument()
 
-  useEffect(() => { fetchDocs() }, [fetchDocs])
-
-  useEffect(() => {
-    customerService.getAll().then(({ data, error }) => {
-      if (data) setCustomers(data)
-      if (error) console.error('Failed to load customers for selector:', error.message)
-    })
-  }, [])
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !selectedCustomerId) return
-    setUploading(true)
-    const { error } = await documentService.upload(selectedCustomerId, file, uploadType, 'כללי')
-    if (error) toast.error('שגיאה בהעלאה', error.message)
-    else toast.success('המסמך הועלה בהצלחה')
-    await fetchDocs()
-    setUploading(false)
+    uploadDocument.mutate(
+      { customerId: selectedCustomerId, file, type: uploadType, category: 'כללי' },
+      {
+        onSuccess: () => toast.success('המסמך הועלה בהצלחה'),
+        onError: (err) => toast.error('שגיאה בהעלאה', err.message),
+      }
+    )
     e.target.value = ''
   }
 
-  const handleDeleteDoc = async () => {
+  const handleDeleteDoc = () => {
     if (!docToDelete) return
-    setDeletingDoc(true)
-    const { error } = await documentService.delete(docToDelete.id)
-    setDeletingDoc(false)
-    setDocToDelete(null)
-    if (error) {
-      toast.error('שגיאה במחיקה', error.message)
-      return
-    }
-    toast.success('המסמך נמחק')
-    await fetchDocs()
+    deleteDocument.mutate(docToDelete.id, {
+      onSuccess: () => {
+        setDocToDelete(null)
+        toast.success('המסמך נמחק')
+      },
+      onError: (err) => {
+        setDocToDelete(null)
+        toast.error('שגיאה במחיקה', err.message)
+      },
+    })
   }
 
   const filtered = docs.filter(d => {
@@ -165,11 +121,11 @@ export default function DocumentsPage() {
               if (!selectedCustomerId) { toast.warning('בחר לקוח לפני ההעלאה'); return }
               fileInputRef.current?.click()
             }}
-            disabled={uploading}
+            disabled={uploadDocument.isPending}
             className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
             style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
           >
-            {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+            {uploadDocument.isPending ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
             העלה מסמך
           </button>
         </div>
@@ -295,7 +251,7 @@ export default function DocumentsPage() {
         title="מחיקת מסמך"
         message="האם למחוק מסמך זה? פעולה זו אינה הפיכה."
         confirmText="מחק"
-        loading={deletingDoc}
+        loading={deleteDocument.isPending}
         onConfirm={handleDeleteDoc}
         onCancel={() => setDocToDelete(null)}
       />
