@@ -17,7 +17,8 @@ export const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const storage = getStorage(app)
-export const functions = getFunctions(app)
+// Cloud Functions are deployed to europe-west1 — the client must match.
+export const functions = getFunctions(app, 'europe-west1')
 
 if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
   connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true })
