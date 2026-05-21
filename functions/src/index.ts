@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { onDocumentDeleted } from 'firebase-functions/v2/firestore'
+import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { initializeApp } from 'firebase-admin/app'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
@@ -210,5 +211,120 @@ export const onMortgageDeleted = onDocumentDeleted(
       deleteWhere('loan_tracks', 'mortgage_id', mortgageId),
       deleteWhere('bank_responses', 'mortgage_id', mortgageId),
     ])
+  }
+)
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** יצירת התראות יומית עבור מסלולי הלוואה שמסתיימים בקרוב. */
+export const generateAlerts = onSchedule(
+  { schedule: 'every day 02:00', timeZone: 'Asia/Jerusalem', region: REGION },
+  async () => {
+    const now = new Date()
+    const cutoff = new Date(now.getTime() + 180 * DAY_MS)
+
+    const tracks = await db
+      .collection('loan_tracks')
+      .where('end_date', '>=', now.toISOString())
+      .where('end_date', '<=', cutoff.toISOString())
+      .get()
+
+    let created = 0
+    for (const trackDoc of tracks.docs) {
+      const track = trackDoc.data()
+      // התראות רלוונטיות רק למסלולים בריבית קבועה.
+      if (!['קל"צ', 'קל"ב'].includes(track.type)) continue
+
+      const existing = await db
+        .collection('alerts')
+        .where('loan_track_id', '==', trackDoc.id)
+        .where('status', '==', 'פתוח')
+        .limit(1)
+        .get()
+      if (!existing.empty) continue
+
+      const mort = await db.collection('mortgages').doc(track.mortgage_id).get()
+      const mortData = mort.data()
+      if (!mort.exists || !mortData) continue
+
+      const daysLeft = Math.round((new Date(track.end_date).getTime() - now.getTime()) / DAY_MS)
+      const urgency = daysLeft < 60 ? 'דחוף' : daysLeft < 120 ? 'אזהרה' : 'תקין'
+
+      await db.collection('alerts').add({
+        user_id: track.user_id,
+        customer_id: mortData.customer_id,
+        loan_track_id: trackDoc.id,
+        mortgage_id: track.mortgage_id,
+        document_id: null,
+        alert_type: 'track_ending',
+        alert_date: now.toISOString(),
+        days_until_end: daysLeft,
+        urgency,
+        status: 'פתוח',
+        snoozed_until: null,
+        track_type: track.type,
+        track_amount: track.amount ?? 0,
+        track_end_date: track.end_date,
+        created_at: FieldValue.serverTimestamp(),
+      })
+      created++
+    }
+    console.log(`generateAlerts: created ${created} alerts (scanned ${tracks.size} tracks)`)
+  }
+)
+
+/** יצירת התראות יומית עבור מסמכים שתוקפם עומד לפוג, וסימון מסמכים שפג תוקפם. */
+export const generateDocumentAlerts = onSchedule(
+  { schedule: 'every day 03:00', timeZone: 'Asia/Jerusalem', region: REGION },
+  async () => {
+    const now = new Date()
+    const cutoff = new Date(now.getTime() + 30 * DAY_MS)
+
+    const docs = await db
+      .collection('documents')
+      .where('expires_at', '>=', now.toISOString())
+      .where('expires_at', '<=', cutoff.toISOString())
+      .get()
+
+    let created = 0
+    for (const docSnap of docs.docs) {
+      const docData = docSnap.data()
+      const existing = await db
+        .collection('alerts')
+        .where('document_id', '==', docSnap.id)
+        .where('status', '==', 'פתוח')
+        .limit(1)
+        .get()
+      if (!existing.empty) continue
+
+      const daysLeft = Math.round((new Date(docData.expires_at).getTime() - now.getTime()) / DAY_MS)
+
+      await db.collection('alerts').add({
+        user_id: docData.user_id,
+        customer_id: docData.customer_id,
+        document_id: docSnap.id,
+        loan_track_id: null,
+        alert_type: 'document_expiring',
+        alert_date: now.toISOString(),
+        days_until_end: daysLeft,
+        urgency: daysLeft < 7 ? 'דחוף' : 'אזהרה',
+        status: 'פתוח',
+        snoozed_until: null,
+        document_type: docData.type ?? null,
+        created_at: FieldValue.serverTimestamp(),
+      })
+      created++
+    }
+
+    // סימון מסמכים שכבר פג תוקפם.
+    const expired = await db.collection('documents').where('expires_at', '<', now.toISOString()).get()
+    let marked = 0
+    for (const docSnap of expired.docs) {
+      if (docSnap.data().status !== 'פג תוקף') {
+        await docSnap.ref.update({ status: 'פג תוקף' })
+        marked++
+      }
+    }
+    console.log(`generateDocumentAlerts: created ${created} alerts, marked ${marked} expired`)
   }
 )

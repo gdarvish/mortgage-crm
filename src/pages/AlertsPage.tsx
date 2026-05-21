@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, CheckCircle, RefreshCw, User, Loader2 } from 'lucide-react'
-import { collection, getDocs, query, where } from 'firebase/firestore'
-import { db, auth } from '@/lib/firebase'
 import { formatCurrency } from '@/lib/utils'
+import { alertService } from '@/services/alertService'
+import { toast } from '@/components/ui'
 
 interface AlertItem {
   id: string
@@ -11,7 +11,6 @@ interface AlertItem {
   customerId: string
   trackType: string
   daysLeft: number
-  status: string
   amount: number
   interestRate: number
 }
@@ -34,75 +33,43 @@ export default function AlertsPage() {
   const [alerts, setAlerts] = useState<AlertItem[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'urgent' | 'warning' | 'normal'>('all')
-  const [handled, setHandled] = useState<Set<string>>(new Set())
+  const [handling, setHandling] = useState<string | null>(null)
 
   const fetchAlerts = useCallback(async () => {
-    const uid = auth.currentUser?.uid
-    if (!uid) { setLoading(false); return }
     setLoading(true)
-    try {
-      // 1. Fetch customers for name lookup
-      const custSnap = await getDocs(query(collection(db, 'customers'), where('user_id', '==', uid)))
-      const custMap: Record<string, string> = {}
-      custSnap.docs.forEach(d => {
-        const c = d.data()
-        custMap[d.id] = `${c.first_name} ${c.last_name}`
-      })
-
-      // 2. Fetch mortgages → build mortgageId → customerId map
-      const mortSnap = await getDocs(query(collection(db, 'mortgages'), where('user_id', '==', uid)))
-      const mortMap: Record<string, string> = {}
-      mortSnap.docs.forEach(d => { mortMap[d.id] = d.data().customer_id })
-      const mortgageIds = mortSnap.docs.map(d => d.id)
-
-      if (mortgageIds.length === 0) {
-        setAlerts([])
-        return
-      }
-
-      // 3. Fetch loan_tracks for those mortgages (chunked by 30 for Firestore 'in' limit)
-      const chunks: string[][] = []
-      for (let i = 0; i < mortgageIds.length; i += 30) chunks.push(mortgageIds.slice(i, i + 30))
-      const trackDocs = (
-        await Promise.all(
-          chunks.map(chunk =>
-            getDocs(query(collection(db, 'loan_tracks'), where('mortgage_id', 'in', chunk)))
-          )
-        )
-      ).flatMap(s => s.docs)
-
-      // 4. Build alert items
-      const now = new Date()
-      const items: AlertItem[] = []
-      trackDocs.forEach(d => {
-        const t = d.data()
-        if (!t.end_date) return
-        const endDate = new Date(t.end_date)
-        const daysLeft = Math.round((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-        if (daysLeft < 0 || daysLeft > 180) return
-        const customerId = mortMap[t.mortgage_id] ?? ''
-        items.push({
-          id: d.id,
-          customerName: custMap[customerId] ?? 'לקוח לא ידוע',
-          customerId,
-          trackType: t.type ?? 'לא ידוע',
-          daysLeft,
-          status: 'פתוח',
-          amount: t.balance ?? t.amount ?? 0,
-          interestRate: t.interest_rate ?? 0,
-        })
-      })
-
-      items.sort((a, b) => a.daysLeft - b.daysLeft)
-      setAlerts(items)
-    } finally {
+    const { data, error } = await alertService.getAll({ status: 'פתוח' })
+    if (error) {
+      toast.error('שגיאה בטעינת התראות', error.message)
       setLoading(false)
+      return
     }
+    const items: AlertItem[] = (data || []).map((a) => ({
+      id: a.id,
+      customerName: a.customer ? `${a.customer.first_name} ${a.customer.last_name}` : 'לקוח לא ידוע',
+      customerId: a.customer_id,
+      trackType: a.track_type || a.loan_track?.type || 'לא ידוע',
+      daysLeft: a.days_until_end ?? 0,
+      amount: a.track_amount ?? a.loan_track?.amount ?? 0,
+      interestRate: a.loan_track?.interest_rate ?? 0,
+    }))
+    items.sort((x, y) => x.daysLeft - y.daysLeft)
+    setAlerts(items)
+    setLoading(false)
   }, [])
 
   useEffect(() => { fetchAlerts() }, [fetchAlerts])
 
-  const markHandled = (id: string) => setHandled(prev => new Set([...prev, id]))
+  const handleMarkHandled = async (id: string) => {
+    setHandling(id)
+    const { error } = await alertService.markHandled(id)
+    setHandling(null)
+    if (error) {
+      toast.error('שגיאה בעדכון התראה', error.message)
+      return
+    }
+    setAlerts(prev => prev.filter(a => a.id !== id))
+    toast.success('ההתראה סומנה כטופלה')
+  }
 
   const filtered = alerts.filter(a => {
     if (filter === 'urgent')  return a.daysLeft < 60
@@ -172,14 +139,12 @@ export default function AlertsPage() {
         <div className="space-y-3">
           {filtered.map((alert, i) => {
             const urgency = getUrgency(alert.daysLeft)
-            const isHandled = handled.has(alert.id)
             return (
               <div
                 key={alert.id}
                 style={{
                   ...cardStyle,
                   padding: '16px 20px',
-                  opacity: isHandled ? 0.5 : 1,
                   animationName: 'fadeUp',
                   animationDuration: '0.35s',
                   animationDelay: `${i * 40}ms`,
@@ -198,9 +163,6 @@ export default function AlertsPage() {
                         >
                           {alert.daysLeft} ימים
                         </span>
-                        {isHandled && (
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#f5f4f2', color: '#a8a29e' }}>טופל</span>
-                        )}
                       </div>
                       <p className="text-[13px] mt-0.5" style={{ color: '#57534e' }}>
                         מסלול {alert.trackType} · {formatCurrency(alert.amount)} · {alert.interestRate}%
@@ -222,15 +184,17 @@ export default function AlertsPage() {
                     >
                       <RefreshCw size={12} /> מחשבון מחזור
                     </button>
-                    {!isHandled && (
-                      <button
-                        onClick={() => markHandled(alert.id)}
-                        className="flex items-center gap-1 text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-all hover:opacity-80"
-                        style={{ background: '#d1fae5', color: '#065f46' }}
-                      >
-                        <CheckCircle size={12} /> טופל
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleMarkHandled(alert.id)}
+                      disabled={handling === alert.id}
+                      className="flex items-center gap-1 text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-all hover:opacity-80 disabled:opacity-50"
+                      style={{ background: '#d1fae5', color: '#065f46' }}
+                    >
+                      {handling === alert.id
+                        ? <Loader2 size={12} className="animate-spin" />
+                        : <CheckCircle size={12} />}
+                      טופל
+                    </button>
                   </div>
                 </div>
               </div>

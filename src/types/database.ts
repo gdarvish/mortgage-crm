@@ -247,12 +247,22 @@ export interface BankResponse {
 
 export interface Alert {
   id: string
+  user_id: string
   customer_id: string
   loan_track_id: string | null
+  mortgage_id?: string | null
+  document_id?: string | null
+  alert_type?: 'track_ending' | 'document_expiring'
   alert_date: string | null
   days_until_end: number | null
+  urgency?: 'דחוף' | 'אזהרה' | 'תקין'
   status: 'פתוח' | 'טופל' | 'נדחה'
   snoozed_until: string | null
+  handled_at?: string | null
+  track_type?: string | null
+  track_amount?: number | null
+  track_end_date?: string | null
+  document_type?: string | null
   created_at: string
 }
 
