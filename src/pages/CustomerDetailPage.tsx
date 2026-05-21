@@ -7,6 +7,8 @@ import {
   Trash2, Loader2, Save,
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
+import { toast } from '@/components/ui'
 import { useAuthStore } from '@/stores/authStore'
 import { customerService } from '@/services/customerService'
 import { taskService } from '@/services/taskService'
@@ -103,6 +105,7 @@ export default function CustomerDetailPage() {
     monthly_income: 0, partner_income: 0, own_capital: 0, existing_obligations: 0, lead_source: '', notes: '',
   })
   const [statusValue, setStatusValue] = useState<CustomerStatus>('ליד')
+  const [formErrors, setFormErrors] = useState<FormErrors>({})
 
   // Task form
   const [newTask, setNewTask] = useState({ title: '', due_date: '', priority: 'בינונית' })
@@ -169,10 +172,20 @@ export default function CustomerDetailPage() {
   // -------------------------------------------------------------------------
   const savePersonal = async () => {
     if (!id) return
+    const errors = validatePersonalForm(personal)
+    setFormErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      toast.error('יש שגיאות בטופס', 'אנא תקן את השדות המסומנים ונסה שוב')
+      return
+    }
     setSaving(true)
     const { error } = await customerService.update(id, { ...personal, status: statusValue })
-    if (!error) setCustomer(prev => prev ? { ...prev, ...personal, status: statusValue } : prev)
-    else alert('שגיאה בשמירה: ' + error.message)
+    if (!error) {
+      setCustomer(prev => prev ? { ...prev, ...personal, status: statusValue } : prev)
+      toast.success('הפרטים נשמרו בהצלחה')
+    } else {
+      toast.error('שגיאה בשמירה', error.message)
+    }
     setSaving(false)
   }
 
@@ -325,34 +338,39 @@ export default function CustomerDetailPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">שם פרטי</label>
-          <input className={inputClass} value={personal.first_name}
+          <input className={`${inputClass} ${formErrors.first_name ? 'border-red-500' : ''}`} value={personal.first_name}
             onChange={e => setPersonal({ ...personal, first_name: e.target.value })} />
+          {formErrors.first_name && <p className="text-xs text-red-600 mt-1">{formErrors.first_name}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">שם משפחה</label>
-          <input className={inputClass} value={personal.last_name}
+          <input className={`${inputClass} ${formErrors.last_name ? 'border-red-500' : ''}`} value={personal.last_name}
             onChange={e => setPersonal({ ...personal, last_name: e.target.value })} />
+          {formErrors.last_name && <p className="text-xs text-red-600 mt-1">{formErrors.last_name}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">ת.ז</label>
-          <input className={inputClass} dir="ltr" value={personal.id_number}
+          <input className={`${inputClass} ${formErrors.id_number ? 'border-red-500' : ''}`} dir="ltr" value={personal.id_number}
             onChange={e => setPersonal({ ...personal, id_number: e.target.value })} />
+          {formErrors.id_number && <p className="text-xs text-red-600 mt-1">{formErrors.id_number}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
           <div className="relative">
             <Phone size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input className={`${inputClass} pr-9`} dir="ltr" value={personal.phone}
+            <input className={`${inputClass} pr-9 ${formErrors.phone ? 'border-red-500' : ''}`} dir="ltr" value={personal.phone}
               onChange={e => setPersonal({ ...personal, phone: e.target.value })} />
           </div>
+          {formErrors.phone && <p className="text-xs text-red-600 mt-1">{formErrors.phone}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
           <div className="relative">
             <Mail size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input className={`${inputClass} pr-9`} dir="ltr" type="email" value={personal.email}
+            <input className={`${inputClass} pr-9 ${formErrors.email ? 'border-red-500' : ''}`} dir="ltr" type="email" value={personal.email}
               onChange={e => setPersonal({ ...personal, email: e.target.value })} />
           </div>
+          {formErrors.email && <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">כתובת</label>

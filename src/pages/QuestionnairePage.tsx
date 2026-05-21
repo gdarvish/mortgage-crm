@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, CheckCircle, Loader2 } from 'lucide-react'
 import { customerService } from '@/services/customerService'
+import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
+import { toast } from '@/components/ui'
 import type { Customer } from '@/types/database'
 
 const steps = ['פרטים אישיים', 'מצב משפחתי', 'הכנסות', 'נכסים', 'התחייבויות', 'מטרת המשכנתא']
@@ -46,7 +48,29 @@ export default function QuestionnairePage() {
     })
   }, [token])
 
+  const [qErrors, setQErrors] = useState<FormErrors>({})
+
   const update = (field: string, value: string | number | boolean) => setForm({ ...form, [field]: value })
+
+  const validatePersonalStep = (): FormErrors =>
+    validatePersonalForm({
+      first_name: form.firstName,
+      last_name: form.lastName,
+      id_number: form.idNumber,
+      phone: form.phone,
+    })
+
+  const handleNext = () => {
+    if (currentStep === 0) {
+      const errors = validatePersonalStep()
+      setQErrors(errors)
+      if (Object.keys(errors).length > 0) {
+        toast.error('יש שגיאות בטופס', 'אנא תקן את הפרטים האישיים')
+        return
+      }
+    }
+    setCurrentStep(currentStep + 1)
+  }
 
   if (_loading) {
     return (
@@ -73,11 +97,27 @@ export default function QuestionnairePage() {
       case 0: return (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">שם פרטי</label><input value={form.firstName} onChange={e => update('firstName', e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">שם משפחה</label><input value={form.lastName} onChange={e => update('lastName', e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">שם פרטי</label>
+              <input value={form.firstName} onChange={e => update('firstName', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${qErrors.first_name ? 'border-red-500' : ''}`} />
+              {qErrors.first_name && <p className="text-xs text-red-600 mt-1">{qErrors.first_name}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">שם משפחה</label>
+              <input value={form.lastName} onChange={e => update('lastName', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${qErrors.last_name ? 'border-red-500' : ''}`} />
+              {qErrors.last_name && <p className="text-xs text-red-600 mt-1">{qErrors.last_name}</p>}
+            </div>
           </div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">ת.ז</label><input value={form.idNumber} onChange={e => update('idNumber', e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label><input value={form.phone} onChange={e => update('phone', e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">ת.ז</label>
+            <input value={form.idNumber} onChange={e => update('idNumber', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${qErrors.id_number ? 'border-red-500' : ''}`} dir="ltr" />
+            {qErrors.id_number && <p className="text-xs text-red-600 mt-1">{qErrors.id_number}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
+            <input value={form.phone} onChange={e => update('phone', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${qErrors.phone ? 'border-red-500' : ''}`} dir="ltr" />
+            {qErrors.phone && <p className="text-xs text-red-600 mt-1">{qErrors.phone}</p>}
+          </div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">כתובת</label><input value={form.address} onChange={e => update('address', e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></div>
         </div>
       )
@@ -165,13 +205,20 @@ export default function QuestionnairePage() {
               </button>
             )}
             {currentStep < steps.length - 1 ? (
-              <button onClick={() => setCurrentStep(currentStep + 1)} className="flex-1 flex items-center justify-center gap-1 bg-[#1a4f8a] text-white py-2.5 rounded-lg hover:bg-[#143d6b]">
+              <button onClick={handleNext} className="flex-1 flex items-center justify-center gap-1 bg-[#1a4f8a] text-white py-2.5 rounded-lg hover:bg-[#143d6b]">
                 הבא <ChevronLeft size={16} />
               </button>
             ) : (
               <button
                 onClick={async () => {
                   if (!customer) return
+                  const errors = validatePersonalStep()
+                  if (Object.keys(errors).length > 0) {
+                    setQErrors(errors)
+                    setCurrentStep(0)
+                    toast.error('יש שגיאות בטופס', 'אנא תקן את הפרטים האישיים')
+                    return
+                  }
                   setSubmitting(true)
                   await customerService.update(customer.id, {
                     first_name: form.firstName,
