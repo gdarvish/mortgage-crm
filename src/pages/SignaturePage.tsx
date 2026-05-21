@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import SignatureCanvas from 'react-signature-canvas'
 import { httpsCallable } from 'firebase/functions'
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3'
 import { PenTool, CheckCircle, RotateCcw, Loader2, AlertCircle } from 'lucide-react'
 import { functions } from '@/lib/firebase'
 import { validateIsraeliId } from '@/utils/israeliValidations'
@@ -16,6 +17,7 @@ interface SignatureRequestInfo {
 
 export default function SignaturePage() {
   const { token } = useParams()
+  const { executeRecaptcha } = useGoogleReCaptcha()
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [request, setRequest] = useState<SignatureRequestInfo | null>(null)
@@ -75,10 +77,14 @@ export default function SignaturePage() {
     }
     setSubmitting(true)
     try {
+      const recaptchaToken = executeRecaptcha
+        ? await executeRecaptcha('submit_signature')
+        : undefined
       const dataUrl = sigRef.current.getCanvas().toDataURL('image/png')
       const submit = httpsCallable(functions, 'submitSignature')
       await submit({
         token,
+        recaptcha_token: recaptchaToken,
         signer_name: signerName.trim(),
         signer_id: signerId.trim(),
         signature_dataurl: dataUrl,

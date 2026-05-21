@@ -26,7 +26,49 @@ function isExpired(expiresAt: unknown): boolean {
   return new Date(expiresAt).getTime() < Date.now()
 }
 
+/** Rate limiter פשוט מבוסס Firestore — חלון קבוע פר מזהה (IP). */
+async function checkRateLimit(qualifier: string, maxCalls = 10, windowSec = 60): Promise<void> {
+  const ref = db.collection('rate_limits').doc(qualifier.replace(/\//g, '_'))
+  const now = Date.now()
+  await db.runTransaction(async (tx) => {
+    const data = (await tx.get(ref)).data()
+    let count = 1
+    let windowStart = now
+    if (data && typeof data.windowStart === 'number' && now - data.windowStart < windowSec * 1000) {
+      count = (data.count ?? 0) + 1
+      windowStart = data.windowStart
+    }
+    if (count > maxCalls) {
+      throw new HttpsError('resource-exhausted', 'יותר מדי בקשות. נסה שוב בעוד דקה.')
+    }
+    tx.set(ref, { count, windowStart })
+  })
+}
+
+/** אימות reCAPTCHA v3. אם RECAPTCHA_SECRET_KEY לא מוגדר — מדלגים על הבדיקה. */
+async function verifyRecaptcha(token: unknown): Promise<void> {
+  const secret = process.env.RECAPTCHA_SECRET_KEY
+  if (!secret) return
+  if (!token || typeof token !== 'string') {
+    throw new HttpsError('permission-denied', 'reCAPTCHA token missing')
+  }
+  const res = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `secret=${encodeURIComponent(secret)}&response=${encodeURIComponent(token)}`,
+  })
+  const result = (await res.json()) as { success?: boolean; score?: number }
+  if (!result.success || (result.score ?? 0) < 0.5) {
+    throw new HttpsError('permission-denied', 'reCAPTCHA verification failed')
+  }
+}
+
+function clientIp(req: { rawRequest?: { ip?: string } }): string {
+  return req.rawRequest?.ip ?? 'unknown'
+}
+
 export const getCustomerByQuestionnaireToken = onCall({ region: REGION }, async (req) => {
+  await checkRateLimit('q_get:' + clientIp(req))
   const token = req.data?.token
   if (!token || typeof token !== 'string') {
     throw new HttpsError('invalid-argument', 'token is required')
@@ -56,13 +98,15 @@ export const getCustomerByQuestionnaireToken = onCall({ region: REGION }, async 
 })
 
 export const submitQuestionnaire = onCall({ region: REGION }, async (req) => {
-  const { token, payload } = req.data ?? {}
+  await checkRateLimit('q_submit:' + clientIp(req))
+  const { token, payload, recaptcha_token } = req.data ?? {}
   if (!token || typeof token !== 'string') {
     throw new HttpsError('invalid-argument', 'token is required')
   }
   if (!payload || typeof payload !== 'object') {
     throw new HttpsError('invalid-argument', 'payload is required')
   }
+  await verifyRecaptcha(recaptcha_token)
   const docSnap = await findCustomerByToken(token)
   if (!docSnap) throw new HttpsError('not-found', 'Customer not found')
   if (isExpired(docSnap.data().questionnaire_token_expires_at)) {
@@ -89,6 +133,7 @@ export const submitQuestionnaire = onCall({ region: REGION }, async (req) => {
 })
 
 export const getSignatureByToken = onCall({ region: REGION }, async (req) => {
+  await checkRateLimit('sig_get:' + clientIp(req))
   const token = req.data?.token
   if (!token || typeof token !== 'string') {
     throw new HttpsError('invalid-argument', 'token is required')
@@ -112,13 +157,16 @@ export const getSignatureByToken = onCall({ region: REGION }, async (req) => {
 })
 
 export const submitSignature = onCall({ region: REGION }, async (req) => {
-  const { token, signer_name, signer_id, signature_dataurl, user_agent } = req.data ?? {}
+  await checkRateLimit('sig_submit:' + clientIp(req))
+  const { token, signer_name, signer_id, signature_dataurl, user_agent, recaptcha_token } =
+    req.data ?? {}
   if (!token || typeof token !== 'string') {
     throw new HttpsError('invalid-argument', 'token is required')
   }
   if (!signer_name || !signer_id || !signature_dataurl) {
     throw new HttpsError('invalid-argument', 'Missing required signature fields')
   }
+  await verifyRecaptcha(recaptcha_token)
 
   const snap = await db.collection('signatures').where('token', '==', token).limit(1).get()
   if (snap.empty) throw new HttpsError('not-found', 'Signature request not found')

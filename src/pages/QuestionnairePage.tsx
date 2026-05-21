@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, CheckCircle, Loader2, AlertCircle } from 'lucide-react'
 import { httpsCallable } from 'firebase/functions'
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3'
 import { functions } from '@/lib/firebase'
 import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
 import { toast } from '@/components/ui'
@@ -26,6 +27,7 @@ interface QuestionnaireCustomer {
 
 export default function QuestionnairePage() {
   const { token } = useParams()
+  const { executeRecaptcha } = useGoogleReCaptcha()
   const [customer, setCustomer] = useState<QuestionnaireCustomer | null>(null)
   const [_loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -262,9 +264,13 @@ export default function QuestionnairePage() {
                   }
                   setSubmitting(true)
                   try {
+                    const recaptchaToken = executeRecaptcha
+                      ? await executeRecaptcha('submit_questionnaire')
+                      : undefined
                     const submit = httpsCallable(functions, 'submitQuestionnaire')
                     await submit({
                       token,
+                      recaptcha_token: recaptchaToken,
                       payload: {
                         first_name: form.firstName,
                         last_name: form.lastName,
