@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
+import { toast } from '@/components/ui'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -40,7 +41,7 @@ export default function LoginPage() {
           setError(error.message)
         } else {
           setError('')
-          alert('נרשמת בהצלחה! בדוק את האימייל לאישור.')
+          toast.success('נרשמת בהצלחה!', 'בדוק את האימייל לאישור החשבון')
         }
       } else {
         const { error } = await signIn(email, password)

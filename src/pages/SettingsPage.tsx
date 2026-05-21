@@ -3,6 +3,7 @@ import { Settings, Upload, Save, Eye, Trash2, Loader2, CheckCircle } from 'lucid
 import { collection, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore'
 import { db, auth } from '@/lib/firebase'
 import { settingsService } from '@/services/settingsService'
+import { toast } from '@/components/ui'
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -71,9 +72,10 @@ export default function SettingsPage() {
     })
     setSaving(false)
     if (error) {
-      alert('שגיאה בשמירה: ' + error.message)
+      toast.error('שגיאה בשמירה', error.message)
     } else {
       setSaved(true)
+      toast.success('ההגדרות נשמרו בהצלחה')
       setTimeout(() => setSaved(false), 2500)
     }
   }
@@ -86,8 +88,9 @@ export default function SettingsPage() {
     if (url) {
       setSettings(prev => ({ ...prev, logo_url: url }))
       await settingsService.upsert({ logo_url: url })
+      toast.success('הלוגו הועלה בהצלחה')
     } else if (error) {
-      alert('שגיאה בהעלאת לוגו: ' + error.message)
+      toast.error('שגיאה בהעלאת לוגו', error.message)
     }
     setUploadingLogo(false)
     e.target.value = ''

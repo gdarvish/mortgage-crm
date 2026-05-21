@@ -5,6 +5,7 @@ import { formatCurrency } from '@/lib/utils'
 import { calculateMonthlyPayment, calculateRefinanceSavings, type TrackInput } from '@/utils/mortgageCalculations'
 import { customerService } from '@/services/customerService'
 import { documentService } from '@/services/documentService'
+import { toast } from '@/components/ui'
 import type { LoanTrackType, Customer } from '@/types/database'
 
 const trackTypes: { value: LoanTrackType; label: string }[] = [
@@ -73,7 +74,7 @@ export default function RefinanceCalculatorPage() {
     const { error } = await documentService.upload(selectedUploadCustomer, pendingFile, 'דוח יתרות', 'נכס')
     setUploadingReport(false)
     if (error) {
-      alert('שגיאה בהעלאה: ' + error.message)
+      toast.error('שגיאה בהעלאה', error.message)
     } else {
       const cust = uploadCustomers.find(c => c.id === selectedUploadCustomer)
       setUploadSuccess(`הדוח הועלה בהצלחה לתיק ${cust?.first_name ?? ''} ${cust?.last_name ?? ''}`)

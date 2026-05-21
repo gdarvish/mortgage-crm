@@ -5,6 +5,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db, auth } from '@/lib/firebase'
 import { documentService } from '@/services/documentService'
 import { customerService } from '@/services/customerService'
+import { toast, ConfirmDialog } from '@/components/ui'
 import type { Document, Customer } from '@/types/database'
 
 const statusIcons: Record<string, { icon: typeof CheckCircle; color: string }> = {
@@ -36,6 +37,8 @@ export default function DocumentsPage() {
   const [uploading, setUploading] = useState(false)
   const [uploadType, setUploadType] = useState(docTypes[0])
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
+  const [docToDelete, setDocToDelete] = useState<DocRow | null>(null)
+  const [deletingDoc, setDeletingDoc] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const fetchDocs = useCallback(async () => {
@@ -85,10 +88,25 @@ export default function DocumentsPage() {
     if (!file || !selectedCustomerId) return
     setUploading(true)
     const { error } = await documentService.upload(selectedCustomerId, file, uploadType, 'כללי')
-    if (error) alert('שגיאה בהעלאה: ' + error.message)
+    if (error) toast.error('שגיאה בהעלאה', error.message)
+    else toast.success('המסמך הועלה בהצלחה')
     await fetchDocs()
     setUploading(false)
     e.target.value = ''
+  }
+
+  const handleDeleteDoc = async () => {
+    if (!docToDelete) return
+    setDeletingDoc(true)
+    const { error } = await documentService.delete(docToDelete.id)
+    setDeletingDoc(false)
+    setDocToDelete(null)
+    if (error) {
+      toast.error('שגיאה במחיקה', error.message)
+      return
+    }
+    toast.success('המסמך נמחק')
+    await fetchDocs()
   }
 
   const filtered = docs.filter(d => {
@@ -144,7 +162,7 @@ export default function DocumentsPage() {
           <input type="file" hidden ref={fileInputRef} onChange={handleFileUpload} />
           <button
             onClick={() => {
-              if (!selectedCustomerId) { alert('בחר לקוח לפני ההעלאה'); return }
+              if (!selectedCustomerId) { toast.warning('בחר לקוח לפני ההעלאה'); return }
               fileInputRef.current?.click()
             }}
             disabled={uploading}
@@ -254,12 +272,7 @@ export default function DocumentsPage() {
                           </a>
                         )}
                         <button
-                          onClick={async () => {
-                            if (!window.confirm('האם למחוק מסמך זה?')) return
-                            const { error } = await documentService.delete(d.id)
-                            if (error) { alert('שגיאה במחיקה: ' + error.message); return }
-                            await fetchDocs()
-                          }}
+                          onClick={() => setDocToDelete(d)}
                           className="inline-flex items-center justify-center transition-colors hover:text-red-600"
                           style={{ color: '#d6d3d1' }}
                           aria-label="מחק מסמך"
@@ -275,6 +288,17 @@ export default function DocumentsPage() {
           </table>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!docToDelete}
+        variant="danger"
+        title="מחיקת מסמך"
+        message="האם למחוק מסמך זה? פעולה זו אינה הפיכה."
+        confirmText="מחק"
+        loading={deletingDoc}
+        onConfirm={handleDeleteDoc}
+        onCancel={() => setDocToDelete(null)}
+      />
     </div>
   )
 }

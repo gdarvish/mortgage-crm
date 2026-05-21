@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
-import { toast } from '@/components/ui'
+import { toast, ConfirmDialog } from '@/components/ui'
 import { useAuthStore } from '@/stores/authStore'
 import { customerService } from '@/services/customerService'
 import { taskService } from '@/services/taskService'
@@ -106,6 +106,8 @@ export default function CustomerDetailPage() {
   })
   const [statusValue, setStatusValue] = useState<CustomerStatus>('ליד')
   const [formErrors, setFormErrors] = useState<FormErrors>({})
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // Task form
   const [newTask, setNewTask] = useState({ title: '', due_date: '', priority: 'בינונית' })
@@ -193,9 +195,27 @@ export default function CustomerDetailPage() {
     if (!id) return
     setSaving(true)
     const { error } = await customerService.update(id, financial)
-    if (!error) setCustomer(prev => prev ? { ...prev, ...financial } : prev)
-    else alert('שגיאה בשמירה: ' + error.message)
+    if (!error) {
+      setCustomer(prev => prev ? { ...prev, ...financial } : prev)
+      toast.success('הפרטים הפיננסיים נשמרו')
+    } else {
+      toast.error('שגיאה בשמירה', error.message)
+    }
     setSaving(false)
+  }
+
+  const handleDeleteCustomer = async () => {
+    if (!id) return
+    setDeleting(true)
+    const { error } = await customerService.delete(id)
+    setDeleting(false)
+    setShowDeleteConfirm(false)
+    if (error) {
+      toast.error('שגיאה במחיקה', error.message)
+      return
+    }
+    toast.success('הלקוח נמחק')
+    navigate('/customers')
   }
 
   const addTask = async () => {
@@ -258,7 +278,7 @@ export default function CustomerDetailPage() {
     const token = generateToken()
     const { error } = await customerService.update(id, { questionnaire_token: token })
     if (error) {
-      alert('שגיאה ביצירת קישור: ' + error.message)
+      toast.error('שגיאה ביצירת קישור', error.message)
       return
     }
     const url = `${window.location.origin}/questionnaire/${token}`
@@ -804,12 +824,7 @@ export default function CustomerDetailPage() {
               <Calculator size={16} />צור תמהיל
             </button>
             <button
-              onClick={async () => {
-                if (!window.confirm('האם למחוק לקוח זה? פעולה זו בלתי הפיכה.')) return
-                const { error } = await customerService.delete(id!)
-                if (error) { alert('שגיאה במחיקה: ' + error.message); return }
-                navigate('/customers')
-              }}
+              onClick={() => setShowDeleteConfirm(true)}
               className="inline-flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 px-3 py-2 rounded-lg hover:bg-red-100 transition-colors text-sm">
               <Trash2 size={16} />מחק לקוח
             </button>
@@ -835,6 +850,17 @@ export default function CustomerDetailPage() {
         </div>
         <div className="p-5">{tabContent[activeTab]()}</div>
       </div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        variant="danger"
+        title="מחיקת לקוח"
+        message="פעולה זו תמחק את הלקוח וכל הנתונים הקשורים אליו (משכנתאות, מסמכים, משימות, עמלות). פעולה זו אינה הפיכה."
+        confirmText="מחק לקוח"
+        loading={deleting}
+        onConfirm={handleDeleteCustomer}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   )
 }

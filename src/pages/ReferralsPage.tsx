@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Share2, Plus, Phone, TrendingUp, Loader2, X } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { referralService } from '@/services/referralService'
+import { toast } from '@/components/ui'
 import type { ReferralPartner } from '@/types/database'
 
 const partnerTypes = ['סוכן נדל"ן', 'עו"ד', 'רו"ח', 'לקוח קיים', 'אחר']
@@ -47,10 +48,11 @@ export default function ReferralsPage() {
       last_contact: null,
     })
     if (error) {
-      alert('שגיאה בשמירת שותף: ' + error.message)
+      toast.error('שגיאה בשמירת שותף', error.message)
     } else {
       setShowNewModal(false)
       setNewPartner({ name: '', type: 'סוכן נדל"ן', phone: '', email: '', company: '' })
+      toast.success('השותף נשמר בהצלחה')
       fetchData()
     }
     setSaving(false)
