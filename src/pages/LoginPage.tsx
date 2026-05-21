@@ -41,7 +41,8 @@ export default function LoginPage() {
           setError(error.message)
         } else {
           setError('')
-          toast.success('נרשמת בהצלחה!', 'בדוק את האימייל לאישור החשבון')
+          toast.success('נרשמת בהצלחה!', 'שלחנו לך מייל לאישור החשבון')
+          navigate('/verify-email')
         }
       } else {
         const { error } = await signIn(email, password)

@@ -21,27 +21,38 @@ import SettingsPage from '@/pages/SettingsPage'
 import ClientPortalPage from '@/pages/ClientPortalPage'
 import QuestionnairePage from '@/pages/QuestionnairePage'
 import SignaturePage from '@/pages/SignaturePage'
+import VerifyEmailPage from '@/pages/VerifyEmailPage'
 import { Toaster } from '@/components/ui/Toast'
+
+function AuthLoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+      <div className="text-center">
+        <div className="w-12 h-12 border-4 border-[#1a4f8a] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-gray-500">טוען...</p>
+      </div>
+    </div>
+  )
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, initialized } = useAuthStore()
 
-  if (!initialized || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#1a4f8a] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-500">טוען...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return <Navigate to="/login" replace />
-  }
+  if (!initialized || loading) return <AuthLoadingScreen />
+  if (!user) return <Navigate to="/login" replace />
+  if (!user.emailVerified) return <Navigate to="/verify-email" replace />
 
   return <>{children}</>
+}
+
+function VerifyEmailRoute() {
+  const { user, loading, initialized } = useAuthStore()
+
+  if (!initialized || loading) return <AuthLoadingScreen />
+  if (!user) return <Navigate to="/login" replace />
+  if (user.emailVerified) return <Navigate to="/dashboard" replace />
+
+  return <VerifyEmailPage />
 }
 
 export default function App() {
@@ -57,6 +68,7 @@ export default function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/verify-email" element={<VerifyEmailRoute />} />
         <Route path="/portal/:token" element={<ClientPortalPage />} />
         <Route path="/questionnaire/:token" element={<QuestionnairePage />} />
         <Route path="/sign/:token" element={<SignaturePage />} />
