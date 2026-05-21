@@ -53,6 +53,17 @@ export function fromDocs<T>(snaps: QueryDocumentSnapshot[]): T[] {
   return snaps.map((s) => fromDoc<T>(s))
 }
 
+/**
+ * הזרקת user_id של המשתמש המחובר ל-payload — לשימוש בכל create()
+ * כדי להבטיח בעלות תקינה (נדרש על ידי Firestore Rules).
+ */
+export async function withUserId<T extends Record<string, unknown>>(
+  payload: T
+): Promise<T & { user_id: string }> {
+  const uid = await awaitUserId()
+  return { ...payload, user_id: uid }
+}
+
 export const sentinels = {
   serverTimestamp,
 }

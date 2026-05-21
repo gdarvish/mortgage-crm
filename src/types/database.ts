@@ -143,6 +143,8 @@ export interface Lead {
   status: LeadStatus
   notes: string | null
   referral_partner_id: string | null
+  converted_to_customer_id?: string | null
+  converted_at?: string | null
   created_at: string
 }
 
@@ -216,6 +218,7 @@ export type MortgageStatus = 'טיוטה' | 'הוגש' | 'אושר' | 'נדחה'
 
 export interface LoanTrack {
   id: string
+  user_id: string
   mortgage_id: string
   type: LoanTrackType
   amount: number | null
@@ -232,6 +235,7 @@ export type LoanTrackType = 'פריים' | 'קל"צ' | 'קל"ב' | 'משתנה_�
 
 export interface BankResponse {
   id: string
+  user_id: string
   mortgage_id: string
   bank_name: string | null
   response_type: string | null

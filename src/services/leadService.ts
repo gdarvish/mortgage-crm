@@ -10,6 +10,7 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
+  writeBatch,
   type QueryConstraint,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -109,11 +110,18 @@ export const leadService = {
         created_at: serverTimestamp(),
         updated_at: serverTimestamp(),
       }
-      const customerRef = await addDoc(collection(db, 'customers'), customerPayload)
+      // אטומי — יצירת הלקוח ועדכון הליד נשמרים יחד או נכשלים יחד.
+      const batch = writeBatch(db)
+      const customerRef = doc(collection(db, 'customers'))
+      batch.set(customerRef, customerPayload)
+      batch.update(leadRef, {
+        status: 'הפך ללקוח',
+        converted_to_customer_id: customerRef.id,
+        converted_at: serverTimestamp(),
+      })
+      await batch.commit()
+
       const customerSnap = await getDoc(customerRef)
-
-      await updateDoc(leadRef, { status: 'הפך ללקוח' })
-
       return { data: fromDoc<Customer>(customerSnap), error: null }
     } catch (e) {
       return { data: null, error: toError(e) }
