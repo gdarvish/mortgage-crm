@@ -60,11 +60,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-bl from-[#1a4f8a] to-[#0f2d4f] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-bl from-[#059669] to-[#065f46] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 animate-fade-in">
         {/* Logo Area */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-[#1a4f8a] rounded-xl mx-auto mb-4 flex items-center justify-center">
+          <div className="w-16 h-16 bg-[#059669] rounded-xl mx-auto mb-4 flex items-center justify-center">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
               <polyline points="9 22 9 12 15 12 15 22" />
@@ -86,7 +86,7 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] focus:border-transparent outline-none transition-all text-right"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none transition-all text-right"
               placeholder="example@email.com"
               required
               dir="ltr"
@@ -101,7 +101,7 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] focus:border-transparent outline-none transition-all"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none transition-all"
               placeholder="••••••••"
               required
               minLength={6}
@@ -117,7 +117,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#1a4f8a] text-white py-3 rounded-lg font-medium hover:bg-[#143d6b] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full bg-[#059669] text-white py-3 rounded-lg font-medium hover:bg-[#047857] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (
               <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
@@ -159,7 +159,7 @@ export default function LoginPage() {
               setIsSignUp(!isSignUp)
               setError('')
             }}
-            className="text-[#1a4f8a] hover:underline text-sm"
+            className="text-[#059669] hover:underline text-sm"
           >
             {isSignUp ? 'יש לך חשבון? התחבר' : 'אין לך חשבון? הירשם'}
           </button>

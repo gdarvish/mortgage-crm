@@ -106,7 +106,7 @@ export default function QuestionnairePage() {
   if (_loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Loader2 size={32} className="text-[#1a4f8a] animate-spin" />
+        <Loader2 size={32} className="text-[#059669] animate-spin" />
       </div>
     )
   }
@@ -220,7 +220,7 @@ export default function QuestionnairePage() {
     <div className="min-h-screen bg-gray-50 py-8 px-4" dir="rtl">
       <div className="max-w-lg mx-auto">
         <div className="text-center mb-6">
-          <div className="w-12 h-12 bg-[#1a4f8a] rounded-xl mx-auto mb-3 flex items-center justify-center">
+          <div className="w-12 h-12 bg-[#059669] rounded-xl mx-auto mb-3 flex items-center justify-center">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
           </div>
           <h1 className="text-xl font-bold text-gray-900">שאלון פרטים</h1>
@@ -231,8 +231,8 @@ export default function QuestionnairePage() {
         <div className="flex items-center gap-1 mb-6">
           {steps.map((step, idx) => (
             <div key={idx} className="flex-1">
-              <div className={`h-1.5 rounded-full ${idx <= currentStep ? 'bg-[#1a4f8a]' : 'bg-gray-200'}`} />
-              <p className={`text-[10px] mt-1 text-center ${idx === currentStep ? 'text-[#1a4f8a] font-medium' : 'text-gray-400'}`}>{step}</p>
+              <div className={`h-1.5 rounded-full ${idx <= currentStep ? 'bg-[#059669]' : 'bg-gray-200'}`} />
+              <p className={`text-[10px] mt-1 text-center ${idx === currentStep ? 'text-[#059669] font-medium' : 'text-gray-400'}`}>{step}</p>
             </div>
           ))}
         </div>
@@ -248,7 +248,7 @@ export default function QuestionnairePage() {
               </button>
             )}
             {currentStep < steps.length - 1 ? (
-              <button onClick={handleNext} className="flex-1 flex items-center justify-center gap-1 bg-[#1a4f8a] text-white py-2.5 rounded-lg hover:bg-[#143d6b]">
+              <button onClick={handleNext} className="flex-1 flex items-center justify-center gap-1 bg-[#059669] text-white py-2.5 rounded-lg hover:bg-[#047857]">
                 הבא <ChevronLeft size={16} />
               </button>
             ) : (
