@@ -61,16 +61,19 @@ export const customerService = {
 
   async getById(id: string): Promise<{ data: CustomerWithRelations | null; error: FirestoreError | null }> {
     try {
+      const uid = await awaitUserId()
       const customerSnap = await getDoc(doc(db, COL, id))
       if (!customerSnap.exists()) return { data: null, error: null }
       const customer = fromDoc<Customer>(customerSnap)
 
+      // Firestore rules are not filters — every collection query must constrain
+      // user_id, otherwise the whole query is rejected with permission-denied.
       const [docsSnap, mortgagesSnap, tasksSnap, messagesSnap, commissionsSnap] = await Promise.all([
-        getDocs(query(collection(db, 'documents'), where('customer_id', '==', id))),
-        getDocs(query(collection(db, 'mortgages'), where('customer_id', '==', id))),
-        getDocs(query(collection(db, 'tasks'), where('customer_id', '==', id))),
-        getDocs(query(collection(db, 'messages'), where('customer_id', '==', id))),
-        getDocs(query(collection(db, 'commissions'), where('customer_id', '==', id))),
+        getDocs(query(collection(db, 'documents'), where('user_id', '==', uid), where('customer_id', '==', id))),
+        getDocs(query(collection(db, 'mortgages'), where('user_id', '==', uid), where('customer_id', '==', id))),
+        getDocs(query(collection(db, 'tasks'), where('user_id', '==', uid), where('customer_id', '==', id))),
+        getDocs(query(collection(db, 'messages'), where('user_id', '==', uid), where('customer_id', '==', id))),
+        getDocs(query(collection(db, 'commissions'), where('user_id', '==', uid), where('customer_id', '==', id))),
       ])
 
       const mortgages = fromDocs<Mortgage>(mortgagesSnap.docs)
@@ -81,14 +84,14 @@ export const customerService = {
         mortgageIds.length
           ? Promise.all(
               mortgageIds.map((mid) =>
-                getDocs(query(collection(db, 'loan_tracks'), where('mortgage_id', '==', mid)))
+                getDocs(query(collection(db, 'loan_tracks'), where('user_id', '==', uid), where('mortgage_id', '==', mid)))
               )
             )
           : Promise.resolve([]),
         mortgageIds.length
           ? Promise.all(
               mortgageIds.map((mid) =>
-                getDocs(query(collection(db, 'bank_responses'), where('mortgage_id', '==', mid)))
+                getDocs(query(collection(db, 'bank_responses'), where('user_id', '==', uid), where('mortgage_id', '==', mid)))
               )
             )
           : Promise.resolve([]),
