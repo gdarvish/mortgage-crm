@@ -12,7 +12,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDoc, fromDocs, awaitUserId, withUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type {
   Mortgage,
   MortgageWithTracks,
@@ -99,15 +99,13 @@ export const mortgageService = {
     }
   },
 
-  async addTrack(track: Omit<LoanTrack, 'id' | 'created_at'>): Promise<{ data: LoanTrack | null; error: FirestoreError | null }> {
+  async addTrack(track: Omit<LoanTrack, 'id' | 'created_at' | 'user_id'>): Promise<{ data: LoanTrack | null; error: FirestoreError | null }> {
     try {
-      const uid = await awaitUserId()
-      const payload = {
+      const payload = await withUserId({
         ...track,
-        user_id: uid,
         is_existing: track.is_existing ?? false,
         created_at: serverTimestamp(),
-      }
+      })
       const ref = await addDoc(collection(db, 'loan_tracks'), payload)
       const snap = await getDoc(ref)
       return { data: fromDoc<LoanTrack>(snap), error: null }
@@ -136,14 +134,12 @@ export const mortgageService = {
     }
   },
 
-  async addBankResponse(response: Omit<BankResponse, 'id' | 'created_at'>): Promise<{ data: BankResponse | null; error: FirestoreError | null }> {
+  async addBankResponse(response: Omit<BankResponse, 'id' | 'created_at' | 'user_id'>): Promise<{ data: BankResponse | null; error: FirestoreError | null }> {
     try {
-      const uid = await awaitUserId()
-      const payload = {
+      const payload = await withUserId({
         ...response,
-        user_id: uid,
         created_at: serverTimestamp(),
-      }
+      })
       const ref = await addDoc(collection(db, 'bank_responses'), payload)
       const snap = await getDoc(ref)
       return { data: fromDoc<BankResponse>(snap), error: null }

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UserPlus, Search, Phone, Mail, ArrowLeftRight, Loader2, X } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
+import { toast, ConfirmDialog } from '@/components/ui'
 import { leadService } from '@/services/leadService'
 import type { Lead, LeadStatus } from '@/types/database'
 
@@ -45,6 +47,9 @@ export default function LeadsPage() {
   const [newLead, setNewLead] = useState({
     name: '', phone: '', email: '', source: 'פייסבוק', score: 5, notes: '',
   })
+  const [leadErrors, setLeadErrors] = useState<FormErrors>({})
+  const [leadToConvert, setLeadToConvert] = useState<Lead | null>(null)
+  const [converting, setConverting] = useState(false)
 
   const fetchLeads = useCallback(async (isMounted: () => boolean) => {
     setLoading(true)
@@ -69,30 +74,44 @@ export default function LeadsPage() {
     if (!error) setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l))
   }
 
-  const convertToCustomer = async (lead: Lead) => {
-    if (!confirm(`להמיר את "${lead.name}" ללקוח?`)) return
-    const { data, error } = await leadService.convertToCustomer(lead.id)
+  const handleConvert = async () => {
+    if (!leadToConvert) return
+    setConverting(true)
+    const { data, error } = await leadService.convertToCustomer(leadToConvert.id)
+    setConverting(false)
+    setLeadToConvert(null)
     if (data && !error) {
-      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: 'הפך ללקוח' } : l))
+      setLeads(prev => prev.map(l => l.id === leadToConvert.id ? { ...l, status: 'הפך ללקוח' } : l))
+      toast.success('הליד הומר ללקוח בהצלחה')
       navigate(`/customers/${data.id}`)
     } else if (error) {
-      alert('שגיאה: ' + error.message)
+      toast.error('שגיאה בהמרת ליד', error.message)
     }
   }
 
   const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newLead.name.trim()) return
+    const errors: FormErrors = {}
+    if (newLead.name.trim().length < 2) errors.name = 'שם חייב להיות לפחות 2 תווים'
+    Object.assign(errors, validatePersonalForm({ phone: newLead.phone, email: newLead.email }))
+    setLeadErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      toast.error('יש שגיאות בטופס', 'אנא תקן את השדות המסומנים')
+      return
+    }
     setSaving(true)
     const { error } = await leadService.create({
       ...newLead,
       status: 'חדש' as LeadStatus,
       referral_partner_id: null,
     })
-    if (error) alert('שגיאה: ' + error.message)
-    else {
+    if (error) {
+      toast.error('שגיאה ביצירת ליד', error.message)
+    } else {
       setShowNewModal(false)
       setNewLead({ name: '', phone: '', email: '', source: 'פייסבוק', score: 5, notes: '' })
+      setLeadErrors({})
+      toast.success('הליד נוצר בהצלחה')
       fetchLeads(() => true)
     }
     setSaving(false)
@@ -259,7 +278,7 @@ export default function LeadsPage() {
                           </select>
                           {lead.status !== 'הפך ללקוח' && lead.status !== 'נסגר' && (
                             <button
-                              onClick={() => convertToCustomer(lead)}
+                              onClick={() => setLeadToConvert(lead)}
                               className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                               style={{ background: '#d1fae5', color: '#065f46' }}
                             >
@@ -307,8 +326,11 @@ export default function LeadsPage() {
                     dir={dir as 'ltr' | undefined}
                     value={newLead[field]}
                     onChange={e => setNewLead(p => ({ ...p, [field]: e.target.value }))}
-                    style={inputStyle}
+                    style={{ ...inputStyle, borderColor: leadErrors[field] ? '#dc2626' : '#e7e5e4' }}
                   />
+                  {leadErrors[field] && (
+                    <p className="text-[11px] mt-1" style={{ color: '#dc2626' }}>{leadErrors[field]}</p>
+                  )}
                 </div>
               ))}
               <div>
@@ -357,6 +379,17 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!leadToConvert}
+        variant="info"
+        title="המרת ליד ללקוח"
+        message={`להמיר את "${leadToConvert?.name || ''}" ללקוח? הליד יסומן כ"הפך ללקוח" וייווצר תיק לקוח חדש.`}
+        confirmText="המר ללקוח"
+        loading={converting}
+        onConfirm={handleConvert}
+        onCancel={() => setLeadToConvert(null)}
+      />
     </div>
   )
 }

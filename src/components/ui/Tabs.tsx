@@ -67,9 +67,9 @@ function Tab({ value, className, children, ...props }: TabProps) {
       aria-selected={isActive}
       onClick={() => setActiveTab(value)}
       className={cn(
-        'relative px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a4f8a]/20',
+        'relative px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#059669]/20',
         isActive
-          ? 'text-[#1a4f8a]'
+          ? 'text-[#059669]'
           : 'text-gray-500 hover:text-gray-700',
         className
       )}
@@ -77,7 +77,7 @@ function Tab({ value, className, children, ...props }: TabProps) {
     >
       {children}
       {isActive && (
-        <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#1a4f8a]" />
+        <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#059669]" />
       )}
     </button>
   )

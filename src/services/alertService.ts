@@ -80,7 +80,7 @@ export const alertService = {
   },
 
   async markHandled(id: string) {
-    return this.update(id, { status: 'טופל' })
+    return this.update(id, { status: 'טופל', handled_at: new Date().toISOString() })
   },
 
   async getActiveCount(): Promise<{ count: number; error: FirestoreError | null }> {

@@ -124,6 +124,7 @@ export interface Customer {
   notes: string | null
   referral_partner_id: string | null
   questionnaire_token: string | null
+  questionnaire_token_expires_at?: string | null
   questionnaire_completed: boolean
   created_at: string
   updated_at: string
@@ -142,6 +143,8 @@ export interface Lead {
   status: LeadStatus
   notes: string | null
   referral_partner_id: string | null
+  converted_to_customer_id?: string | null
+  converted_at?: string | null
   created_at: string
 }
 
@@ -182,9 +185,16 @@ export interface Signature {
   id: string
   customer_id: string
   document_type: string | null
+  document_name?: string | null
+  customer_name?: string | null
   signature_url: string | null
   signed_at: string | null
+  signed_ip?: string | null
+  signed_user_agent?: string | null
+  signer_name?: string | null
+  signer_id?: string | null
   token: string | null
+  token_expires_at?: string | null
   status: 'ממתין' | 'נחתם'
 }
 
@@ -208,6 +218,7 @@ export type MortgageStatus = 'טיוטה' | 'הוגש' | 'אושר' | 'נדחה'
 
 export interface LoanTrack {
   id: string
+  user_id: string
   mortgage_id: string
   type: LoanTrackType
   amount: number | null
@@ -224,6 +235,7 @@ export type LoanTrackType = 'פריים' | 'קל"צ' | 'קל"ב' | 'משתנה_�
 
 export interface BankResponse {
   id: string
+  user_id: string
   mortgage_id: string
   bank_name: string | null
   response_type: string | null
@@ -235,12 +247,22 @@ export interface BankResponse {
 
 export interface Alert {
   id: string
+  user_id: string
   customer_id: string
   loan_track_id: string | null
+  mortgage_id?: string | null
+  document_id?: string | null
+  alert_type?: 'track_ending' | 'document_expiring'
   alert_date: string | null
   days_until_end: number | null
+  urgency?: 'דחוף' | 'אזהרה' | 'תקין'
   status: 'פתוח' | 'טופל' | 'נדחה'
   snoozed_until: string | null
+  handled_at?: string | null
+  track_type?: string | null
+  track_amount?: number | null
+  track_end_date?: string | null
+  document_type?: string | null
   created_at: string
 }
 

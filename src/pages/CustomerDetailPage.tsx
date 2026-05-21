@@ -4,15 +4,18 @@ import {
   ArrowRight, MessageSquare, ClipboardList, Calculator, Upload,
   Send, Plus, Check, Mail, Phone, MapPin, User, CreditCard,
   FileText, Home, MessagesSquare, ListTodo, Banknote, ExternalLink,
-  Trash2, Loader2, Save,
+  Trash2, Loader2, Save, PenTool,
 } from 'lucide-react'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, generateToken, tokenExpiration } from '@/lib/utils'
+import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
+import { toast, ConfirmDialog } from '@/components/ui'
 import { useAuthStore } from '@/stores/authStore'
 import { customerService } from '@/services/customerService'
 import { taskService } from '@/services/taskService'
 import { messageService } from '@/services/messageService'
 import { commissionService } from '@/services/commissionService'
 import { documentService } from '@/services/documentService'
+import { signatureService } from '@/services/signatureService'
 import type {
   Customer, Document, Mortgage, LoanTrack, Message, Task, Commission, CustomerStatus
 } from '@/types/database'
@@ -73,7 +76,7 @@ const docStatusIcon = (status: string) => {
 }
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a4f8a] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none text-sm'
 
 // ---------------------------------------------------------------------------
 // Component
@@ -103,6 +106,9 @@ export default function CustomerDetailPage() {
     monthly_income: 0, partner_income: 0, own_capital: 0, existing_obligations: 0, lead_source: '', notes: '',
   })
   const [statusValue, setStatusValue] = useState<CustomerStatus>('ליד')
+  const [formErrors, setFormErrors] = useState<FormErrors>({})
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // Task form
   const [newTask, setNewTask] = useState({ title: '', due_date: '', priority: 'בינונית' })
@@ -169,10 +175,20 @@ export default function CustomerDetailPage() {
   // -------------------------------------------------------------------------
   const savePersonal = async () => {
     if (!id) return
+    const errors = validatePersonalForm(personal)
+    setFormErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      toast.error('יש שגיאות בטופס', 'אנא תקן את השדות המסומנים ונסה שוב')
+      return
+    }
     setSaving(true)
     const { error } = await customerService.update(id, { ...personal, status: statusValue })
-    if (!error) setCustomer(prev => prev ? { ...prev, ...personal, status: statusValue } : prev)
-    else alert('שגיאה בשמירה: ' + error.message)
+    if (!error) {
+      setCustomer(prev => prev ? { ...prev, ...personal, status: statusValue } : prev)
+      toast.success('הפרטים נשמרו בהצלחה')
+    } else {
+      toast.error('שגיאה בשמירה', error.message)
+    }
     setSaving(false)
   }
 
@@ -180,9 +196,27 @@ export default function CustomerDetailPage() {
     if (!id) return
     setSaving(true)
     const { error } = await customerService.update(id, financial)
-    if (!error) setCustomer(prev => prev ? { ...prev, ...financial } : prev)
-    else alert('שגיאה בשמירה: ' + error.message)
+    if (!error) {
+      setCustomer(prev => prev ? { ...prev, ...financial } : prev)
+      toast.success('הפרטים הפיננסיים נשמרו')
+    } else {
+      toast.error('שגיאה בשמירה', error.message)
+    }
     setSaving(false)
+  }
+
+  const handleDeleteCustomer = async () => {
+    if (!id) return
+    setDeleting(true)
+    const { error } = await customerService.delete(id)
+    setDeleting(false)
+    setShowDeleteConfirm(false)
+    if (error) {
+      toast.error('שגיאה במחיקה', error.message)
+      return
+    }
+    toast.success('הלקוח נמחק')
+    navigate('/customers')
   }
 
   const addTask = async () => {
@@ -238,19 +272,37 @@ export default function CustomerDetailPage() {
     setSendingMsg(false)
   }
 
-  const generateToken = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
-
   const sendQuestionnaire = async () => {
     if (!id) return
     const token = generateToken()
-    const { error } = await customerService.update(id, { questionnaire_token: token })
+    const { error } = await customerService.update(id, {
+      questionnaire_token: token,
+      questionnaire_token_expires_at: tokenExpiration(30),
+    })
     if (error) {
-      alert('שגיאה ביצירת קישור: ' + error.message)
+      toast.error('שגיאה ביצירת קישור', error.message)
       return
     }
     const url = `${window.location.origin}/questionnaire/${token}`
     setMessageText(`שלום ${customer?.first_name}, אנא מלא את שאלון הפרטים בקישור הבא: ${url}`)
     setActiveTab('communication')
+    toast.success('קישור השאלון נוצר', 'הקישור בתוקף ל-30 יום')
+  }
+
+  const sendSignatureRequest = async () => {
+    if (!id || !customer) return
+    const { data, error } = await signatureService.createRequest({
+      customer_id: id,
+      customer_name: `${customer.first_name} ${customer.last_name}`,
+      document_name: 'ייפוי כוח',
+    })
+    if (error || !data) {
+      toast.error('שגיאה ביצירת בקשת חתימה', error?.message)
+      return
+    }
+    setMessageText(`שלום ${customer.first_name}, אנא חתום/חתמי על המסמך בקישור הבא: ${data.url}`)
+    setActiveTab('communication')
+    toast.success('קישור החתימה נוצר', 'הקישור בתוקף ל-14 יום')
   }
 
   const saveCommission = async () => {
@@ -283,7 +335,7 @@ export default function CustomerDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="text-[#1a4f8a] animate-spin" />
+        <Loader2 size={32} className="text-[#059669] animate-spin" />
       </div>
     )
   }
@@ -293,7 +345,7 @@ export default function CustomerDetailPage() {
       <div className="text-center py-16 text-gray-500">
         לקוח לא נמצא
         {fetchError && <p className="text-xs text-red-400 mt-2">{fetchError}</p>}
-        <button onClick={() => navigate('/customers')} className="block mx-auto mt-4 text-[#1a4f8a] hover:underline text-sm">
+        <button onClick={() => navigate('/customers')} className="block mx-auto mt-4 text-[#059669] hover:underline text-sm">
           חזרה לרשימת לקוחות
         </button>
       </div>
@@ -325,34 +377,39 @@ export default function CustomerDetailPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">שם פרטי</label>
-          <input className={inputClass} value={personal.first_name}
+          <input className={`${inputClass} ${formErrors.first_name ? 'border-red-500' : ''}`} value={personal.first_name}
             onChange={e => setPersonal({ ...personal, first_name: e.target.value })} />
+          {formErrors.first_name && <p className="text-xs text-red-600 mt-1">{formErrors.first_name}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">שם משפחה</label>
-          <input className={inputClass} value={personal.last_name}
+          <input className={`${inputClass} ${formErrors.last_name ? 'border-red-500' : ''}`} value={personal.last_name}
             onChange={e => setPersonal({ ...personal, last_name: e.target.value })} />
+          {formErrors.last_name && <p className="text-xs text-red-600 mt-1">{formErrors.last_name}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">ת.ז</label>
-          <input className={inputClass} dir="ltr" value={personal.id_number}
+          <input className={`${inputClass} ${formErrors.id_number ? 'border-red-500' : ''}`} dir="ltr" value={personal.id_number}
             onChange={e => setPersonal({ ...personal, id_number: e.target.value })} />
+          {formErrors.id_number && <p className="text-xs text-red-600 mt-1">{formErrors.id_number}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
           <div className="relative">
             <Phone size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input className={`${inputClass} pr-9`} dir="ltr" value={personal.phone}
+            <input className={`${inputClass} pr-9 ${formErrors.phone ? 'border-red-500' : ''}`} dir="ltr" value={personal.phone}
               onChange={e => setPersonal({ ...personal, phone: e.target.value })} />
           </div>
+          {formErrors.phone && <p className="text-xs text-red-600 mt-1">{formErrors.phone}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
           <div className="relative">
             <Mail size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input className={`${inputClass} pr-9`} dir="ltr" type="email" value={personal.email}
+            <input className={`${inputClass} pr-9 ${formErrors.email ? 'border-red-500' : ''}`} dir="ltr" type="email" value={personal.email}
               onChange={e => setPersonal({ ...personal, email: e.target.value })} />
           </div>
+          {formErrors.email && <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">כתובת</label>
@@ -379,7 +436,7 @@ export default function CustomerDetailPage() {
         </div>
         <div className="md:col-span-2 flex justify-end pt-2">
           <button onClick={savePersonal} disabled={saving}
-            className="inline-flex items-center gap-2 bg-[#1a4f8a] text-white px-6 py-2 rounded-lg hover:bg-[#143d6b] transition-colors text-sm disabled:opacity-50">
+            className="inline-flex items-center gap-2 bg-[#059669] text-white px-6 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             שמור שינויים
           </button>
@@ -439,7 +496,7 @@ export default function CustomerDetailPage() {
       </div>
       <div className="md:col-span-2 flex justify-end pt-2">
         <button onClick={saveFinancial} disabled={saving}
-          className="inline-flex items-center gap-2 bg-[#1a4f8a] text-white px-6 py-2 rounded-lg hover:bg-[#143d6b] transition-colors text-sm disabled:opacity-50">
+          className="inline-flex items-center gap-2 bg-[#059669] text-white px-6 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
           {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
           שמור שינויים
         </button>
@@ -495,7 +552,7 @@ export default function CustomerDetailPage() {
             }`}>{doc.status}</span>
             {doc.file_url && (
               <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-[#1a4f8a] hover:underline">צפה</a>
+                className="text-xs text-[#059669] hover:underline">צפה</a>
             )}
           </div>
         </div>
@@ -532,7 +589,7 @@ export default function CustomerDetailPage() {
                 </p>
               </div>
               <button onClick={() => navigate('/calculator')}
-                className="inline-flex items-center gap-1 text-sm text-[#1a4f8a] hover:text-[#143d6b] transition-colors">
+                className="inline-flex items-center gap-1 text-sm text-[#059669] hover:text-[#047857] transition-colors">
                 <ExternalLink size={14} />מחשבון
               </button>
             </div>
@@ -609,7 +666,7 @@ export default function CustomerDetailPage() {
         {messages.map(msg => (
           <div key={msg.id} className={`flex ${msg.direction === 'נשלח' ? 'justify-start' : 'justify-end'}`}>
             <div className={`max-w-[75%] rounded-xl p-3 ${
-              msg.direction === 'נשלח' ? 'bg-[#1a4f8a] text-white rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+              msg.direction === 'נשלח' ? 'bg-[#059669] text-white rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-bl-sm'
             }`}>
               <span className={`text-xs font-medium ${msg.direction === 'נשלח' ? 'text-blue-200' : 'text-gray-500'}`}>
                 {msg.channel} · {msg.direction}
@@ -645,7 +702,7 @@ export default function CustomerDetailPage() {
               {['נמוכה', 'בינונית', 'גבוהה', 'דחופה'].map(p => <option key={p} value={p}>{p}</option>)}
             </select>
             <button onClick={addTask}
-              className="bg-[#1a4f8a] text-white px-3 py-2 rounded-lg hover:bg-[#143d6b] transition-colors">
+              className="bg-[#059669] text-white px-3 py-2 rounded-lg hover:bg-[#047857] transition-colors">
               <Plus size={18} />
             </button>
           </div>
@@ -663,7 +720,7 @@ export default function CustomerDetailPage() {
             <div className="flex items-center gap-3">
               <button onClick={() => toggleTask(task)}
                 className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                  task.status === 'הושלמה' ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-[#1a4f8a]'
+                  task.status === 'הושלמה' ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-[#059669]'
                 }`}>
                 {task.status === 'הושלמה' && <Check size={14} />}
               </button>
@@ -722,7 +779,7 @@ export default function CustomerDetailPage() {
         </div>
         <div className="flex justify-end">
           <button onClick={saveCommission} disabled={saving}
-            className="inline-flex items-center gap-2 bg-[#1a4f8a] text-white px-6 py-2 rounded-lg hover:bg-[#143d6b] transition-colors text-sm disabled:opacity-50">
+            className="inline-flex items-center gap-2 bg-[#059669] text-white px-6 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             שמור שינויים
           </button>
@@ -748,7 +805,7 @@ export default function CustomerDetailPage() {
     <div className="animate-fade-in space-y-4">
       {/* Back */}
       <button onClick={() => navigate('/customers')}
-        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#1a4f8a] transition-colors">
+        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#059669] transition-colors">
         <ArrowRight size={16} />חזרה לרשימת לקוחות
       </button>
 
@@ -756,7 +813,7 @@ export default function CustomerDetailPage() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-[#1a4f8a] text-white rounded-full flex items-center justify-center text-lg font-bold">
+            <div className="w-12 h-12 bg-[#059669] text-white rounded-full flex items-center justify-center text-lg font-bold">
               {customer.first_name[0]}{customer.last_name[0]}
             </div>
             <div>
@@ -781,17 +838,17 @@ export default function CustomerDetailPage() {
               className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm">
               <ClipboardList size={16} />שלח שאלון
             </button>
+            <button
+              onClick={sendSignatureRequest}
+              className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 border border-amber-200 px-3 py-2 rounded-lg hover:bg-amber-100 transition-colors text-sm">
+              <PenTool size={16} />שלח לחתימה
+            </button>
             <button onClick={() => navigate('/calculator')}
               className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg hover:bg-purple-100 transition-colors text-sm">
               <Calculator size={16} />צור תמהיל
             </button>
             <button
-              onClick={async () => {
-                if (!window.confirm('האם למחוק לקוח זה? פעולה זו בלתי הפיכה.')) return
-                const { error } = await customerService.delete(id!)
-                if (error) { alert('שגיאה במחיקה: ' + error.message); return }
-                navigate('/customers')
-              }}
+              onClick={() => setShowDeleteConfirm(true)}
               className="inline-flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 px-3 py-2 rounded-lg hover:bg-red-100 transition-colors text-sm">
               <Trash2 size={16} />מחק לקוח
             </button>
@@ -808,7 +865,7 @@ export default function CustomerDetailPage() {
             return (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
-                  isActive ? 'border-[#1a4f8a] text-[#1a4f8a]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  isActive ? 'border-[#059669] text-[#059669]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}>
                 <Icon size={16} />{tab.label}
               </button>
@@ -817,6 +874,17 @@ export default function CustomerDetailPage() {
         </div>
         <div className="p-5">{tabContent[activeTab]()}</div>
       </div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        variant="danger"
+        title="מחיקת לקוח"
+        message="פעולה זו תמחק את הלקוח וכל הנתונים הקשורים אליו (משכנתאות, מסמכים, משימות, עמלות). פעולה זו אינה הפיכה."
+        confirmText="מחק לקוח"
+        loading={deleting}
+        onConfirm={handleDeleteCustomer}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   )
 }

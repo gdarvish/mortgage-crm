@@ -59,24 +59,6 @@ export const customerService = {
     }
   },
 
-  async getBySignatureToken(token: string): Promise<{ data: Customer | null; error: FirestoreError | null }> {
-    try {
-      const q = query(
-        collection(db, 'signatures'),
-        where('token', '==', token),
-        limit(1)
-      )
-      const snap = await getDocs(q)
-      if (snap.empty) return { data: null, error: null }
-      const signature = snap.docs[0].data()
-      const customerSnap = await getDoc(doc(db, COL, signature.customer_id))
-      if (!customerSnap.exists()) return { data: null, error: null }
-      return { data: fromDoc<Customer>(customerSnap), error: null }
-    } catch (e) {
-      return { data: null, error: toError(e) }
-    }
-  },
-
   async getById(id: string): Promise<{ data: CustomerWithRelations | null; error: FirestoreError | null }> {
     try {
       const customerSnap = await getDoc(doc(db, COL, id))

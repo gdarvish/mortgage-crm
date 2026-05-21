@@ -1,15 +1,36 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, CheckCircle, Loader2 } from 'lucide-react'
-import { customerService } from '@/services/customerService'
-import type { Customer } from '@/types/database'
+import { ChevronLeft, ChevronRight, CheckCircle, Loader2, AlertCircle } from 'lucide-react'
+import { httpsCallable } from 'firebase/functions'
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3'
+import { functions } from '@/lib/firebase'
+import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
+import { toast } from '@/components/ui'
 
 const steps = ['פרטים אישיים', 'מצב משפחתי', 'הכנסות', 'נכסים', 'התחייבויות', 'מטרת המשכנתא']
 
+interface QuestionnaireCustomer {
+  id: string
+  first_name: string
+  last_name: string
+  id_number: string
+  phone: string
+  address: string
+  marital_status: string
+  children: number
+  monthly_income: number
+  partner_income: number
+  own_capital: number
+  existing_obligations: number
+  questionnaire_completed: boolean
+}
+
 export default function QuestionnairePage() {
   const { token } = useParams()
-  const [customer, setCustomer] = useState<Customer | null>(null)
+  const { executeRecaptcha } = useGoogleReCaptcha()
+  const [customer, setCustomer] = useState<QuestionnaireCustomer | null>(null)
   const [_loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   const [_submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -23,9 +44,15 @@ export default function QuestionnairePage() {
   })
 
   useEffect(() => {
-    if (!token) return
-    customerService.getByQuestionnaireToken(token).then(({ data }) => {
-      if (data) {
+    if (!token) {
+      setLoadError('קישור לא תקין')
+      setLoading(false)
+      return
+    }
+    const fn = httpsCallable(functions, 'getCustomerByQuestionnaireToken')
+    fn({ token })
+      .then((res) => {
+        const data = res.data as QuestionnaireCustomer
         setCustomer(data)
         setForm(f => ({
           ...f,
@@ -41,17 +68,57 @@ export default function QuestionnairePage() {
           ownCapital: data.own_capital || 0,
           existingLoans: data.existing_obligations || 0,
         }))
-      }
-      setLoading(false)
-    })
+      })
+      .catch((e: { code?: string }) => {
+        if (e.code === 'functions/deadline-exceeded') {
+          setLoadError('הקישור פג תוקף. אנא פנה ליועץ המשכנתאות לקבלת קישור חדש.')
+        } else {
+          setLoadError('הקישור אינו תקין. אנא בדוק את הכתובת או פנה ליועץ המשכנתאות.')
+        }
+      })
+      .finally(() => setLoading(false))
   }, [token])
 
+  const [qErrors, setQErrors] = useState<FormErrors>({})
+
   const update = (field: string, value: string | number | boolean) => setForm({ ...form, [field]: value })
+
+  const validatePersonalStep = (): FormErrors =>
+    validatePersonalForm({
+      first_name: form.firstName,
+      last_name: form.lastName,
+      id_number: form.idNumber,
+      phone: form.phone,
+    })
+
+  const handleNext = () => {
+    if (currentStep === 0) {
+      const errors = validatePersonalStep()
+      setQErrors(errors)
+      if (Object.keys(errors).length > 0) {
+        toast.error('יש שגיאות בטופס', 'אנא תקן את הפרטים האישיים')
+        return
+      }
+    }
+    setCurrentStep(currentStep + 1)
+  }
 
   if (_loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Loader2 size={32} className="text-[#1a4f8a] animate-spin" />
+        <Loader2 size={32} className="text-[#059669] animate-spin" />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" dir="rtl">
+        <div className="bg-white rounded-2xl shadow-lg p-8 text-center max-w-md">
+          <AlertCircle size={56} className="mx-auto text-red-500 mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">לא ניתן לטעון את השאלון</h1>
+          <p className="text-gray-600">{loadError}</p>
+        </div>
       </div>
     )
   }
@@ -73,11 +140,27 @@ export default function QuestionnairePage() {
       case 0: return (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">שם פרטי</label><input value={form.firstName} onChange={e => update('firstName', e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">שם משפחה</label><input value={form.lastName} onChange={e => update('lastName', e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">שם פרטי</label>
+              <input value={form.firstName} onChange={e => update('firstName', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${qErrors.first_name ? 'border-red-500' : ''}`} />
+              {qErrors.first_name && <p className="text-xs text-red-600 mt-1">{qErrors.first_name}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">שם משפחה</label>
+              <input value={form.lastName} onChange={e => update('lastName', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${qErrors.last_name ? 'border-red-500' : ''}`} />
+              {qErrors.last_name && <p className="text-xs text-red-600 mt-1">{qErrors.last_name}</p>}
+            </div>
           </div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">ת.ז</label><input value={form.idNumber} onChange={e => update('idNumber', e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label><input value={form.phone} onChange={e => update('phone', e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">ת.ז</label>
+            <input value={form.idNumber} onChange={e => update('idNumber', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${qErrors.id_number ? 'border-red-500' : ''}`} dir="ltr" />
+            {qErrors.id_number && <p className="text-xs text-red-600 mt-1">{qErrors.id_number}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
+            <input value={form.phone} onChange={e => update('phone', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${qErrors.phone ? 'border-red-500' : ''}`} dir="ltr" />
+            {qErrors.phone && <p className="text-xs text-red-600 mt-1">{qErrors.phone}</p>}
+          </div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">כתובת</label><input value={form.address} onChange={e => update('address', e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></div>
         </div>
       )
@@ -137,7 +220,7 @@ export default function QuestionnairePage() {
     <div className="min-h-screen bg-gray-50 py-8 px-4" dir="rtl">
       <div className="max-w-lg mx-auto">
         <div className="text-center mb-6">
-          <div className="w-12 h-12 bg-[#1a4f8a] rounded-xl mx-auto mb-3 flex items-center justify-center">
+          <div className="w-12 h-12 bg-[#059669] rounded-xl mx-auto mb-3 flex items-center justify-center">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
           </div>
           <h1 className="text-xl font-bold text-gray-900">שאלון פרטים</h1>
@@ -148,8 +231,8 @@ export default function QuestionnairePage() {
         <div className="flex items-center gap-1 mb-6">
           {steps.map((step, idx) => (
             <div key={idx} className="flex-1">
-              <div className={`h-1.5 rounded-full ${idx <= currentStep ? 'bg-[#1a4f8a]' : 'bg-gray-200'}`} />
-              <p className={`text-[10px] mt-1 text-center ${idx === currentStep ? 'text-[#1a4f8a] font-medium' : 'text-gray-400'}`}>{step}</p>
+              <div className={`h-1.5 rounded-full ${idx <= currentStep ? 'bg-[#059669]' : 'bg-gray-200'}`} />
+              <p className={`text-[10px] mt-1 text-center ${idx === currentStep ? 'text-[#059669] font-medium' : 'text-gray-400'}`}>{step}</p>
             </div>
           ))}
         </div>
@@ -165,30 +248,53 @@ export default function QuestionnairePage() {
               </button>
             )}
             {currentStep < steps.length - 1 ? (
-              <button onClick={() => setCurrentStep(currentStep + 1)} className="flex-1 flex items-center justify-center gap-1 bg-[#1a4f8a] text-white py-2.5 rounded-lg hover:bg-[#143d6b]">
+              <button onClick={handleNext} className="flex-1 flex items-center justify-center gap-1 bg-[#059669] text-white py-2.5 rounded-lg hover:bg-[#047857]">
                 הבא <ChevronLeft size={16} />
               </button>
             ) : (
               <button
                 onClick={async () => {
                   if (!customer) return
+                  const errors = validatePersonalStep()
+                  if (Object.keys(errors).length > 0) {
+                    setQErrors(errors)
+                    setCurrentStep(0)
+                    toast.error('יש שגיאות בטופס', 'אנא תקן את הפרטים האישיים')
+                    return
+                  }
                   setSubmitting(true)
-                  await customerService.update(customer.id, {
-                    first_name: form.firstName,
-                    last_name: form.lastName,
-                    id_number: form.idNumber,
-                    phone: form.phone,
-                    address: form.address,
-                    marital_status: form.maritalStatus,
-                    children: form.children,
-                    monthly_income: form.income1,
-                    partner_income: form.income2,
-                    own_capital: form.ownCapital,
-                    existing_obligations: form.existingLoans,
-                    questionnaire_completed: true,
-                  })
-                  setSubmitting(false)
-                  setSubmitted(true)
+                  try {
+                    const recaptchaToken = executeRecaptcha
+                      ? await executeRecaptcha('submit_questionnaire')
+                      : undefined
+                    const submit = httpsCallable(functions, 'submitQuestionnaire')
+                    await submit({
+                      token,
+                      recaptcha_token: recaptchaToken,
+                      payload: {
+                        first_name: form.firstName,
+                        last_name: form.lastName,
+                        id_number: form.idNumber,
+                        phone: form.phone,
+                        address: form.address,
+                        marital_status: form.maritalStatus,
+                        children: form.children,
+                        monthly_income: form.income1,
+                        partner_income: form.income2,
+                        own_capital: form.ownCapital,
+                        existing_obligations: form.existingLoans,
+                      },
+                    })
+                    setSubmitted(true)
+                  } catch (err) {
+                    if ((err as { code?: string }).code === 'functions/deadline-exceeded') {
+                      toast.error('הקישור פג תוקף', 'אנא פנה ליועץ לקבלת קישור חדש')
+                    } else {
+                      toast.error('שגיאה בשליחת השאלון', 'אנא נסה שוב')
+                    }
+                  } finally {
+                    setSubmitting(false)
+                  }
                 }}
                 disabled={submitting}
                 className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"

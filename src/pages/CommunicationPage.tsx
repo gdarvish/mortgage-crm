@@ -3,6 +3,7 @@ import { MessageSquare, Send, Phone, Mail, Clock, Loader2, Trash2 } from 'lucide
 import { formatDate } from '@/lib/utils'
 import { customerService } from '@/services/customerService'
 import { messageService } from '@/services/messageService'
+import { toast } from '@/components/ui'
 import type { Customer, Message } from '@/types/database'
 
 const templates = [
@@ -89,7 +90,7 @@ export default function CommunicationPage() {
       setMessages(prev => [data, ...prev])
       setMessageText('')
     } else if (error) {
-      alert('שגיאה: ' + error.message)
+      toast.error('שגיאה בשליחת הודעה', error.message)
     }
     if (!error) {
       const cust = customers.find(c => c.id === selectedCustomerId)

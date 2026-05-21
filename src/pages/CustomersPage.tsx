@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Loader2, X, Users } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { customerService } from '@/services/customerService'
+import { toast } from '@/components/ui'
 import type { Customer } from '@/types/database'
 
 const statusColors: Record<string, { bg: string; color: string }> = {
@@ -88,10 +89,11 @@ export default function CustomersPage() {
       questionnaire_token: null,
     })
     if (error) {
-      alert('שגיאה ביצירת לקוח: ' + error.message)
+      toast.error('שגיאה ביצירת לקוח', error.message)
     } else {
       setShowNewModal(false)
       setNewCustomer({ first_name: '', last_name: '', id_number: '', phone: '', email: '', lead_source: '' })
+      toast.success('הלקוח נוצר בהצלחה')
       fetchCustomers(() => true)
     }
     setSaving(false)
