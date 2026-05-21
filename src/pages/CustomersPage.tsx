@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Loader2, X, Users } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { customerService } from '@/services/customerService'
+import { useCustomers, useCreateCustomer } from '@/hooks/queries/useCustomers'
 import { toast } from '@/components/ui'
-import type { Customer } from '@/types/database'
 
 const statusColors: Record<string, { bg: string; color: string }> = {
   'ליד':    { bg: '#ede9fe', color: '#7c3aed' },
@@ -38,65 +37,51 @@ const inputStyle = {
 
 export default function CustomersPage() {
   const navigate = useNavigate()
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('הכל')
   const [showNewModal, setShowNewModal] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [newCustomer, setNewCustomer] = useState({
     first_name: '', last_name: '', id_number: '', phone: '', email: '', lead_source: '',
   })
 
-  const fetchCustomers = useCallback(async (isMounted: () => boolean) => {
-    setLoading(true)
-    const { data, error } = await customerService.getAll({
-      status: statusFilter !== 'הכל' ? statusFilter : undefined,
-      search: search || undefined,
-    })
-    if (!isMounted()) return
-    if (!error) setCustomers(data || [])
-    setLoading(false)
-  }, [statusFilter, search])
+  const { data: customers = [], isLoading: loading } = useCustomers({
+    status: statusFilter !== 'הכל' ? statusFilter : undefined,
+    search: search || undefined,
+  })
+  const createCustomer = useCreateCustomer()
 
-  useEffect(() => {
-    let mounted = true
-    fetchCustomers(() => mounted)
-    return () => { mounted = false }
-  }, [fetchCustomers])
-
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleCreate = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newCustomer.first_name || !newCustomer.last_name) return
-    setSaving(true)
-    const { error } = await customerService.create({
-      ...newCustomer,
-      status: 'ליד',
-      children: 0,
-      existing_obligations: 0,
-      questionnaire_completed: false,
-      id_number: newCustomer.id_number || null,
-      phone: newCustomer.phone || null,
-      email: newCustomer.email || null,
-      address: null,
-      marital_status: null,
-      monthly_income: null,
-      partner_income: null,
-      own_capital: null,
-      lead_source: newCustomer.lead_source || null,
-      notes: null,
-      referral_partner_id: null,
-      questionnaire_token: null,
-    })
-    if (error) {
-      toast.error('שגיאה ביצירת לקוח', error.message)
-    } else {
-      setShowNewModal(false)
-      setNewCustomer({ first_name: '', last_name: '', id_number: '', phone: '', email: '', lead_source: '' })
-      toast.success('הלקוח נוצר בהצלחה')
-      fetchCustomers(() => true)
-    }
-    setSaving(false)
+    createCustomer.mutate(
+      {
+        ...newCustomer,
+        status: 'ליד',
+        children: 0,
+        existing_obligations: 0,
+        questionnaire_completed: false,
+        id_number: newCustomer.id_number || null,
+        phone: newCustomer.phone || null,
+        email: newCustomer.email || null,
+        address: null,
+        marital_status: null,
+        monthly_income: null,
+        partner_income: null,
+        own_capital: null,
+        lead_source: newCustomer.lead_source || null,
+        notes: null,
+        referral_partner_id: null,
+        questionnaire_token: null,
+      },
+      {
+        onSuccess: () => {
+          setShowNewModal(false)
+          setNewCustomer({ first_name: '', last_name: '', id_number: '', phone: '', email: '', lead_source: '' })
+          toast.success('הלקוח נוצר בהצלחה')
+        },
+        onError: (err) => toast.error('שגיאה ביצירת לקוח', err.message),
+      }
+    )
   }
 
   const statusCounts = statuses.reduce<Record<string, number>>((acc, s) => {
@@ -280,11 +265,11 @@ export default function CustomersPage() {
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={createCustomer.isPending}
                   className="flex-1 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
                   style={{ borderRadius: 12, background: '#059669' }}
                 >
-                  {saving && <Loader2 size={15} className="animate-spin" />}
+                  {createCustomer.isPending && <Loader2 size={15} className="animate-spin" />}
                   שמור
                 </button>
                 <button

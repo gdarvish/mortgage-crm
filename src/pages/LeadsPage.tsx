@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UserPlus, Search, Phone, Mail, ArrowLeftRight, Loader2, X } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
 import { toast, ConfirmDialog } from '@/components/ui'
-import { leadService } from '@/services/leadService'
+import { useLeads, useCreateLead, useUpdateLead, useConvertLead } from '@/hooks/queries/useLeads'
 import type { Lead, LeadStatus } from '@/types/database'
 
 const sources = ['הכל', 'פייסבוק', 'אינסטגרם', 'אתר', 'וואטסאפ', 'הפניה', 'טלפון']
@@ -40,56 +40,41 @@ export default function LeadsPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [sourceFilter, setSourceFilter] = useState('הכל')
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [loading, setLoading] = useState(true)
   const [showNewModal, setShowNewModal] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [newLead, setNewLead] = useState({
     name: '', phone: '', email: '', source: 'פייסבוק', score: 5, notes: '',
   })
   const [leadErrors, setLeadErrors] = useState<FormErrors>({})
   const [leadToConvert, setLeadToConvert] = useState<Lead | null>(null)
-  const [converting, setConverting] = useState(false)
 
-  const fetchLeads = useCallback(async (isMounted: () => boolean) => {
-    setLoading(true)
-    const { data, error } = await leadService.getAll({
-      source: sourceFilter !== 'הכל' ? sourceFilter : undefined,
-      search: search || undefined,
-    })
-    if (!isMounted()) return
-    if (error) console.error(error)
-    else setLeads(data || [])
-    setLoading(false)
-  }, [sourceFilter, search])
+  const { data: leads = [], isLoading: loading } = useLeads({
+    source: sourceFilter !== 'הכל' ? sourceFilter : undefined,
+    search: search || undefined,
+  })
+  const createLead = useCreateLead()
+  const updateLead = useUpdateLead()
+  const convertLead = useConvertLead()
 
-  useEffect(() => {
-    let mounted = true
-    fetchLeads(() => mounted)
-    return () => { mounted = false }
-  }, [fetchLeads])
-
-  const updateStatus = async (id: string, status: LeadStatus) => {
-    const { error } = await leadService.update(id, { status })
-    if (!error) setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l))
+  const updateStatus = (id: string, status: LeadStatus) => {
+    updateLead.mutate({ id, updates: { status } })
   }
 
-  const handleConvert = async () => {
+  const handleConvert = () => {
     if (!leadToConvert) return
-    setConverting(true)
-    const { data, error } = await leadService.convertToCustomer(leadToConvert.id)
-    setConverting(false)
-    setLeadToConvert(null)
-    if (data && !error) {
-      setLeads(prev => prev.map(l => l.id === leadToConvert.id ? { ...l, status: 'הפך ללקוח' } : l))
-      toast.success('הליד הומר ללקוח בהצלחה')
-      navigate(`/customers/${data.id}`)
-    } else if (error) {
-      toast.error('שגיאה בהמרת ליד', error.message)
-    }
+    convertLead.mutate(leadToConvert.id, {
+      onSuccess: (data) => {
+        setLeadToConvert(null)
+        toast.success('הליד הומר ללקוח בהצלחה')
+        if (data) navigate(`/customers/${data.id}`)
+      },
+      onError: (err) => {
+        setLeadToConvert(null)
+        toast.error('שגיאה בהמרת ליד', err.message)
+      },
+    })
   }
 
-  const handleCreateLead = async (e: React.FormEvent) => {
+  const handleCreateLead = (e: React.FormEvent) => {
     e.preventDefault()
     const errors: FormErrors = {}
     if (newLead.name.trim().length < 2) errors.name = 'שם חייב להיות לפחות 2 תווים'
@@ -99,22 +84,22 @@ export default function LeadsPage() {
       toast.error('יש שגיאות בטופס', 'אנא תקן את השדות המסומנים')
       return
     }
-    setSaving(true)
-    const { error } = await leadService.create({
-      ...newLead,
-      status: 'חדש' as LeadStatus,
-      referral_partner_id: null,
-    })
-    if (error) {
-      toast.error('שגיאה ביצירת ליד', error.message)
-    } else {
-      setShowNewModal(false)
-      setNewLead({ name: '', phone: '', email: '', source: 'פייסבוק', score: 5, notes: '' })
-      setLeadErrors({})
-      toast.success('הליד נוצר בהצלחה')
-      fetchLeads(() => true)
-    }
-    setSaving(false)
+    createLead.mutate(
+      {
+        ...newLead,
+        status: 'חדש' as LeadStatus,
+        referral_partner_id: null,
+      },
+      {
+        onSuccess: () => {
+          setShowNewModal(false)
+          setNewLead({ name: '', phone: '', email: '', source: 'פייסבוק', score: 5, notes: '' })
+          setLeadErrors({})
+          toast.success('הליד נוצר בהצלחה')
+        },
+        onError: (err) => toast.error('שגיאה ביצירת ליד', err.message),
+      }
+    )
   }
 
   const filtered = leads.filter(l => {
@@ -359,11 +344,11 @@ export default function LeadsPage() {
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={createLead.isPending}
                   className="flex-1 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
                   style={{ borderRadius: 12, background: '#059669' }}
                 >
-                  {saving && <Loader2 size={15} className="animate-spin" />}
+                  {createLead.isPending && <Loader2 size={15} className="animate-spin" />}
                   שמור
                 </button>
                 <button
@@ -386,7 +371,7 @@ export default function LeadsPage() {
         title="המרת ליד ללקוח"
         message={`להמיר את "${leadToConvert?.name || ''}" ללקוח? הליד יסומן כ"הפך ללקוח" וייווצר תיק לקוח חדש.`}
         confirmText="המר ללקוח"
-        loading={converting}
+        loading={convertLead.isPending}
         onConfirm={handleConvert}
         onCancel={() => setLeadToConvert(null)}
       />
