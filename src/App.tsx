@@ -1,28 +1,30 @@
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import AppLayout from '@/components/layout/AppLayout'
 import LoginPage from '@/pages/LoginPage'
-import DashboardPage from '@/pages/DashboardPage'
-import CustomersPage from '@/pages/CustomersPage'
-import CustomerDetailPage from '@/pages/CustomerDetailPage'
-import LeadsPage from '@/pages/LeadsPage'
-import DocumentsPage from '@/pages/DocumentsPage'
-import MortgageCalculatorPage from '@/pages/MortgageCalculatorPage'
-import RefinanceCalculatorPage from '@/pages/RefinanceCalculatorPage'
-import ConsolidationCalculatorPage from '@/pages/ConsolidationCalculatorPage'
-import AlertsPage from '@/pages/AlertsPage'
-import CommunicationPage from '@/pages/CommunicationPage'
-import CommissionsPage from '@/pages/CommissionsPage'
-import ReferralsPage from '@/pages/ReferralsPage'
-import InterestRatesPage from '@/pages/InterestRatesPage'
-import FamilyEconomicsPage from '@/pages/FamilyEconomicsPage'
-import SettingsPage from '@/pages/SettingsPage'
-import ClientPortalPage from '@/pages/ClientPortalPage'
-import QuestionnairePage from '@/pages/QuestionnairePage'
-import SignaturePage from '@/pages/SignaturePage'
 import VerifyEmailPage from '@/pages/VerifyEmailPage'
 import { Toaster } from '@/components/ui/Toast'
+
+// Route pages are code-split — each loads as a separate chunk on demand.
+const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
+const CustomersPage = lazy(() => import('@/pages/CustomersPage'))
+const CustomerDetailPage = lazy(() => import('@/pages/CustomerDetailPage'))
+const LeadsPage = lazy(() => import('@/pages/LeadsPage'))
+const DocumentsPage = lazy(() => import('@/pages/DocumentsPage'))
+const MortgageCalculatorPage = lazy(() => import('@/pages/MortgageCalculatorPage'))
+const RefinanceCalculatorPage = lazy(() => import('@/pages/RefinanceCalculatorPage'))
+const ConsolidationCalculatorPage = lazy(() => import('@/pages/ConsolidationCalculatorPage'))
+const AlertsPage = lazy(() => import('@/pages/AlertsPage'))
+const CommunicationPage = lazy(() => import('@/pages/CommunicationPage'))
+const CommissionsPage = lazy(() => import('@/pages/CommissionsPage'))
+const ReferralsPage = lazy(() => import('@/pages/ReferralsPage'))
+const InterestRatesPage = lazy(() => import('@/pages/InterestRatesPage'))
+const FamilyEconomicsPage = lazy(() => import('@/pages/FamilyEconomicsPage'))
+const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
+const ClientPortalPage = lazy(() => import('@/pages/ClientPortalPage'))
+const QuestionnairePage = lazy(() => import('@/pages/QuestionnairePage'))
+const SignaturePage = lazy(() => import('@/pages/SignaturePage'))
 
 function AuthLoadingScreen() {
   return (
@@ -65,41 +67,43 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Public routes */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/verify-email" element={<VerifyEmailRoute />} />
-        <Route path="/portal/:token" element={<ClientPortalPage />} />
-        <Route path="/questionnaire/:token" element={<QuestionnairePage />} />
-        <Route path="/sign/:token" element={<SignaturePage />} />
+      <Suspense fallback={<AuthLoadingScreen />}>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/verify-email" element={<VerifyEmailRoute />} />
+          <Route path="/portal/:token" element={<ClientPortalPage />} />
+          <Route path="/questionnaire/:token" element={<QuestionnairePage />} />
+          <Route path="/sign/:token" element={<SignaturePage />} />
 
-        {/* Protected routes */}
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <AppLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="customers" element={<CustomersPage />} />
-          <Route path="customers/:id" element={<CustomerDetailPage />} />
-          <Route path="leads" element={<LeadsPage />} />
-          <Route path="documents" element={<DocumentsPage />} />
-          <Route path="calculator" element={<MortgageCalculatorPage />} />
-          <Route path="refinance" element={<RefinanceCalculatorPage />} />
-          <Route path="consolidation" element={<ConsolidationCalculatorPage />} />
-          <Route path="alerts" element={<AlertsPage />} />
-          <Route path="communication" element={<CommunicationPage />} />
-          <Route path="commissions" element={<CommissionsPage />} />
-          <Route path="referrals" element={<ReferralsPage />} />
-          <Route path="interest-rates" element={<InterestRatesPage />} />
-          <Route path="family-economics" element={<FamilyEconomicsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-        </Route>
-      </Routes>
+          {/* Protected routes */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="customers" element={<CustomersPage />} />
+            <Route path="customers/:id" element={<CustomerDetailPage />} />
+            <Route path="leads" element={<LeadsPage />} />
+            <Route path="documents" element={<DocumentsPage />} />
+            <Route path="calculator" element={<MortgageCalculatorPage />} />
+            <Route path="refinance" element={<RefinanceCalculatorPage />} />
+            <Route path="consolidation" element={<ConsolidationCalculatorPage />} />
+            <Route path="alerts" element={<AlertsPage />} />
+            <Route path="communication" element={<CommunicationPage />} />
+            <Route path="commissions" element={<CommissionsPage />} />
+            <Route path="referrals" element={<ReferralsPage />} />
+            <Route path="interest-rates" element={<InterestRatesPage />} />
+            <Route path="family-economics" element={<FamilyEconomicsPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
+        </Routes>
+      </Suspense>
       <Toaster />
     </BrowserRouter>
   )
