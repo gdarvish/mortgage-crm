@@ -130,7 +130,7 @@ function buildHtml(data: MortgagePdfData): string {
   </div>`
 }
 
-export async function exportMortgagePdf(data: MortgagePdfData): Promise<void> {
+async function htmlToPdf(html: string, filename: string): Promise<void> {
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import('jspdf'),
     import('html2canvas-pro'),
@@ -141,7 +141,7 @@ export async function exportMortgagePdf(data: MortgagePdfData): Promise<void> {
   container.style.left = '-99999px'
   container.style.top = '0'
   container.style.width = '794px'
-  container.innerHTML = buildHtml(data)
+  container.innerHTML = html
   document.body.appendChild(container)
 
   try {
@@ -167,8 +167,105 @@ export async function exportMortgagePdf(data: MortgagePdfData): Promise<void> {
         }
       }
     }
-    pdf.save(`mortgage-proposal-${new Date().toISOString().slice(0, 10)}.pdf`)
+    pdf.save(filename)
   } finally {
     document.body.removeChild(container)
   }
+}
+
+export async function exportMortgagePdf(data: MortgagePdfData): Promise<void> {
+  await htmlToPdf(buildHtml(data), `mortgage-proposal-${new Date().toISOString().slice(0, 10)}.pdf`)
+}
+
+// --- Mix comparison ---------------------------------------------------------
+
+export interface MixComparisonTrack {
+  type: string
+  amount: number
+  periodMonths: number
+  monthlyPayment: number
+}
+
+export interface MixComparisonInput {
+  name: string
+  loanAmount: number
+  tracks: MixComparisonTrack[]
+}
+
+function buildComparisonHtml(customerName: string, mixes: MixComparisonInput[]): string {
+  const date = new Date().toLocaleDateString('he-IL')
+  const th = `padding:8px 10px;font-size:12px;font-weight:700;color:#ffffff;background:${GREEN};text-align:center;`
+  const labelTd = `padding:8px 10px;font-size:12px;color:${MUTED};border-bottom:1px solid ${LINE};text-align:right;font-weight:600;`
+  const valTd = `padding:8px 10px;font-size:12px;color:${INK};border-bottom:1px solid ${LINE};text-align:center;`
+
+  const fixedTypes = ['קל"צ', 'קל"ב']
+
+  const summary = mixes.map((m) => {
+    const monthly = m.tracks.reduce((s, t) => s + t.monthlyPayment, 0)
+    const totalCost = m.tracks.reduce((s, t) => s + t.monthlyPayment * t.periodMonths, 0)
+    const fixed = m.tracks.filter((t) => fixedTypes.includes(t.type)).reduce((s, t) => s + t.amount, 0)
+    const prime = m.tracks.filter((t) => t.type === 'פריים').reduce((s, t) => s + t.amount, 0)
+    const base = m.loanAmount > 0 ? m.loanAmount : m.tracks.reduce((s, t) => s + t.amount, 0)
+    return {
+      loanAmount: m.loanAmount,
+      monthly: Math.round(monthly),
+      totalCost: Math.round(totalCost),
+      count: m.tracks.length,
+      fixedPct: base > 0 ? Math.round((fixed / base) * 100) : 0,
+      primePct: base > 0 ? Math.round((prime / base) * 100) : 0,
+    }
+  })
+
+  const metricRow = (label: string, cells: string[]) =>
+    `<tr><td style="${labelTd}">${label}</td>${cells
+      .map((c) => `<td style="${valTd}">${c}</td>`)
+      .join('')}</tr>`
+
+  const rows = [
+    metricRow('סכום הלוואה', summary.map((s) => formatCurrency(s.loanAmount))),
+    metricRow(
+      'תשלום חודשי',
+      summary.map((s) => `<span style="font-weight:700;color:${GREEN};">${formatCurrency(s.monthly)}</span>`)
+    ),
+    metricRow('עלות כוללת', summary.map((s) => formatCurrency(s.totalCost))),
+    metricRow('מספר מסלולים', summary.map((s) => String(s.count))),
+    metricRow('אחוז ריבית קבועה', summary.map((s) => `${s.fixedPct}%`)),
+    metricRow('אחוז פריים', summary.map((s) => `${s.primePct}%`)),
+  ].join('')
+
+  return `<div dir="rtl" style="font-family:'Heebo','Arial',sans-serif;background:#ffffff;color:${INK};padding:40px;width:794px;box-sizing:border-box;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid ${GREEN};padding-bottom:16px;margin-bottom:22px;">
+      <div>
+        <div style="font-size:24px;font-weight:800;color:${GREEN};">השוואת תמהילים</div>
+        <div style="font-size:12px;color:${MUTED};margin-top:4px;">MortgageCRM — מערכת ניהול יועץ משכנתאות</div>
+      </div>
+      <div style="font-size:13px;color:#57534e;text-align:left;">
+        <div style="font-weight:700;">${customerName}</div>
+        <div>תאריך: ${date}</div>
+      </div>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;margin-bottom:22px;">
+      <thead><tr>
+        <th style="${th}text-align:right;">פרמטר</th>
+        ${mixes.map((m) => `<th style="${th}">${m.name}</th>`).join('')}
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+
+    <div style="font-size:11px;color:${MUTED};border-top:1px solid ${LINE};padding-top:12px;line-height:1.6;">
+      השוואה זו הינה אומדן ראשוני בלבד, נכון לתאריך ההפקה, ואינה מהווה התחייבות או אישור עקרוני מצד גוף מממן.
+      התנאים הסופיים כפופים לאישור הבנק ולבדיקת זכאות.
+    </div>
+  </div>`
+}
+
+export async function exportMixComparisonPdf(
+  customerName: string,
+  mixes: MixComparisonInput[]
+): Promise<void> {
+  await htmlToPdf(
+    buildComparisonHtml(customerName, mixes),
+    `mix-comparison-${new Date().toISOString().slice(0, 10)}.pdf`
+  )
 }
