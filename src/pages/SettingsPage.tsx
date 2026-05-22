@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
-import { Settings, Upload, Save, Eye, Trash2, Loader2, CheckCircle } from 'lucide-react'
+import { Settings, UploadCloud, CheckSquare, Check, Bell, Trash2, Loader2, Users } from 'lucide-react'
 import { collection, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore'
 import { db, auth } from '@/lib/firebase'
 import { settingsService } from '@/services/settingsService'
 import { toast } from '@/components/ui'
+import { useTheme, useThemeControls } from '@/theme/ThemeContext'
+import { THEMES, type Theme } from '@/theme/themes'
 
 export default function SettingsPage() {
+  const t = useTheme()
+  const { themeId, setThemeId } = useThemeControls()
   const [settings, setSettings] = useState({
     name: '',
     title: 'יועץ משכנתאות',
@@ -96,126 +100,282 @@ export default function SettingsPage() {
     e.target.value = ''
   }
 
+  const inputSt: React.CSSProperties = {
+    width: '100%', padding: '9px 12px', border: `1px solid ${t.border}`,
+    borderRadius: 9, fontSize: 13, color: t.text, background: t.inputBg,
+    outline: 'none', fontFamily: 'Heebo,sans-serif',
+  }
+  const labelSt: React.CSSProperties = {
+    display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 5,
+  }
+  const cardSt: React.CSSProperties = {
+    background: t.cardBg, borderRadius: 20, padding: '22px 24px',
+    boxShadow: t.shadow, border: `1px solid ${t.border}`,
+  }
+  const cardIconSt: React.CSSProperties = {
+    width: 30, height: 30, borderRadius: 9, background: t.primary + '18',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  }
+
   return (
-    <div className="animate-fade-in space-y-6">
-      <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
-        <Settings style={{ color: '#059669' }} size={24} />
-        הגדרות
-      </h1>
+    <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
+      <div style={{ padding: '28px 32px', maxWidth: 1100, margin: '0 auto' }}>
+        <div style={{ marginBottom: 28 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Settings size={22} style={{ color: t.primary }} />
+            הגדרות
+          </h1>
+          <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>פרטי היועץ, ברנד והגדרות מערכת</p>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Logo Upload */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">לוגו</h2>
-          <input ref={logoInputRef} type="file" accept="image/*" hidden onChange={handleLogoUpload} />
-          <div
-            className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-[#059669] transition-colors cursor-pointer"
-            onClick={() => logoInputRef.current?.click()}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+
+          {/* Logo Upload */}
+          <div style={cardSt}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+              <div style={cardIconSt}><UploadCloud size={14} style={{ color: t.primary }} /></div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text }}>לוגו</h3>
+            </div>
+            <input ref={logoInputRef} type="file" accept="image/*" hidden onChange={handleLogoUpload} />
+            <div
+              onClick={() => logoInputRef.current?.click()}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = t.primary }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = t.border }}
+              style={{
+                border: `2px dashed ${t.border}`, borderRadius: 14, padding: '32px 20px',
+                textAlign: 'center', cursor: 'pointer', background: t.bg, transition: 'border-color 0.15s',
+              }}
+            >
+              {uploadingLogo ? (
+                <Loader2 size={32} className="animate-spin" style={{ color: t.primary, margin: '0 auto 10px', display: 'block' }} />
+              ) : settings.logo_url ? (
+                <img src={settings.logo_url} alt="לוגו" style={{ height: 56, margin: '0 auto 10px', display: 'block', objectFit: 'contain' }} />
+              ) : (
+                <div style={{
+                  width: 52, height: 52, borderRadius: 14, background: t.border,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px',
+                }}>
+                  <UploadCloud size={22} style={{ color: t.textMuted }} />
+                </div>
+              )}
+              <p style={{ fontSize: 13, color: t.textSub, fontWeight: 500 }}>
+                {settings.logo_url ? 'לחץ להחלפת לוגו' : 'גרור או לחץ להעלאת לוגו'}
+              </p>
+              <p style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>PNG, JPG, SVG עד 5MB</p>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
+              <div>
+                <label style={labelSt}>גודל</label>
+                <select value={settings.logoSize} onChange={e => updateField('logoSize', e.target.value)} style={inputSt}>
+                  <option value="small">קטן</option>
+                  <option value="medium">בינוני</option>
+                  <option value="large">גדול</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelSt}>מיקום</label>
+                <select value={settings.logoPosition} onChange={e => updateField('logoPosition', e.target.value)} style={inputSt}>
+                  <option value="right">ימין</option>
+                  <option value="center">מרכז</option>
+                  <option value="left">שמאל</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Business Info */}
+          <div style={cardSt}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+              <div style={cardIconSt}><Users size={14} style={{ color: t.primary }} /></div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text }}>פרטי עסק</h3>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <Field t={t} label="שם מלא" value={settings.name} onChange={v => updateField('name', v)} />
+                <Field t={t} label="תואר" value={settings.title} onChange={v => updateField('title', v)} />
+              </div>
+              <Field t={t} label="מספר רישיון" value={settings.licenseNumber} onChange={v => updateField('licenseNumber', v)} dir="ltr" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <Field t={t} label="טלפון" value={settings.phone} onChange={v => updateField('phone', v)} dir="ltr" />
+                <Field t={t} label="אימייל" value={settings.email} onChange={v => updateField('email', v)} type="email" dir="ltr" />
+              </div>
+              <Field t={t} label="אתר אינטרנט" value={settings.website} onChange={v => updateField('website', v)} type="url" dir="ltr" />
+            </div>
+          </div>
+
+          {/* Colors & Brand */}
+          <div style={cardSt}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+              <div style={cardIconSt}><span style={{ fontSize: 15 }}>🎨</span></div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text }}>צבעים ומיתוג</h3>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {([['צבע ראשי', 'primaryColor'], ['צבע משני', 'secondaryColor']] as const).map(([lbl, fld]) => (
+                <div key={fld}>
+                  <label style={labelSt}>{lbl}</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input
+                      type="color" value={settings[fld]} onChange={e => updateField(fld, e.target.value)}
+                      style={{ width: 40, height: 38, borderRadius: 9, border: `1px solid ${t.border}`, cursor: 'pointer', padding: 2, background: 'transparent' }}
+                    />
+                    <input value={settings[fld]} onChange={e => updateField(fld, e.target.value)} style={{ ...inputSt, flex: 1 }} dir="ltr" />
+                    <div style={{ width: 38, height: 38, borderRadius: 9, background: settings[fld], flexShrink: 0, border: `1px solid ${t.border}` }} />
+                  </div>
+                </div>
+              ))}
+              <div>
+                <label style={labelSt}>טקסט תחתית</label>
+                <input value={settings.footerText} onChange={e => updateField('footerText', e.target.value)} style={inputSt} />
+              </div>
+              <div>
+                <label style={labelSt}>בחר צבע מהיר</label>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {['#059669', '#2563eb', '#d97706', '#8b5cf6', '#dc2626', '#0891b2', '#ea580c', '#0f172a'].map(col => (
+                    <div
+                      key={col}
+                      onClick={() => updateField('primaryColor', col)}
+                      onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.18)' }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                      style={{
+                        width: 32, height: 32, borderRadius: 9, background: col, cursor: 'pointer',
+                        border: settings.primaryColor === col ? `3px solid ${t.text}` : '3px solid transparent',
+                        boxShadow: settings.primaryColor === col ? `0 0 0 2px ${col}50` : 'none',
+                        transition: 'transform 0.15s, border-color 0.15s',
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Theme Switcher */}
+          <div style={cardSt}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+              <div style={cardIconSt}><span style={{ fontSize: 15 }}>🌓</span></div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text }}>ערכת נושא</h3>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {Object.values(THEMES).map(th => {
+                const active = themeId === th.id
+                return (
+                  <button
+                    key={th.id}
+                    type="button"
+                    onClick={() => setThemeId(th.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                      padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
+                      fontFamily: 'Heebo,sans-serif', textAlign: 'right',
+                      border: active ? `1.5px solid ${t.primary}` : `1.5px solid ${t.border}`,
+                      background: active ? t.primary + '12' : t.bg,
+                      boxShadow: active ? `0 0 0 3px ${t.primary}18` : 'none',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{
+                      width: 22, height: 22, borderRadius: '50%', background: th.primary,
+                      flexShrink: 0, border: `2px solid ${t.cardBg}`, boxShadow: `0 0 0 1px ${t.border}`,
+                    }} />
+                    <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: t.text }}>{th.name}</span>
+                    {active && <Check size={16} strokeWidth={3} style={{ color: t.primary }} />}
+                  </button>
+                )
+              })}
+            </div>
+            <p style={{ fontSize: 12, color: t.textMuted, marginTop: 12 }}>
+              ערכת הנושא נשמרת במכשיר זה ומשנה את מראה כל המערכת
+            </p>
+          </div>
+
+          {/* Alerts Settings */}
+          <div style={cardSt}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+              <div style={cardIconSt}><Bell size={14} style={{ color: t.primary }} /></div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text }}>הגדרות התראות</h3>
+            </div>
+            <div>
+              <label style={labelSt}>חלון התראות מסלולים (חודשים)</label>
+              <input
+                type="number" value={settings.alertWindowMonths}
+                onChange={e => updateField('alertWindowMonths', +e.target.value)}
+                style={{ ...inputSt, width: 120 }} dir="ltr"
+              />
+              <p style={{ fontSize: 12, color: t.textMuted, marginTop: 6 }}>
+                מסלולים שמסתיימים בתוך {settings.alertWindowMonths} חודשים יוצגו בהתראות
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Save buttons */}
+        <div style={{ display: 'flex', gap: 12, marginTop: 20, animation: 'fadeUp 0.4s ease 0.3s backwards' }}>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="crm-btn-primary"
+            style={{
+              background: saved ? t.success : t.primary, color: '#fff', border: 'none', borderRadius: 12,
+              padding: '11px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              fontFamily: 'Heebo,sans-serif', display: 'flex', alignItems: 'center', gap: 8,
+              boxShadow: `0 4px 14px ${t.primary}45`, transition: 'background 0.3s ease',
+              opacity: saving ? 0.6 : 1,
+            }}
           >
-            {uploadingLogo ? (
-              <Loader2 size={32} className="mx-auto text-[#059669] animate-spin mb-2" />
-            ) : settings.logo_url ? (
-              <img src={settings.logo_url} alt="לוגו" className="h-16 mx-auto mb-2 object-contain" />
-            ) : (
-              <Upload size={32} className="mx-auto text-gray-400 mb-2" />
-            )}
-            <p className="text-gray-600">{settings.logo_url ? 'לחץ להחלפת לוגו' : 'גרור או לחץ להעלאת לוגו'}</p>
-            <p className="text-xs text-gray-400 mt-1">PNG, JPG, SVG עד 5MB</p>
-          </div>
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">גודל</label>
-              <select value={settings.logoSize} onChange={e => updateField('logoSize', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                <option value="small">קטן</option>
-                <option value="medium">בינוני</option>
-                <option value="large">גדול</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">מיקום</label>
-              <select value={settings.logoPosition} onChange={e => updateField('logoPosition', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                <option value="right">ימין</option>
-                <option value="center">מרכז</option>
-                <option value="left">שמאל</option>
-              </select>
-            </div>
-          </div>
+            {saving
+              ? <><Loader2 size={15} className="animate-spin" /> שומר...</>
+              : saved
+                ? <><Check size={15} strokeWidth={3} /> נשמר!</>
+                : <><CheckSquare size={15} /> שמור הגדרות</>}
+          </button>
         </div>
 
-        {/* Business Info */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">פרטי עסק</h2>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="block text-sm text-gray-600 mb-1">שם מלא</label><input value={settings.name} onChange={e => updateField('name', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" /></div>
-              <div><label className="block text-sm text-gray-600 mb-1">תואר</label><input value={settings.title} onChange={e => updateField('title', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" /></div>
-            </div>
-            <div><label className="block text-sm text-gray-600 mb-1">מספר רישיון</label><input value={settings.licenseNumber} onChange={e => updateField('licenseNumber', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" dir="ltr" /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="block text-sm text-gray-600 mb-1">טלפון</label><input value={settings.phone} onChange={e => updateField('phone', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" dir="ltr" /></div>
-              <div><label className="block text-sm text-gray-600 mb-1">אימייל</label><input value={settings.email} onChange={e => updateField('email', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" dir="ltr" /></div>
-            </div>
-            <div><label className="block text-sm text-gray-600 mb-1">אתר</label><input value={settings.website} onChange={e => updateField('website', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" dir="ltr" /></div>
-          </div>
-        </div>
-
-        {/* Colors */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">צבעים</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">צבע ראשי</label>
-              <div className="flex items-center gap-2">
-                <input type="color" value={settings.primaryColor} onChange={e => updateField('primaryColor', e.target.value)} className="w-10 h-10 rounded cursor-pointer" />
-                <input value={settings.primaryColor} onChange={e => updateField('primaryColor', e.target.value)} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">צבע משני</label>
-              <div className="flex items-center gap-2">
-                <input type="color" value={settings.secondaryColor} onChange={e => updateField('secondaryColor', e.target.value)} className="w-10 h-10 rounded cursor-pointer" />
-                <input value={settings.secondaryColor} onChange={e => updateField('secondaryColor', e.target.value)} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
-              </div>
-            </div>
-          </div>
-          <div className="mt-4">
-            <label className="block text-sm text-gray-600 mb-1">טקסט תחתית</label>
-            <input value={settings.footerText} onChange={e => updateField('footerText', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
-          </div>
-        </div>
-
-        {/* Alert Settings */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">הגדרות התראות</h2>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">חלון התראות מסלולים (חודשים)</label>
-            <input type="number" value={settings.alertWindowMonths} onChange={e => updateField('alertWindowMonths', +e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
-            <p className="text-xs text-gray-400 mt-1">מסלולים שמסתיימים בתוך {settings.alertWindowMonths} חודשים יוצגו בהתראות</p>
-          </div>
-        </div>
+        {/* Danger Zone */}
+        <DangerZone t={t} />
       </div>
-
-      <div className="flex gap-3">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 bg-[#059669] text-white px-6 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
-        >
-          {saving ? <Loader2 size={18} className="animate-spin" /> : saved ? <CheckCircle size={18} /> : <Save size={18} />}
-          {saved ? 'נשמר!' : 'שמור הגדרות'}
-        </button>
-        <button className="flex items-center gap-2 bg-gray-100 text-gray-700 px-6 py-2.5 rounded-lg hover:bg-gray-200 transition-colors">
-          <Eye size={18} /> תצוגה מקדימה
-        </button>
-      </div>
-
-      {/* Danger Zone */}
-      <DangerZone />
     </div>
   )
 }
 
-function DangerZone() {
+interface FieldProps {
+  t: Theme
+  label: string
+  value: string
+  onChange: (v: string) => void
+  type?: string
+  dir?: 'ltr' | 'rtl'
+}
+
+function Field({ t, label, value, onChange, type = 'text', dir }: FieldProps) {
+  const [focus, setFocus] = useState(false)
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6, letterSpacing: '0.03em' }}>{label}</label>
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        border: `1.5px solid ${focus ? t.primary : t.border}`,
+        borderRadius: 10, background: t.inputBg,
+        boxShadow: focus ? `0 0 0 3px ${t.primary}18` : 'none',
+        transition: 'border-color 0.15s, box-shadow 0.15s', overflow: 'hidden',
+      }}>
+        <input
+          type={type}
+          value={value}
+          dir={dir}
+          onChange={e => onChange(e.target.value)}
+          onFocus={() => setFocus(true)}
+          onBlur={() => setFocus(false)}
+          style={{
+            flex: 1, padding: '10px 12px', border: 'none', outline: 'none',
+            background: 'transparent', color: t.text, fontSize: 14, fontFamily: 'Heebo,sans-serif',
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function DangerZone({ t }: { t: Theme }) {
   const [deleting, setDeleting] = useState(false)
   const [done, setDone] = useState(false)
   const [confirm, setConfirm] = useState(false)
@@ -246,26 +406,42 @@ function DangerZone() {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-red-200 p-5">
-      <h2 className="font-semibold text-red-700 mb-1 flex items-center gap-2">
-        <Trash2 size={17} /> אזור מסוכן
-      </h2>
-      <p className="text-sm text-gray-500 mb-4">מחיקת כל הנתונים מהמערכת — פעולה בלתי הפיכה</p>
+    <div style={{
+      background: t.cardBg, borderRadius: 20, padding: '22px 24px',
+      boxShadow: t.shadow, border: `1.5px solid ${t.danger}40`, marginTop: 18,
+      animation: 'fadeUp 0.4s ease 0.35s backwards',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <Trash2 size={17} style={{ color: t.danger }} />
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: t.danger }}>אזור מסוכן</h3>
+      </div>
+      <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 16 }}>
+        מחיקת כל הנתונים מהמערכת — פעולה בלתי הפיכה
+      </p>
       {done ? (
-        <p className="text-sm font-medium text-green-600">✓ כל הנתונים נמחקו בהצלחה</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: t.success, fontSize: 13, fontWeight: 600 }}>
+          <Check size={15} strokeWidth={3} />כל הנתונים נמחקו בהצלחה
+        </div>
       ) : confirm ? (
-        <div className="flex items-center gap-3">
-          <p className="text-sm text-red-600 font-medium">האם אתה בטוח לחלוטין?</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <p style={{ fontSize: 13, color: t.danger, fontWeight: 600 }}>האם אתה בטוח לחלוטין?</p>
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="flex items-center gap-1.5 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors"
+            style={{
+              background: t.danger, color: '#fff', border: 'none', borderRadius: 9,
+              padding: '7px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              fontFamily: 'Heebo,sans-serif', opacity: deleting ? 0.6 : 1,
+            }}
           >
             {deleting ? 'מוחק...' : 'כן, מחק הכל'}
           </button>
           <button
             onClick={() => setConfirm(false)}
-            className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+            style={{
+              background: t.bg, color: t.textSub, border: `1px solid ${t.border}`, borderRadius: 9,
+              padding: '7px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'Heebo,sans-serif',
+            }}
           >
             ביטול
           </button>
@@ -273,9 +449,13 @@ function DangerZone() {
       ) : (
         <button
           onClick={() => setConfirm(true)}
-          className="flex items-center gap-2 bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-100 transition-colors"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: t.dangerBg, color: t.danger, border: `1px solid ${t.danger}40`, borderRadius: 10,
+            padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Heebo,sans-serif',
+          }}
         >
-          <Trash2 size={15} /> מחק את כל הנתונים
+          <Trash2 size={14} />מחק את כל הנתונים
         </button>
       )}
     </div>

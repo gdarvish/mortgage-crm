@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { TrendingUp, RefreshCw, Loader2 } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { useTheme } from '@/theme/ThemeContext'
 
 const CACHE_KEY = 'boi_rates_cache'
 const CACHE_TS_KEY = 'boi_rates_ts'
@@ -20,13 +20,6 @@ const bankRates = [
   { bank: 'בנק מזרחי', prime: 6.0, fixedNonLinked: 4.55, fixedLinked: 3.85, variableLinked: 3.30 },
   { bank: 'בנק בינלאומי', prime: 6.0, fixedNonLinked: 4.35, fixedLinked: 3.65, variableLinked: 3.10 },
 ]
-
-const cardStyle = {
-  background: '#ffffff',
-  borderRadius: 20,
-  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-  border: '1px solid #e7e5e4',
-}
 
 interface RatesData {
   prime: number
@@ -57,7 +50,43 @@ async function fetchBOIRates(): Promise<RatesData> {
   }
 }
 
+interface LinePoint { l: string; v: number }
+
+function SVGLine({ data, color = '#059669', h = 180, yDomain }: {
+  data: LinePoint[]; color?: string; h?: number; yDomain?: [number, number]
+}) {
+  if (!data || !data.length) return null
+  const pad = { l: 44, r: 12, t: 12, b: 28 }, W = 480, H = h
+  const vals = data.map(d => d.v)
+  const min = yDomain ? yDomain[0] : Math.min(...vals)
+  const max = yDomain ? yDomain[1] : Math.max(...vals, min + 0.1)
+  const px = (i: number) => pad.l + (i / (Math.max(data.length - 1, 1))) * (W - pad.l - pad.r)
+  const py = (v: number) => pad.t + (1 - (v - min) / (max - min || 1)) * (H - pad.t - pad.b)
+  const pts = data.map((d, i) => `${px(i).toFixed(1)},${py(d.v).toFixed(1)}`).join(' ')
+  const area = `${px(0).toFixed(1)},${(H - pad.b).toFixed(1)} ` + pts + ` ${px(data.length - 1).toFixed(1)},${(H - pad.b).toFixed(1)}`
+  const gridVals = [min, (min + max) / 2, max]
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: h, display: 'block' }} preserveAspectRatio="none">
+      {gridVals.map((v, i) => (
+        <g key={i}>
+          <line x1={pad.l} y1={py(v).toFixed(1)} x2={W - pad.r} y2={py(v).toFixed(1)} stroke="#f0efed" strokeDasharray="4 3" />
+          <text x={pad.l - 4} y={py(v) + 4} textAnchor="end" fontSize={9} fill="#a8a29e">{v.toFixed(2)}%</text>
+        </g>
+      ))}
+      <polygon points={area} fill={color + '15'} />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+      {data.map((d, i) => (
+        <circle key={i} cx={px(i)} cy={py(d.v)} r={3.5} fill={color} stroke="#fff" strokeWidth={1.5} />
+      ))}
+      {data.map((d, i) => (
+        <text key={i} x={px(i)} y={H - 7} textAnchor="middle" fontSize={9} fill="#a8a29e">{d.l}</text>
+      ))}
+    </svg>
+  )
+}
+
 export default function InterestRatesPage() {
+  const t = useTheme()
   const [rates, setRates] = useState<RatesData>(fallbackRates)
   const [history, setHistory] = useState(fallbackHistory)
   const [loading, setLoading] = useState(true)
@@ -88,86 +117,114 @@ export default function InterestRatesPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const displayedBankRates = bankRates.map(b => ({
-    ...b,
-    prime: rates.prime,
-  }))
+  const displayedBankRates = bankRates.map(b => ({ ...b, prime: rates.prime }))
+  const chartData: LinePoint[] = history.map(h => ({ l: h.date, v: h.rate }))
+
+  const kpis = [
+    { label: 'ריבית פריים', value: loading ? '—' : `${rates.prime.toFixed(2)}%`, color: t.primary, accent: t.primary },
+    { label: 'מדד אחרון', value: `${rates.lastCpi}%`, color: t.accent, accent: t.accent },
+    { label: 'ריבית בנק ישראל', value: loading ? '—' : `${rates.boiRate.toFixed(2)}%`, color: t.success, accent: t.success },
+  ]
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
-            <TrendingUp size={22} style={{ color: '#059669' }} />
-            שוק הריביות
-          </h1>
-          <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>נתוני ריבית עדכניים מבנק ישראל</p>
+    <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
+      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <TrendingUp size={22} style={{ color: t.primary }} />
+              שוק הריביות
+            </h1>
+            <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>נתוני ריבית עדכניים מבנק ישראל</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: t.textMuted }}>
+            {loading
+              ? <Loader2 size={13} className="animate-spin" style={{ color: t.primary }} />
+              : <RefreshCw size={13} style={{ color: t.textMuted }} />}
+            <span>{loading ? 'טוען...' : `עודכן: ${updatedAt}`}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 text-[12px] shrink-0" style={{ color: '#a8a29e' }}>
-          {loading ? <Loader2 size={13} className="animate-spin" style={{ color: '#059669' }} /> : <RefreshCw size={13} />}
-          {loading ? 'טוען...' : `עודכן: ${updatedAt}`}
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div style={{ ...cardStyle, padding: 20, textAlign: 'center', borderRight: '4px solid #059669' }}>
-          <p className="text-[13px] mb-1" style={{ color: '#a8a29e' }}>ריבית פריים</p>
-          {loading ? <Loader2 size={24} className="mx-auto animate-spin" style={{ color: '#059669' }} /> : (
-            <p className="text-[32px] font-black" style={{ color: '#059669' }}>{rates.prime.toFixed(2)}%</p>
-          )}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 18, marginBottom: 22 }}>
+          {kpis.map((k, i) => (
+            <div key={k.label} style={{
+              background: t.cardBg, borderRadius: 20, padding: '22px 26px',
+              boxShadow: t.shadow, border: `1px solid ${t.border}`,
+              borderRight: `4px solid ${k.accent}`, textAlign: 'center',
+              animation: `fadeUp 0.4s ease ${i * 0.08 + 0.05}s backwards`,
+            }}>
+              <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 8 }}>{k.label}</p>
+              {loading && k.value === '—' ? (
+                <Loader2 size={28} className="animate-spin" style={{ color: t.primary, margin: '4px auto' }} />
+              ) : (
+                <p style={{ fontSize: 36, fontWeight: 800, color: k.color, fontVariantNumeric: 'tabular-nums' }}>{k.value}</p>
+              )}
+            </div>
+          ))}
         </div>
-        <div style={{ ...cardStyle, padding: 20, textAlign: 'center', borderRight: '4px solid #f59e0b' }}>
-          <p className="text-[13px] mb-1" style={{ color: '#a8a29e' }}>מדד אחרון</p>
-          <p className="text-[32px] font-black" style={{ color: '#f59e0b' }}>{rates.lastCpi}%</p>
-        </div>
-        <div style={{ ...cardStyle, padding: 20, textAlign: 'center', borderRight: '4px solid #22c55e' }}>
-          <p className="text-[13px] mb-1" style={{ color: '#a8a29e' }}>ריבית בנק ישראל</p>
-          {loading ? <Loader2 size={24} className="mx-auto animate-spin" style={{ color: '#059669' }} /> : (
-            <p className="text-[32px] font-black" style={{ color: '#22c55e' }}>{rates.boiRate.toFixed(2)}%</p>
-          )}
-        </div>
-      </div>
 
-      <div style={{ ...cardStyle, padding: 20 }}>
-        <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>מגמת ריבית פריים</h2>
-        <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={history}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
-            <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#a8a29e' }} />
-            <YAxis domain={[5, 6.5]} tickFormatter={v => `${v}%`} tick={{ fontSize: 12, fill: '#a8a29e' }} />
-            <Tooltip formatter={(v) => `${v}%`} contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 13 }} />
-            <Line type="monotone" dataKey="rate" stroke="#059669" strokeWidth={2} dot={{ fill: '#059669' }} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+        <div style={{
+          background: t.cardBg, borderRadius: 20, padding: '22px 26px',
+          boxShadow: t.shadow, border: `1px solid ${t.border}`, marginBottom: 22,
+        }}>
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 18 }}>מגמת ריבית פריים</h2>
+          <SVGLine data={chartData} color={t.primary} h={180} yDomain={[5.2, 6.4]} />
+        </div>
 
-      <div style={{ ...cardStyle, overflow: 'hidden' }}>
-        <h2 className="text-[15px] font-bold p-5" style={{ color: '#1c1917', borderBottom: '1px solid #f5f4f2' }}>ריביות לפי בנק</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
-            <thead>
-              <tr style={{ background: '#faf9f7' }}>
-                <th className="text-right p-3 font-semibold" style={{ color: '#a8a29e' }}>בנק</th>
-                <th className="text-right p-3 font-semibold" style={{ color: '#a8a29e' }}>פריים</th>
-                <th className="text-right p-3 font-semibold" style={{ color: '#a8a29e' }}>קל"צ</th>
-                <th className="text-right p-3 font-semibold" style={{ color: '#a8a29e' }}>קל"ב</th>
-                <th className="text-right p-3 font-semibold" style={{ color: '#a8a29e' }}>משתנה צמודה</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayedBankRates.map(bank => (
-                <tr key={bank.bank} style={{ borderTop: '1px solid #f5f4f2' }} className="transition-colors hover:bg-[#faf9f7]">
-                  <td className="p-3 font-semibold" style={{ color: '#1c1917' }}>{bank.bank}</td>
-                  <td className="p-3 font-semibold" style={{ color: '#059669' }}>{bank.prime.toFixed(2)}%</td>
-                  <td className="p-3" style={{ color: '#57534e' }}>{bank.fixedNonLinked}%</td>
-                  <td className="p-3" style={{ color: '#57534e' }}>{bank.fixedLinked}%</td>
-                  <td className="p-3" style={{ color: '#57534e' }}>{bank.variableLinked}%</td>
+        <div style={{
+          background: t.cardBg, borderRadius: 20, boxShadow: t.shadow,
+          border: `1px solid ${t.border}`, overflow: 'hidden',
+        }}>
+          <div style={{ padding: '18px 24px', borderBottom: `1px solid ${t.border}` }}>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: t.text }}>ריביות לפי בנק</h2>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: t.bg }}>
+                  {['בנק', 'פריים', 'קל"צ', 'קל"ב', 'משתנה צמודה'].map(h => (
+                    <th key={h} style={{
+                      padding: '12px 20px', textAlign: 'right', fontSize: 11, fontWeight: 700,
+                      color: t.textMuted, borderBottom: `1px solid ${t.border}`, letterSpacing: '0.04em',
+                    }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {displayedBankRates.map((b, i) => (
+                  <BankRow key={b.bank} bank={b} isLast={i === displayedBankRates.length - 1} t={t} />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
+  )
+}
+
+interface BankRowProps {
+  bank: { bank: string; prime: number; fixedNonLinked: number; fixedLinked: number; variableLinked: number }
+  isLast: boolean
+  t: import('@/theme/themes').Theme
+}
+
+function BankRow({ bank, isLast, t }: BankRowProps) {
+  const [hov, setHov] = useState(false)
+  return (
+    <tr
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        background: hov ? t.bg : 'transparent', transition: 'background 0.12s',
+        borderBottom: isLast ? 'none' : `1px solid ${t.borderLight}`,
+      }}
+    >
+      <td style={{ padding: '14px 20px', fontSize: 14, fontWeight: 700, color: t.text }}>{bank.bank}</td>
+      <td style={{ padding: '14px 20px', fontSize: 14, fontWeight: 800, color: t.primary }}>{bank.prime.toFixed(2)}%</td>
+      <td style={{ padding: '14px 20px', fontSize: 13, color: t.textSub }}>{bank.fixedNonLinked}%</td>
+      <td style={{ padding: '14px 20px', fontSize: 13, color: t.textSub }}>{bank.fixedLinked}%</td>
+      <td style={{ padding: '14px 20px', fontSize: 13, color: t.textSub }}>{bank.variableLinked}%</td>
+    </tr>
   )
 }

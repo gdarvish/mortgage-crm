@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Layers, Plus, Trash2 } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
+import { useTheme } from '@/theme/ThemeContext'
 
 interface Loan {
   type: string
@@ -16,7 +16,42 @@ const loanTypes = ['רכב', 'אישי', 'כרטיס אשראי', 'קו אשרא
 
 const emptyLoan: Loan = { type: 'אישי', balance: 0, monthlyPayment: 0, interestRate: 0, remainingMonths: 0, earlyRepaymentFee: 0 }
 
+// ─── SVG CHART HELPER ─────────────────────────────────────────────────────────
+interface BarDatum { l: string; v1?: number; v2?: number; c1?: string; c2?: string; v?: number; c?: string }
+
+function SVGBars({ data, h = 180 }: { data: BarDatum[]; h?: number }) {
+  if (!data || !data.length) return null
+  const pad = { l: 8, r: 8, t: 12, b: 28 }, W = 480, H = h
+  const paired = data[0] && data[0].v2 !== undefined
+  const allV = paired ? data.flatMap(d => [d.v1 || 0, d.v2 || 0]) : data.map(d => d.v || 0)
+  const max = Math.max(...allV, 1)
+  const slotW = (W - pad.l - pad.r) / data.length
+  const bw = slotW * (paired ? 0.36 : 0.62)
+  const bh = (v: number) => Math.max((v / max) * (H - pad.t - pad.b), 2)
+  const by = (v: number) => H - pad.b - bh(v)
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: h, display: 'block' }} preserveAspectRatio="none">
+      {data.map((d, i) => {
+        const cx = pad.l + i * slotW + slotW / 2
+        return paired ? (
+          <g key={i}>
+            <rect x={cx - bw - 1} y={by(d.v1 || 0)} width={bw} height={bh(d.v1 || 0)} fill={d.c1 || '#ef4444'} rx={3} />
+            <rect x={cx + 1} y={by(d.v2 || 0)} width={bw} height={bh(d.v2 || 0)} fill={d.c2 || '#059669'} rx={3} />
+            <text x={cx} y={H - 8} textAnchor="middle" fontSize={9} fill="#a8a29e">{d.l}</text>
+          </g>
+        ) : (
+          <g key={i}>
+            <rect x={cx - bw / 2} y={by(d.v || 0)} width={bw} height={bh(d.v || 0)} fill={d.c || '#059669'} rx={3} />
+            <text x={cx} y={H - 8} textAnchor="middle" fontSize={9} fill="#a8a29e">{d.l}</text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
 export default function ConsolidationCalculatorPage() {
+  const t = useTheme()
   const [loans, setLoans] = useState<Loan[]>([
     { type: 'רכב', balance: 80000, monthlyPayment: 2200, interestRate: 6.5, remainingMonths: 48, earlyRepaymentFee: 1500 },
     { type: 'אישי', balance: 50000, monthlyPayment: 1800, interestRate: 8.0, remainingMonths: 36, earlyRepaymentFee: 800 },
@@ -40,7 +75,7 @@ export default function ConsolidationCalculatorPage() {
     const r = consolidatedRate / 100 / 12
     const newMonthly = r > 0
       ? (consolidatedBalance * r * Math.pow(1 + r, consolidatedMonths)) / (Math.pow(1 + r, consolidatedMonths) - 1)
-      : consolidatedBalance / consolidatedMonths
+      : consolidatedBalance / (consolidatedMonths || 1)
 
     const monthlySaving = totalMonthly - newMonthly
     const totalExistingCost = loans.reduce((s, l) => s + l.monthlyPayment * l.remainingMonths, 0)
@@ -57,125 +92,131 @@ export default function ConsolidationCalculatorPage() {
     }
   }, [loans, consolidatedRate, consolidatedMonths])
 
-  const chartData = loans.map(l => ({
-    name: l.type,
-    current: l.monthlyPayment,
-    share: Math.round((l.balance / (analysis.totalBalance || 1)) * analysis.newMonthly),
+  const chartData: BarDatum[] = loans.map(l => ({
+    l: l.type,
+    v1: l.monthlyPayment,
+    v2: Math.round((l.balance / (analysis.totalBalance || 1)) * analysis.newMonthly),
+    c1: '#ef4444',
+    c2: '#059669',
   }))
 
-  const cardStyle = {
-    background: '#ffffff',
+  const card = {
+    background: t.cardBg,
     borderRadius: 20,
-    boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-    border: '1px solid #e7e5e4',
+    boxShadow: t.shadow,
+    border: `1px solid ${t.border}`,
   }
-  const inputCls = 'w-full px-2 py-1.5 border border-[#e7e5e4] rounded-lg bg-white text-[13px] text-[#1c1917] outline-none focus:border-[#059669]'
+  const thSt: React.CSSProperties = { padding: '10px 14px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: t.textMuted, borderBottom: `1px solid ${t.border}`, letterSpacing: '0.04em' }
+  const tdSt: React.CSSProperties = { padding: '10px 14px', fontSize: 12 }
+  const cellSt: React.CSSProperties = { padding: '5px 8px', border: `1.5px solid ${t.border}`, borderRadius: 7, fontSize: 12, color: t.text, background: t.inputBg, outline: 'none', fontFamily: 'Heebo,sans-serif', width: '100%' }
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
-      <div>
-        <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
-          <Layers size={22} style={{ color: '#059669' }} />
-          מחשבון איחוד הלוואות
-        </h1>
-        <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>השווה וחשב איחוד הלוואות קיימות למשכנתא</p>
-      </div>
-
-      {/* Loans Table */}
-      <div style={{ ...cardStyle, padding: 20 }}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[15px] font-bold" style={{ color: '#1c1917' }}>הלוואות קיימות</h2>
-          <button
-            onClick={addLoan}
-            className="flex items-center gap-1.5 text-[13px] font-semibold text-white px-3 py-1.5 transition-all hover:opacity-90"
-            style={{ borderRadius: 10, background: '#059669' }}
-          >
-            <Plus size={14} /> הוסף הלוואה
-          </button>
+    <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
+      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+        <div style={{ marginBottom: 28, animation: 'fadeUp 0.4s ease backwards' }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Layers size={22} style={{ color: t.primary }} />
+            מחשבון איחוד הלוואות
+          </h1>
+          <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>השווה וחשב איחוד הלוואות קיימות למשכנתא</p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
-            <thead>
-              <tr style={{ background: '#faf9f7' }}>
-                <th className="text-right p-2 font-semibold" style={{ color: '#a8a29e' }}>סוג</th>
-                <th className="text-right p-2 font-semibold" style={{ color: '#a8a29e' }}>יתרה</th>
-                <th className="text-right p-2 font-semibold" style={{ color: '#a8a29e' }}>החזר חודשי</th>
-                <th className="text-right p-2 font-semibold" style={{ color: '#a8a29e' }}>ריבית %</th>
-                <th className="text-right p-2 font-semibold" style={{ color: '#a8a29e' }}>חודשים</th>
-                <th className="text-right p-2 font-semibold" style={{ color: '#a8a29e' }}>עמלת פירעון</th>
-                <th className="p-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loans.map((loan, idx) => (
-                <tr key={idx} style={{ borderTop: '1px solid #f5f4f2' }}>
-                  <td className="p-2"><select value={loan.type} onChange={e => updateLoan(idx, 'type', e.target.value)} className={inputCls}>{loanTypes.map(t => <option key={t}>{t}</option>)}</select></td>
-                  <td className="p-2"><input type="number" value={loan.balance} onChange={e => updateLoan(idx, 'balance', e.target.value)} className={inputCls} dir="ltr" /></td>
-                  <td className="p-2"><input type="number" value={loan.monthlyPayment} onChange={e => updateLoan(idx, 'monthlyPayment', e.target.value)} className={inputCls} dir="ltr" /></td>
-                  <td className="p-2"><input type="number" step="0.1" value={loan.interestRate} onChange={e => updateLoan(idx, 'interestRate', e.target.value)} className={inputCls} dir="ltr" /></td>
-                  <td className="p-2"><input type="number" value={loan.remainingMonths} onChange={e => updateLoan(idx, 'remainingMonths', e.target.value)} className={inputCls} dir="ltr" /></td>
-                  <td className="p-2"><input type="number" value={loan.earlyRepaymentFee} onChange={e => updateLoan(idx, 'earlyRepaymentFee', e.target.value)} className={inputCls} dir="ltr" /></td>
-                  <td className="p-2"><button onClick={() => removeLoan(idx)} className="text-red-400 hover:text-red-600"><Trash2 size={14} /></button></td>
+
+        {/* Loans Table */}
+        <div style={{ ...card, padding: '20px 22px', marginBottom: 18, animation: 'fadeUp 0.4s ease 0.05s backwards' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text }}>הלוואות קיימות</h3>
+            <button
+              onClick={addLoan}
+              className="crm-btn-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 9, border: 'none', cursor: 'pointer', background: t.primary, color: '#fff', fontFamily: 'Heebo,sans-serif' }}
+            >
+              <Plus size={12} strokeWidth={2.5} /> הוסף הלוואה
+            </button>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: t.bg }}>
+                  {['סוג', 'יתרה', 'החזר חודשי', 'ריבית %', 'חודשים', 'עמלת פירעון', ''].map((h, i) => (
+                    <th key={i} style={thSt}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Consolidation Parameters */}
-      <div style={{ ...cardStyle, padding: 20 }}>
-        <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>פרמטרי איחוד</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>ריבית איחוד %</label>
-            <input type="number" step="0.1" value={consolidatedRate} onChange={e => setConsolidatedRate(+e.target.value)} className="w-full px-3 py-2 border border-[#e7e5e4] rounded-lg text-[13px] text-[#1c1917] outline-none focus:border-[#059669] bg-white" dir="ltr" />
-          </div>
-          <div>
-            <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>תקופה (חודשים)</label>
-            <input type="number" value={consolidatedMonths} onChange={e => setConsolidatedMonths(+e.target.value)} className="w-full px-3 py-2 border border-[#e7e5e4] rounded-lg text-[13px] text-[#1c1917] outline-none focus:border-[#059669] bg-white" dir="ltr" />
+              </thead>
+              <tbody>
+                {loans.map((loan, idx) => (
+                  <tr key={idx} style={{ borderTop: `1px solid ${t.borderLight}` }}>
+                    <td style={tdSt}><select value={loan.type} onChange={e => updateLoan(idx, 'type', e.target.value)} style={cellSt}>{loanTypes.map(lt => <option key={lt}>{lt}</option>)}</select></td>
+                    <td style={tdSt}><input type="number" value={loan.balance} onChange={e => updateLoan(idx, 'balance', e.target.value)} style={cellSt} dir="ltr" /></td>
+                    <td style={tdSt}><input type="number" value={loan.monthlyPayment} onChange={e => updateLoan(idx, 'monthlyPayment', e.target.value)} style={cellSt} dir="ltr" /></td>
+                    <td style={tdSt}><input type="number" step="0.1" value={loan.interestRate} onChange={e => updateLoan(idx, 'interestRate', e.target.value)} style={cellSt} dir="ltr" /></td>
+                    <td style={tdSt}><input type="number" value={loan.remainingMonths} onChange={e => updateLoan(idx, 'remainingMonths', e.target.value)} style={cellSt} dir="ltr" /></td>
+                    <td style={tdSt}><input type="number" value={loan.earlyRepaymentFee} onChange={e => updateLoan(idx, 'earlyRepaymentFee', e.target.value)} style={cellSt} dir="ltr" /></td>
+                    <td style={tdSt}><button onClick={() => removeLoan(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.danger }}><Trash2 size={14} /></button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
 
-      {/* Results */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div style={{ ...cardStyle, padding: 20 }}>
-          <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>סיכום</h2>
-          <div className="space-y-1">
+        {/* Consolidation Parameters */}
+        <div style={{ ...card, padding: '20px 22px', marginBottom: 18, animation: 'fadeUp 0.4s ease 0.1s backwards' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 16 }}>פרמטרי איחוד</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6 }}>ריבית איחוד %</label>
+              <input
+                type="number" step="0.1" value={consolidatedRate}
+                onChange={e => setConsolidatedRate(+e.target.value || 0)}
+                style={{ padding: '10px 12px', border: `1.5px solid ${t.border}`, borderRadius: 9, fontSize: 14, color: t.text, background: t.inputBg, outline: 'none', fontFamily: 'Heebo,sans-serif', width: 160 }}
+                dir="ltr"
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6 }}>תקופה (חודשים)</label>
+              <input
+                type="number" value={consolidatedMonths}
+                onChange={e => setConsolidatedMonths(+e.target.value || 1)}
+                style={{ padding: '10px 12px', border: `1.5px solid ${t.border}`, borderRadius: 9, fontSize: 14, color: t.text, background: t.inputBg, outline: 'none', fontFamily: 'Heebo,sans-serif', width: 160 }}
+                dir="ltr"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Results */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 18 }}>
+          <div style={{ ...card, padding: '20px 22px', animation: 'fadeUp 0.4s ease 0.15s backwards' }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 16 }}>סיכום</h3>
             {[
-              { label: 'סה"כ חוב', value: formatCurrency(analysis.totalBalance) },
-              { label: 'החזר חודשי כיום', value: formatCurrency(analysis.totalMonthly) },
-              { label: 'החזר חודשי חדש', value: formatCurrency(analysis.newMonthly), highlight: true },
-              { label: 'חיסכון חודשי', value: formatCurrency(analysis.monthlySaving), green: true },
-              { label: 'חיסכון שנתי', value: formatCurrency(analysis.yearlySaving), green: true },
-              { label: 'חיסכון כולל', value: formatCurrency(analysis.totalSaving), green: true },
-              { label: 'עמלות פירעון', value: formatCurrency(analysis.totalFees) },
-              { label: 'Break-Even', value: analysis.breakEvenMonths === Infinity ? 'N/A' : `${analysis.breakEvenMonths} חודשים` },
-            ].map(item => (
-              <div key={item.label} className="flex justify-between py-2" style={{ borderBottom: '1px solid #f5f4f2' }}>
-                <span className="text-[13px]" style={{ color: '#57534e' }}>{item.label}</span>
-                <span
-                  className="text-[13px] font-semibold"
-                  style={{ color: item.green ? '#059669' : item.highlight ? '#059669' : '#1c1917', fontWeight: item.highlight ? 700 : undefined }}
-                >{item.value}</span>
+              { l: 'סה"כ חוב',         v: formatCurrency(analysis.totalBalance),  green: false, bold: false },
+              { l: 'החזר חודשי כיום',  v: formatCurrency(analysis.totalMonthly),  green: false, bold: false },
+              { l: 'החזר חודשי חדש',   v: formatCurrency(analysis.newMonthly),    green: true,  bold: true },
+              { l: 'חיסכון חודשי',     v: formatCurrency(analysis.monthlySaving), green: true,  bold: false },
+              { l: 'חיסכון שנתי',      v: formatCurrency(analysis.yearlySaving),  green: true,  bold: false },
+              { l: 'חיסכון כולל',      v: formatCurrency(analysis.totalSaving),   green: true,  bold: false },
+              { l: 'עמלות פירעון',     v: formatCurrency(analysis.totalFees),     green: false, bold: false },
+              { l: 'Break-Even',       v: analysis.breakEvenMonths === Infinity ? 'N/A' : `${analysis.breakEvenMonths} חודשים`, green: false, bold: false },
+            ].map(row => (
+              <div key={row.l} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: `1px solid ${t.borderLight}` }}>
+                <span style={{ fontSize: 13, color: t.textMuted }}>{row.l}</span>
+                <span style={{ fontSize: row.bold ? 15 : 13, fontWeight: row.bold ? 800 : 600, color: row.green ? t.success : t.text }}>{row.v}</span>
               </div>
             ))}
           </div>
-        </div>
 
-        <div style={{ ...cardStyle, padding: 20 }}>
-          <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>השוואת החזרים</h2>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
-              <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#a8a29e' }} />
-              <YAxis tickFormatter={v => `₪${v}`} tick={{ fontSize: 12, fill: '#a8a29e' }} />
-              <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 13 }} />
-              <Bar dataKey="current" name="החזר נוכחי" fill="#ef4444" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="share" name="חלק באיחוד" fill="#059669" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div style={{ ...card, padding: '20px 22px', animation: 'fadeUp 0.4s ease 0.2s backwards' }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 16 }}>השוואת החזרים</h3>
+            <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
+              {[{ c: '#ef4444', l: 'נוכחי' }, { c: '#059669', l: 'איחוד' }].map(item => (
+                <div key={item.l} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: t.textSub }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 3, background: item.c }} />
+                  {item.l}
+                </div>
+              ))}
+            </div>
+            <SVGBars data={chartData} h={220} />
+          </div>
         </div>
       </div>
     </div>

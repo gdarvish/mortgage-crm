@@ -2,190 +2,197 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, UserPlus, FileText, Calculator,
-  Bell, DollarSign, Settings, Menu, X, Share2,
-  RefreshCw, Layers, TrendingUp, Heart, MessageSquare, History,
+  RefreshCw, Layers, Bell, MessageSquare, DollarSign, Share2,
+  TrendingUp, PieChart, Settings,
+  type LucideIcon,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { useTheme } from '@/theme/ThemeContext'
 import { GlobalSearch } from '@/components/GlobalSearch'
 
-interface HeaderProps {
-  sidebarCollapsed?: boolean
+interface NavItem {
+  label: string
+  path: string
+  icon: LucideIcon
+  match: string[]
 }
 
-const navItems = [
-  { label: 'דשבורד',   path: '/dashboard',   icon: LayoutDashboard },
-  { label: 'לקוחות',   path: '/customers',   icon: Users },
-  { label: 'לידים',    path: '/leads',        icon: UserPlus },
-  { label: 'מסמכים',   path: '/documents',   icon: FileText },
-  { label: 'מחשבון',   path: '/calculator',  icon: Calculator },
-  { label: 'התראות',   path: '/alerts',      icon: Bell },
-  { label: 'עמלות',    path: '/commissions', icon: DollarSign },
-  { label: 'הגדרות',   path: '/settings',    icon: Settings },
+const navItems: NavItem[] = [
+  { label: 'דשבורד', path: '/dashboard', icon: LayoutDashboard, match: ['/dashboard', '/'] },
+  { label: 'לקוחות', path: '/customers', icon: Users, match: ['/customers'] },
+  { label: 'לידים', path: '/leads', icon: UserPlus, match: ['/leads'] },
+  { label: 'מסמכים', path: '/documents', icon: FileText, match: ['/documents'] },
+  { label: 'מחשבון', path: '/calculator', icon: Calculator, match: ['/calculator'] },
+  { label: 'מחזור', path: '/refinance', icon: RefreshCw, match: ['/refinance'] },
+  { label: 'איחוד', path: '/consolidation', icon: Layers, match: ['/consolidation'] },
+  { label: 'התראות', path: '/alerts', icon: Bell, match: ['/alerts'] },
+  { label: 'תקשורת', path: '/communication', icon: MessageSquare, match: ['/communication'] },
+  { label: 'עמלות', path: '/commissions', icon: DollarSign, match: ['/commissions'] },
+  { label: 'מפנים', path: '/referrals', icon: Share2, match: ['/referrals'] },
+  { label: 'ריביות', path: '/interest-rates', icon: TrendingUp, match: ['/interest-rates'] },
+  { label: 'כלכלה', path: '/family-economics', icon: PieChart, match: ['/family-economics'] },
+  { label: 'הגדרות', path: '/settings', icon: Settings, match: ['/settings'] },
 ]
 
-const mobileExtraItems = [
-  { label: 'יומן שינויים', path: '/audit-log',     icon: History },
-  { label: 'תקשורת',       path: '/communication', icon: MessageSquare },
-  { label: 'שותפי הפניה', path: '/referrals',     icon: Share2 },
-  { label: 'ריביות',       path: '/rates',          icon: TrendingUp },
-  { label: 'מחזור',        path: '/refinance',      icon: RefreshCw },
-  { label: 'איחוד הלוואות', path: '/consolidation', icon: Layers },
-  { label: 'כלכלת משפחה', path: '/family',          icon: Heart },
-]
+function NavLink({ item, active, onClick }: { item: NavItem; active: boolean; onClick: () => void }) {
+  const t = useTheme()
+  const [hov, setHov] = useState(false)
+  const Icon = item.icon
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        background: active ? t.navActive : hov ? `${t.navActive}80` : 'transparent',
+        color: active ? t.navTextActive : hov ? t.navTextActive : t.navText,
+        border: 'none',
+        borderBottom: `2px solid ${active ? t.primary : 'transparent'}`,
+        borderRadius: '6px 6px 0 0',
+        padding: '0 13px',
+        height: 58,
+        fontSize: 13,
+        fontWeight: active ? 600 : 400,
+        cursor: 'pointer',
+        fontFamily: 'Heebo,sans-serif',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
+        transition: 'color 0.15s ease, background 0.15s ease, border-color 0.2s ease',
+      }}
+    >
+      <Icon size={14} color={active ? t.primary : 'currentColor'} />
+      {item.label}
+    </button>
+  )
+}
 
-export default function Header(_props: HeaderProps) {
+export default function Header() {
+  const t = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [hovBell, setHovBell] = useState(false)
 
-  const notificationCount = 0
-
-  function isActive(path: string) {
-    if (path === '/dashboard') return location.pathname === path || location.pathname === '/'
-    return location.pathname.startsWith(path)
-  }
-
-  const handleNav = (path: string) => {
-    navigate(path)
-    setMenuOpen(false)
-  }
-
-  const allMobileItems = [...navItems, ...mobileExtraItems]
+  const isActive = (item: NavItem) =>
+    item.match.some((m) => (m === '/' ? location.pathname === '/' : location.pathname.startsWith(m)))
 
   return (
-    <>
-      <header
-        className="sticky top-0 z-[100] flex items-center w-full shrink-0"
-        style={{ height: 58, background: '#1c1917' }}
-      >
-        {/* Logo */}
-        <div className="flex items-center px-4 shrink-0">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="flex items-center justify-center text-white font-black text-lg transition-transform duration-200 hover:scale-110 hover:-rotate-[4deg]"
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 10,
-              background: '#059669',
-              boxShadow: '0 4px 12px rgba(5,150,105,0.5)',
-            }}
-            aria-label="דשבורד"
-          >
-            מ
-          </button>
-        </div>
-
-        {/* Divider */}
-        <div className="w-px self-stretch my-3 shrink-0" style={{ background: '#292524' }} />
-
-        {/* Nav links — desktop only */}
-        <nav className="hidden lg:flex items-stretch flex-1 h-full overflow-x-auto">
-          {navItems.map((item) => {
-            const active = isActive(item.path)
-            return (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                className={cn(
-                  'relative flex items-center gap-1.5 px-3 h-full text-[13px] transition-all duration-150 whitespace-nowrap shrink-0',
-                  active ? 'font-semibold' : 'hover:bg-[#292524]/50 font-medium'
-                )}
-                style={{
-                  color: active ? '#fafaf9' : '#a8a29e',
-                  background: active ? '#292524' : undefined,
-                  borderBottom: active ? '2px solid #059669' : '2px solid transparent',
-                }}
-              >
-                <item.icon size={14} />
-                {item.label}
-              </button>
-            )
-          })}
-        </nav>
-
-        {/* Mobile menu toggle */}
+    <nav
+      style={{
+        background: t.nav,
+        height: 58,
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 20px',
+        gap: 2,
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        borderBottom: `1px solid ${t.navActive}`,
+        animation: 'fadeIn 0.4s ease',
+      }}
+    >
+      {/* Logo */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 20, flexShrink: 0 }}>
         <button
-          onClick={() => setMenuOpen(o => !o)}
-          className="lg:hidden flex items-center justify-center mx-2 transition-colors hover:text-[#fafaf9]"
-          style={{ width: 36, height: 36, borderRadius: 10, color: '#a8a29e' }}
-          aria-label="פתח תפריט"
+          onClick={() => navigate('/dashboard')}
+          aria-label="דשבורד"
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 10,
+            background: t.primary,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 800,
+            fontSize: 16,
+            color: '#fff',
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: `0 4px 12px ${t.primary}50`,
+            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.1) rotate(-4deg)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1) rotate(0)' }}
         >
-          {menuOpen ? <X size={20} /> : <Menu size={20} />}
+          מ
         </button>
+        <span style={{ color: t.navTextActive, fontWeight: 700, fontSize: 16, whiteSpace: 'nowrap' }}>
+          משכנתא CRM
+        </span>
+      </div>
 
-        {/* Spacer (mobile) */}
-        <div className="flex-1 lg:hidden" />
+      {/* Links */}
+      <div className="no-scrollbar" style={{ display: 'flex', gap: 1, flex: 1, overflowX: 'auto' }}>
+        {navItems.map((item) => (
+          <NavLink key={item.path} item={item} active={isActive(item)} onClick={() => navigate(item.path)} />
+        ))}
+      </div>
 
-        {/* Right side actions */}
-        <div className="flex items-center gap-1 px-3 shrink-0">
-          {/* Global search */}
-          <GlobalSearch />
-
-          {/* Bell */}
-          <button
-            className="relative flex items-center justify-center transition-all duration-200 hover:rotate-[-15deg] hover:scale-110"
-            style={{ width: 36, height: 36, borderRadius: 10, color: '#a8a29e' }}
-            aria-label="התראות"
-            onClick={() => navigate('/alerts')}
-          >
-            <Bell size={16} />
-            {notificationCount > 0 && (
-              <span
-                className="absolute top-[7px] right-[7px] rounded-full bg-red-500"
-                style={{ width: 8, height: 8 }}
-              />
-            )}
-          </button>
-
-          {/* Avatar */}
-          <button
-            className="flex items-center justify-center text-white font-bold text-sm transition-transform duration-150 hover:scale-[1.08]"
-            style={{ width: 36, height: 36, borderRadius: 10, background: '#059669' }}
-            aria-label="פרופיל"
-            onClick={() => navigate('/settings')}
-          >
-            מ
-          </button>
-        </div>
-      </header>
-
-      {/* Mobile drawer overlay */}
-      {menuOpen && (
-        <div
-          className="fixed inset-0 z-[90] lg:hidden"
-          style={{ background: 'rgba(28,25,23,0.6)' }}
-          onClick={() => setMenuOpen(false)}
+      {/* Search + Bell + Avatar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <GlobalSearch />
+        <button
+          onClick={() => navigate('/alerts')}
+          onMouseEnter={() => setHovBell(true)}
+          onMouseLeave={() => setHovBell(false)}
+          aria-label="התראות"
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: t.navActive,
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: 'none',
+            cursor: 'pointer',
+            transition: 'transform 0.2s ease',
+            transform: hovBell ? 'rotate(-15deg) scale(1.1)' : 'rotate(0) scale(1)',
+          }}
         >
-          <div
-            className="absolute top-[58px] right-0 h-full overflow-y-auto animate-fade-in"
-            style={{ width: 260, background: '#1c1917' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="py-3">
-              {allMobileItems.map((item) => {
-                const active = isActive(item.path)
-                return (
-                  <button
-                    key={item.path}
-                    onClick={() => handleNav(item.path)}
-                    className="w-full flex items-center gap-3 px-5 py-3 text-[14px] transition-colors text-right"
-                    style={{
-                      color: active ? '#fafaf9' : '#a8a29e',
-                      background: active ? '#292524' : 'transparent',
-                      borderRight: active ? '3px solid #059669' : '3px solid transparent',
-                      fontWeight: active ? 600 : 400,
-                    }}
-                  >
-                    <item.icon size={16} />
-                    {item.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+          <Bell size={16} color={t.navText} />
+          <span
+            style={{
+              position: 'absolute',
+              top: 7,
+              right: 7,
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: '#ef4444',
+              border: `2px solid ${t.nav}`,
+            }}
+          />
+        </button>
+        <button
+          onClick={() => navigate('/settings')}
+          aria-label="הגדרות"
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: t.primary,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 800,
+            fontSize: 14,
+            color: '#fff',
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: `0 2px 8px ${t.primary}40`,
+            transition: 'transform 0.15s ease',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)' }}
+        >
+          ג
+        </button>
+      </div>
+    </nav>
   )
 }

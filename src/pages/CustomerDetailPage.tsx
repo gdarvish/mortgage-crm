@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowRight, MessageSquare, ClipboardList, Calculator, Upload,
-  Send, Plus, Check, Mail, Phone, MapPin, User, CreditCard,
-  FileText, Home, MessagesSquare, ListTodo, Banknote, ExternalLink,
-  Trash2, Loader2, Save, PenTool, Sparkles, ShieldCheck,
+  MessageSquare, ClipboardList, Calculator, Upload,
+  Send, Plus, Check, Mail, Phone, MapPin,
+  FileText, Trash2, Loader2, Save, PenTool, Sparkles, ShieldCheck,
+  ExternalLink, BarChart3,
 } from 'lucide-react'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
@@ -19,6 +19,7 @@ import { messageService } from '@/services/messageService'
 import { commissionService } from '@/services/commissionService'
 import { documentService } from '@/services/documentService'
 import { signatureService } from '@/services/signatureService'
+import { useTheme } from '@/theme/ThemeContext'
 import type {
   Customer, Document, Mortgage, LoanTrack, Message, Task, Commission, CustomerStatus
 } from '@/types/database'
@@ -35,40 +36,38 @@ const DELIVERY_LABELS: Record<string, string> = {
   failed: '✗ נכשל',
 }
 
-interface Tab { key: TabKey; label: string; icon: React.ElementType }
+interface Tab { key: TabKey; label: string }
 
 interface MortgageWithTracks extends Mortgage {
   loan_tracks?: LoanTrack[]
+}
+
+// Design statusColors helper (crm-data.js) — Hebrew customer status → {bg,text}
+function statusColors(status: string): { bg: string; text: string } {
+  return (
+    {
+      'ליד': { bg: '#ede9fe', text: '#7c3aed' },
+      'פגישה': { bg: '#fef3c7', text: '#b45309' },
+      'מסמכים': { bg: '#ffedd5', text: '#c2410c' },
+      'הגשה': { bg: '#f3e8ff', text: '#9333ea' },
+      'אישור': { bg: '#d1fae5', text: '#065f46' },
+      'סגירה': { bg: '#a7f3d0', text: '#064e3b' },
+    }[status] || { bg: '#f1f5f9', text: '#64748b' }
+  )
 }
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 const tabs: Tab[] = [
-  { key: 'personal', label: 'פרטים אישיים', icon: User },
-  { key: 'financial', label: 'פרטים פיננסיים', icon: CreditCard },
-  { key: 'documents', label: 'מסמכים', icon: FileText },
-  { key: 'mortgages', label: 'משכנתאות', icon: Home },
-  { key: 'communication', label: 'תקשורת', icon: MessagesSquare },
-  { key: 'tasks', label: 'משימות', icon: ListTodo },
-  { key: 'commission', label: 'עמלה', icon: Banknote },
+  { key: 'personal', label: 'פרטים אישיים' },
+  { key: 'financial', label: 'פרטים פיננסיים' },
+  { key: 'documents', label: 'מסמכים' },
+  { key: 'mortgages', label: 'משכנתאות' },
+  { key: 'communication', label: 'תקשורת' },
+  { key: 'tasks', label: 'משימות' },
+  { key: 'commission', label: 'עמלה' },
 ]
-
-const statusColors: Record<string, string> = {
-  'ליד': 'bg-blue-100 text-blue-700',
-  'פגישה': 'bg-yellow-100 text-yellow-700',
-  'מסמכים': 'bg-orange-100 text-orange-700',
-  'הגשה': 'bg-purple-100 text-purple-700',
-  'אישור': 'bg-green-100 text-green-700',
-  'סגירה': 'bg-emerald-100 text-emerald-700',
-}
-
-const priorityColors: Record<string, string> = {
-  'נמוכה': 'bg-gray-100 text-gray-600',
-  'בינונית': 'bg-blue-100 text-blue-700',
-  'גבוהה': 'bg-orange-100 text-orange-700',
-  'דחופה': 'bg-red-100 text-red-700',
-}
 
 const statuses: CustomerStatus[] = ['ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'סגירה']
 
@@ -79,19 +78,11 @@ const messageTemplates = [
   'שלום {שם}, התיק אושר! נקבע פגישה לחתימה.',
 ]
 
-const docStatusIcon = (status: string) => {
-  if (status === 'תקין') return '✅'
-  if (status === 'ממתין') return '🟡'
-  return '🔴'
-}
-
-const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none text-sm'
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 export default function CustomerDetailPage() {
+  const t = useTheme()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -430,114 +421,280 @@ export default function CustomerDetailPage() {
   }
 
   // -------------------------------------------------------------------------
+  // Shared styles
+  // -------------------------------------------------------------------------
+  const card: React.CSSProperties = {
+    background: t.cardBg, borderRadius: 18, padding: '22px 24px',
+    boxShadow: t.shadow, border: `1px solid ${t.border}`,
+  }
+  const label: React.CSSProperties = {
+    display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 5,
+  }
+  const inputSt: React.CSSProperties = {
+    width: '100%', padding: '9px 12px', border: `1.5px solid ${t.border}`,
+    borderRadius: 9, fontSize: 14, color: t.text, background: t.inputBg,
+    outline: 'none', fontFamily: 'Heebo,sans-serif',
+  }
+  const errInputSt = (hasErr: boolean): React.CSSProperties => ({
+    ...inputSt, border: `1.5px solid ${hasErr ? t.danger : t.border}`,
+  })
+  const primaryBtn: React.CSSProperties = {
+    background: t.primary, color: '#fff', border: 'none', borderRadius: 12,
+    padding: '10px 22px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+    fontFamily: 'Heebo,sans-serif', display: 'inline-flex', alignItems: 'center',
+    justifyContent: 'center', gap: 8, boxShadow: `0 4px 14px ${t.primary}45`,
+  }
+  const fieldRow = (cells: number): React.CSSProperties => ({
+    display: 'grid', gridTemplateColumns: `repeat(${cells},1fr)`, gap: 14,
+  })
+
+  // -------------------------------------------------------------------------
   // Loading / not found
   // -------------------------------------------------------------------------
   if (isLoading || (full && !customer)) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="text-[#059669] animate-spin" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 256 }}>
+        <Loader2 size={32} style={{ color: t.primary }} className="animate-spin" />
       </div>
     )
   }
 
   if (!customer) {
     return (
-      <div className="text-center py-16 text-gray-500">
-        לקוח לא נמצא
-        {fetchError && <p className="text-xs text-red-400 mt-2">{fetchError}</p>}
-        <button onClick={() => navigate('/customers')} className="block mx-auto mt-4 text-[#059669] hover:underline text-sm">
+      <div style={{ textAlign: 'center', padding: '64px 0', color: t.textMuted }}>
+        <p style={{ fontSize: 15, fontWeight: 600, color: t.textSub }}>לקוח לא נמצא</p>
+        {fetchError && <p style={{ fontSize: 12, color: t.danger, marginTop: 8 }}>{fetchError}</p>}
+        <button
+          onClick={() => navigate('/customers')}
+          style={{
+            display: 'block', margin: '16px auto 0', background: 'none', border: 'none',
+            color: t.primary, fontSize: 13, cursor: 'pointer', fontFamily: 'Heebo,sans-serif',
+          }}
+        >
           חזרה לרשימת לקוחות
         </button>
       </div>
     )
   }
 
+  const sc = statusColors(customer.status)
+  const familyIncome = (customer.monthly_income || 0) + (customer.partner_income || 0)
+  // Loan amount surfaced from the customer's mortgages (real data).
+  const totalLoanAmount = mortgages.reduce(
+    (s, m) => s + (m.loan_amount || (m.loan_tracks || []).reduce((ts, tr) => ts + (tr.amount || 0), 0)),
+    0
+  )
+
   // -------------------------------------------------------------------------
   // Tab renderers
   // -------------------------------------------------------------------------
   const renderPersonalTab = () => (
-    <div className="space-y-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       {/* Status selector */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">סטטוס לקוח</label>
-        <div className="flex gap-2 flex-wrap">
-          {statuses.map(s => (
-            <button
-              key={s}
-              onClick={() => setStatusValue(s)}
-              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                statusValue === s ? statusColors[s] + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {s}
-            </button>
-          ))}
+      <div style={card}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 14 }}>סטטוס לקוח</h3>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {statuses.map(s => {
+            const ssc = statusColors(s)
+            const active = statusValue === s
+            return (
+              <button
+                key={s}
+                onClick={() => setStatusValue(s)}
+                className="crm-btn"
+                style={{
+                  padding: '7px 16px', fontSize: 13, fontWeight: 600, borderRadius: 10,
+                  cursor: 'pointer', fontFamily: 'Heebo,sans-serif',
+                  background: active ? ssc.bg : t.pillBg,
+                  color: active ? ssc.text : t.textSub,
+                  border: `1px solid ${active ? ssc.text + '50' : 'transparent'}`,
+                }}
+              >
+                {s}
+              </button>
+            )
+          })}
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">שם פרטי</label>
-          <input className={`${inputClass} ${formErrors.first_name ? 'border-red-500' : ''}`} value={personal.first_name}
-            onChange={e => setPersonal({ ...personal, first_name: e.target.value })} />
-          {formErrors.first_name && <p className="text-xs text-red-600 mt-1">{formErrors.first_name}</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">שם משפחה</label>
-          <input className={`${inputClass} ${formErrors.last_name ? 'border-red-500' : ''}`} value={personal.last_name}
-            onChange={e => setPersonal({ ...personal, last_name: e.target.value })} />
-          {formErrors.last_name && <p className="text-xs text-red-600 mt-1">{formErrors.last_name}</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">ת.ז</label>
-          <input className={`${inputClass} ${formErrors.id_number ? 'border-red-500' : ''}`} dir="ltr" value={personal.id_number}
-            onChange={e => setPersonal({ ...personal, id_number: e.target.value })} />
-          {formErrors.id_number && <p className="text-xs text-red-600 mt-1">{formErrors.id_number}</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
-          <div className="relative">
-            <Phone size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input className={`${inputClass} pr-9 ${formErrors.phone ? 'border-red-500' : ''}`} dir="ltr" value={personal.phone}
-              onChange={e => setPersonal({ ...personal, phone: e.target.value })} />
+
+      <div style={card}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16 }}>פרטים אישיים</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={fieldRow(2)}>
+            <div>
+              <label style={label}>שם פרטי</label>
+              <input
+                style={errInputSt(!!formErrors.first_name)}
+                value={personal.first_name}
+                onChange={e => setPersonal({ ...personal, first_name: e.target.value })}
+              />
+              {formErrors.first_name && <p style={{ fontSize: 11, color: t.danger, marginTop: 4 }}>{formErrors.first_name}</p>}
+            </div>
+            <div>
+              <label style={label}>שם משפחה</label>
+              <input
+                style={errInputSt(!!formErrors.last_name)}
+                value={personal.last_name}
+                onChange={e => setPersonal({ ...personal, last_name: e.target.value })}
+              />
+              {formErrors.last_name && <p style={{ fontSize: 11, color: t.danger, marginTop: 4 }}>{formErrors.last_name}</p>}
+            </div>
           </div>
-          {formErrors.phone && <p className="text-xs text-red-600 mt-1">{formErrors.phone}</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
-          <div className="relative">
-            <Mail size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input className={`${inputClass} pr-9 ${formErrors.email ? 'border-red-500' : ''}`} dir="ltr" type="email" value={personal.email}
-              onChange={e => setPersonal({ ...personal, email: e.target.value })} />
+          <div style={fieldRow(2)}>
+            <div>
+              <label style={label}>ת.ז</label>
+              <input
+                style={errInputSt(!!formErrors.id_number)}
+                dir="ltr"
+                value={personal.id_number}
+                onChange={e => setPersonal({ ...personal, id_number: e.target.value })}
+              />
+              {formErrors.id_number && <p style={{ fontSize: 11, color: t.danger, marginTop: 4 }}>{formErrors.id_number}</p>}
+            </div>
+            <div>
+              <label style={label}>טלפון</label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', display: 'flex' }}>
+                  <Phone size={15} color={t.textMuted} />
+                </span>
+                <input
+                  style={{ ...errInputSt(!!formErrors.phone), paddingRight: 34 }}
+                  dir="ltr"
+                  value={personal.phone}
+                  onChange={e => setPersonal({ ...personal, phone: e.target.value })}
+                />
+              </div>
+              {formErrors.phone && <p style={{ fontSize: 11, color: t.danger, marginTop: 4 }}>{formErrors.phone}</p>}
+            </div>
           </div>
-          {formErrors.email && <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>}
+          <div style={fieldRow(2)}>
+            <div>
+              <label style={label}>אימייל</label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', display: 'flex' }}>
+                  <Mail size={15} color={t.textMuted} />
+                </span>
+                <input
+                  style={{ ...errInputSt(!!formErrors.email), paddingRight: 34 }}
+                  dir="ltr"
+                  type="email"
+                  value={personal.email}
+                  onChange={e => setPersonal({ ...personal, email: e.target.value })}
+                />
+              </div>
+              {formErrors.email && <p style={{ fontSize: 11, color: t.danger, marginTop: 4 }}>{formErrors.email}</p>}
+            </div>
+            <div>
+              <label style={label}>כתובת</label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', display: 'flex' }}>
+                  <MapPin size={15} color={t.textMuted} />
+                </span>
+                <input
+                  style={{ ...inputSt, paddingRight: 34 }}
+                  value={personal.address}
+                  onChange={e => setPersonal({ ...personal, address: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+          <div style={fieldRow(2)}>
+            <div>
+              <label style={label}>מצב משפחתי</label>
+              <select
+                style={inputSt}
+                value={personal.marital_status}
+                onChange={e => setPersonal({ ...personal, marital_status: e.target.value })}
+              >
+                <option value="רווק">רווק</option>
+                <option value="נשוי">נשוי</option>
+                <option value="גרוש">גרוש</option>
+                <option value="אלמן">אלמן</option>
+              </select>
+            </div>
+            <div>
+              <label style={label}>ילדים</label>
+              <input
+                style={inputSt}
+                type="number"
+                min={0}
+                dir="ltr"
+                value={personal.children}
+                onChange={e => setPersonal({ ...personal, children: parseInt(e.target.value) || 0 })}
+              />
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
+            <button onClick={savePersonal} disabled={saving} className="crm-btn-primary" style={{ ...primaryBtn, opacity: saving ? 0.5 : 1 }}>
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              שמור שינויים
+            </button>
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">כתובת</label>
-          <div className="relative">
-            <MapPin size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input className={`${inputClass} pr-9`} value={personal.address}
-              onChange={e => setPersonal({ ...personal, address: e.target.value })} />
+      </div>
+    </div>
+  )
+
+  const renderFinancialTab = () => (
+    <div style={card}>
+      <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16 }}>מידע פיננסי</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={fieldRow(2)}>
+          <div>
+            <label style={label}>הכנסה חודשית</label>
+            <input style={inputSt} type="number" dir="ltr" value={financial.monthly_income}
+              onChange={e => setFinancial({ ...financial, monthly_income: parseInt(e.target.value) || 0 })} />
+            <p style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>{formatCurrency(financial.monthly_income)}</p>
+          </div>
+          <div>
+            <label style={label}>הכנסת בן/בת זוג</label>
+            <input style={inputSt} type="number" dir="ltr" value={financial.partner_income}
+              onChange={e => setFinancial({ ...financial, partner_income: parseInt(e.target.value) || 0 })} />
+            <p style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>{formatCurrency(financial.partner_income)}</p>
+          </div>
+        </div>
+        <div style={fieldRow(2)}>
+          <div>
+            <label style={label}>הון עצמי</label>
+            <input style={inputSt} type="number" dir="ltr" value={financial.own_capital}
+              onChange={e => setFinancial({ ...financial, own_capital: parseInt(e.target.value) || 0 })} />
+            <p style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>{formatCurrency(financial.own_capital)}</p>
+          </div>
+          <div>
+            <label style={label}>התחייבויות קיימות</label>
+            <input style={inputSt} type="number" dir="ltr" value={financial.existing_obligations}
+              onChange={e => setFinancial({ ...financial, existing_obligations: parseInt(e.target.value) || 0 })} />
+            <p style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>{formatCurrency(financial.existing_obligations)}</p>
+          </div>
+        </div>
+        <div style={fieldRow(2)}>
+          <div>
+            <label style={label}>מקור הגעה</label>
+            <select style={inputSt} value={financial.lead_source}
+              onChange={e => setFinancial({ ...financial, lead_source: e.target.value })}>
+              <option value="">בחר...</option>
+              {['הפניה', 'פייסבוק', 'אינסטגרם', 'אתר', 'וואטסאפ', 'טלפון'].map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+            <div style={{ background: t.primary + '14', borderRadius: 12, padding: '10px 14px', width: '100%' }}>
+              <p style={{ fontSize: 12, color: t.primary, fontWeight: 600 }}>סה"כ הכנסה משפחתית</p>
+              <p style={{ fontSize: 18, fontWeight: 800, color: t.text }}>
+                {formatCurrency(financial.monthly_income + financial.partner_income)}
+              </p>
+            </div>
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">מצב משפחתי</label>
-          <select className={`${inputClass} bg-white`} value={personal.marital_status}
-            onChange={e => setPersonal({ ...personal, marital_status: e.target.value })}>
-            <option value="רווק">רווק</option>
-            <option value="נשוי">נשוי</option>
-            <option value="גרוש">גרוש</option>
-            <option value="אלמן">אלמן</option>
-          </select>
+          <label style={label}>הערות</label>
+          <textarea style={{ ...inputSt, minHeight: 80, resize: 'vertical' }} value={financial.notes}
+            onChange={e => setFinancial({ ...financial, notes: e.target.value })} />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">ילדים</label>
-          <input className={inputClass} type="number" min={0} value={personal.children}
-            onChange={e => setPersonal({ ...personal, children: parseInt(e.target.value) || 0 })} />
-        </div>
-        <div className="md:col-span-2 flex justify-end pt-2">
-          <button onClick={savePersonal} disabled={saving}
-            className="inline-flex items-center gap-2 bg-[#059669] text-white px-6 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
+          <button onClick={saveFinancial} disabled={saving} className="crm-btn-primary" style={{ ...primaryBtn, opacity: saving ? 0.5 : 1 }}>
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
             שמור שינויים
           </button>
         </div>
@@ -545,207 +702,172 @@ export default function CustomerDetailPage() {
     </div>
   )
 
-  const renderFinancialTab = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">הכנסה חודשית</label>
-        <input className={inputClass} type="number" dir="ltr" value={financial.monthly_income}
-          onChange={e => setFinancial({ ...financial, monthly_income: parseInt(e.target.value) || 0 })} />
-        <p className="text-xs text-gray-400 mt-1">{formatCurrency(financial.monthly_income)}</p>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">הכנסת בן/בת זוג</label>
-        <input className={inputClass} type="number" dir="ltr" value={financial.partner_income}
-          onChange={e => setFinancial({ ...financial, partner_income: parseInt(e.target.value) || 0 })} />
-        <p className="text-xs text-gray-400 mt-1">{formatCurrency(financial.partner_income)}</p>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">הון עצמי</label>
-        <input className={inputClass} type="number" dir="ltr" value={financial.own_capital}
-          onChange={e => setFinancial({ ...financial, own_capital: parseInt(e.target.value) || 0 })} />
-        <p className="text-xs text-gray-400 mt-1">{formatCurrency(financial.own_capital)}</p>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">התחייבויות קיימות</label>
-        <input className={inputClass} type="number" dir="ltr" value={financial.existing_obligations}
-          onChange={e => setFinancial({ ...financial, existing_obligations: parseInt(e.target.value) || 0 })} />
-        <p className="text-xs text-gray-400 mt-1">{formatCurrency(financial.existing_obligations)}</p>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">מקור הגעה</label>
-        <select className={`${inputClass} bg-white`} value={financial.lead_source}
-          onChange={e => setFinancial({ ...financial, lead_source: e.target.value })}>
-          <option value="">בחר...</option>
-          {['הפניה', 'פייסבוק', 'אינסטגרם', 'אתר', 'וואטסאפ', 'טלפון'].map(s => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-      </div>
-      <div className="flex items-end">
-        <div className="bg-blue-50 rounded-lg p-3 w-full">
-          <p className="text-sm text-blue-700 font-medium">סה"כ הכנסה משפחתית</p>
-          <p className="text-lg font-bold text-blue-900">
-            {formatCurrency(financial.monthly_income + financial.partner_income)}
+  const renderDocumentsTab = () => {
+    const docStatusColors: Record<string, { bg: string; text: string }> = {
+      'תקין': { bg: t.successBg, text: t.success },
+      'ממתין': { bg: t.warningBg, text: t.warning },
+      'חסר': { bg: t.dangerBg, text: t.danger },
+      'פג תוקף': { bg: t.dangerBg, text: t.danger },
+    }
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <p style={{ fontSize: 13, color: t.textMuted }}>
+            {documents.filter(d => d.status === 'תקין').length} / {documents.length} מסמכים תקינים
           </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <select
+              value={docUploadType}
+              onChange={e => setDocUploadType(e.target.value)}
+              style={{ ...inputSt, width: 'auto', padding: '7px 10px', fontSize: 12 }}
+            >
+              {['תעודת זהות + ספח', '3 תלושי שכר', 'הסכם רכישה', 'נסח טאבו', 'דוח פלאש BDI', 'אחר'].map(ty => <option key={ty}>{ty}</option>)}
+            </select>
+            <input type="file" hidden ref={docFileInputRef} onChange={handleDocUpload} />
+            <button
+              onClick={() => docFileInputRef.current?.click()}
+              disabled={uploadingDoc}
+              className="crm-btn-primary"
+              style={{ ...primaryBtn, padding: '8px 14px', fontSize: 13, opacity: uploadingDoc ? 0.5 : 1 }}
+            >
+              {uploadingDoc ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+              העלאה
+            </button>
+          </div>
         </div>
-      </div>
-      <div className="md:col-span-2">
-        <label className="block text-sm font-medium text-gray-700 mb-1">הערות</label>
-        <textarea className={`${inputClass} min-h-[80px]`} value={financial.notes}
-          onChange={e => setFinancial({ ...financial, notes: e.target.value })} />
-      </div>
-      <div className="md:col-span-2 flex justify-end pt-2">
-        <button onClick={saveFinancial} disabled={saving}
-          className="inline-flex items-center gap-2 bg-[#059669] text-white px-6 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-          שמור שינויים
-        </button>
-      </div>
-    </div>
-  )
-
-  const renderDocumentsTab = () => (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          {documents.filter(d => d.status === 'תקין').length} / {documents.length} מסמכים תקינים
-        </p>
-        <div className="flex items-center gap-2">
-          <select
-            value={docUploadType}
-            onChange={e => setDocUploadType(e.target.value)}
-            className="text-xs px-2 py-1 border border-gray-200 rounded-lg bg-white outline-none"
-          >
-            {['תעודת זהות + ספח', '3 תלושי שכר', 'הסכם רכישה', 'נסח טאבו', 'דוח פלאש BDI', 'אחר'].map(t => <option key={t}>{t}</option>)}
-          </select>
-          <input type="file" hidden ref={docFileInputRef} onChange={handleDocUpload} />
-          <button
-            onClick={() => docFileInputRef.current?.click()}
-            disabled={uploadingDoc}
-            className="inline-flex items-center gap-1 text-xs bg-[#059669] text-white px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
-          >
-            {uploadingDoc ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-            העלאה
-          </button>
-        </div>
-      </div>
-      {documents.length === 0 && (
-        <div className="text-center py-12 text-gray-400 text-sm">
-          <FileText size={36} className="mx-auto mb-3 text-gray-300" />
-          אין מסמכים עדיין
-        </div>
-      )}
-      {documents.map(doc => (
-        <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-          <div className="flex items-center gap-3">
-            <span className="text-lg">{docStatusIcon(doc.status)}</span>
-            <div>
-              <p className="text-sm font-medium text-gray-900">{doc.type}</p>
-              {doc.uploaded_at && <p className="text-xs text-gray-400">הועלה: {formatDate(doc.uploaded_at)}</p>}
-              {doc.file_name && <p className="text-xs text-gray-400">{doc.file_name}</p>}
+        {documents.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '48px 0', color: t.textMuted }}>
+            <FileText size={36} style={{ color: t.border, margin: '0 auto 12px' }} />
+            <p style={{ fontSize: 13 }}>אין מסמכים עדיין</p>
+          </div>
+        )}
+        {documents.map((doc, i) => {
+          const ds = docStatusColors[doc.status] || { bg: t.pillBg, text: t.textSub }
+          return (
+            <div
+              key={doc.id}
+              style={{
+                background: t.cardBg, borderRadius: 14, padding: '14px 18px',
+                boxShadow: t.shadow, border: `1px solid ${t.border}`,
+                display: 'flex', alignItems: 'center', gap: 14,
+                animation: `fadeUp 0.4s ease ${i * 0.06}s backwards`,
+              }}
+            >
+              <div style={{ width: 38, height: 38, borderRadius: 11, background: t.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <FileText size={17} color={t.textMuted} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{doc.type}</p>
+                <p style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
+                  {doc.uploaded_at ? `הועלה: ${formatDate(doc.uploaded_at)}` : ''}
+                  {doc.file_name ? ` · ${doc.file_name}` : ''}
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                {doc.file_url && (
+                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 12, color: t.primary, fontWeight: 600, textDecoration: 'none' }}>צפה</a>
+                )}
+                <button
+                  onClick={() => handleOcr(doc.id)}
+                  disabled={ocrDocId === doc.id}
+                  className="crm-btn"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: t.primary, fontFamily: 'Heebo,sans-serif', opacity: ocrDocId === doc.id ? 0.5 : 1 }}
+                >
+                  {ocrDocId === doc.id ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                  חלץ נתונים
+                </button>
+                <button
+                  onClick={() => handleValidateDoc(doc.id)}
+                  disabled={validateDocId === doc.id}
+                  className="crm-btn"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: t.primary, fontFamily: 'Heebo,sans-serif', opacity: validateDocId === doc.id ? 0.5 : 1 }}
+                >
+                  {validateDocId === doc.id ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
+                  בדוק תקינות
+                </button>
+                <span style={{ padding: '4px 12px', borderRadius: 20, background: ds.bg, color: ds.text, fontSize: 12, fontWeight: 600 }}>
+                  {doc.status}
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`text-xs px-2 py-0.5 rounded-full ${
-              doc.status === 'תקין' ? 'bg-green-100 text-green-700' :
-              doc.status === 'ממתין' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
-            }`}>{doc.status}</span>
-            {doc.file_url && (
-              <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-[#059669] hover:underline">צפה</a>
-            )}
-            <button
-              onClick={() => handleOcr(doc.id)}
-              disabled={ocrDocId === doc.id}
-              className="inline-flex items-center gap-1 text-xs text-[#059669] hover:underline disabled:opacity-50"
-            >
-              {ocrDocId === doc.id
-                ? <Loader2 size={12} className="animate-spin" />
-                : <Sparkles size={12} />}
-              חלץ נתונים
-            </button>
-            <button
-              onClick={() => handleValidateDoc(doc.id)}
-              disabled={validateDocId === doc.id}
-              className="inline-flex items-center gap-1 text-xs text-[#059669] hover:underline disabled:opacity-50"
-            >
-              {validateDocId === doc.id
-                ? <Loader2 size={12} className="animate-spin" />
-                : <ShieldCheck size={12} />}
-              בדוק תקינות
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
+          )
+        })}
+      </div>
+    )
+  }
 
   const renderMortgagesTab = () => (
-    <div className="space-y-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {mortgages.length === 0 && (
-        <div className="text-center py-12 text-gray-400 text-sm">
-          <Home size={36} className="mx-auto mb-3 text-gray-300" />
-          אין תמהילים עדיין
+        <div style={{ ...card, textAlign: 'center', padding: '48px 24px', color: t.textMuted }}>
+          <BarChart3 size={36} style={{ color: t.border, margin: '0 auto 12px' }} />
+          <p style={{ fontSize: 13 }}>אין תמהילים עדיין</p>
         </div>
       )}
-      {mortgages.map(mortgage => {
+      {mortgages.map((mortgage, mi) => {
         const tracks = mortgage.loan_tracks || []
-        const totalAmount = tracks.reduce((s, t) => s + (t.amount || 0), 0)
-        const totalPayment = tracks.reduce((s, t) => s + (t.monthly_payment || 0), 0)
+        const totalAmount = tracks.reduce((s, tr) => s + (tr.amount || 0), 0)
+        const totalPayment = tracks.reduce((s, tr) => s + (tr.monthly_payment || 0), 0)
+        const mStatusColors: Record<string, { bg: string; text: string }> = {
+          'אושר': { bg: t.successBg, text: t.success },
+          'הוגש': { bg: '#f3e8ff', text: '#9333ea' },
+        }
+        const ms = mStatusColors[mortgage.status] || { bg: t.pillBg, text: t.textSub }
         return (
-          <div key={mortgage.id} className="border border-gray-200 rounded-xl overflow-hidden">
-            <div className="bg-gray-50 p-4 flex items-center justify-between">
+          <div key={mortgage.id} style={{ ...card, padding: '20px 24px', animation: `fadeUp 0.4s ease ${mi * 0.1}s backwards` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
               <div>
-                <div className="flex items-center gap-2">
-                  <h4 className="font-medium text-gray-900">משכנתא {mortgage.type}</h4>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    mortgage.status === 'אושר' ? 'bg-green-100 text-green-700' :
-                    mortgage.status === 'הוגש' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
-                  }`}>{mortgage.status}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: t.primary }} />
+                  <span style={{ fontSize: 15, fontWeight: 700, color: t.text }}>משכנתא {mortgage.type}</span>
+                  <span style={{ padding: '3px 10px', borderRadius: 20, background: ms.bg, color: ms.text, fontSize: 11, fontWeight: 600 }}>
+                    {mortgage.status}
+                  </span>
                 </div>
-                <p className="text-sm text-gray-500 mt-1">
-                  {mortgage.property_price ? `מחיר נכס: ${formatCurrency(mortgage.property_price)} | ` : ''}
+                <p style={{ fontSize: 13, color: t.textMuted, marginTop: 6 }}>
+                  {mortgage.property_price ? `מחיר נכס: ${formatCurrency(mortgage.property_price)}` : ''}
+                  {mortgage.property_price && mortgage.loan_amount ? ' · ' : ''}
                   {mortgage.loan_amount ? `סכום הלוואה: ${formatCurrency(mortgage.loan_amount)}` : ''}
                 </p>
               </div>
-              <button onClick={() => navigate('/calculator')}
-                className="inline-flex items-center gap-1 text-sm text-[#059669] hover:text-[#047857] transition-colors">
-                <ExternalLink size={14} />מחשבון
+              <button
+                onClick={() => navigate('/calculator')}
+                className="crm-btn"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, color: t.primary, fontWeight: 600, fontFamily: 'Heebo,sans-serif' }}
+              >
+                <ExternalLink size={14} /> מחשבון
               </button>
             </div>
             {tracks.length > 0 && (
-              <div className="p-4">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="text-right pb-2 font-medium text-gray-600">מסלול</th>
-                      <th className="text-right pb-2 font-medium text-gray-600">סכום</th>
-                      <th className="text-right pb-2 font-medium text-gray-600">ריבית</th>
-                      <th className="text-right pb-2 font-medium text-gray-600">תקופה</th>
-                      <th className="text-right pb-2 font-medium text-gray-600">החזר חודשי</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tracks.map(track => (
-                      <tr key={track.id} className="border-b border-gray-50">
-                        <td className="py-2 text-gray-900">{track.type}</td>
-                        <td className="py-2 text-gray-700">{track.amount ? formatCurrency(track.amount) : '—'}</td>
-                        <td className="py-2 text-gray-700" dir="ltr">{track.interest_rate ? `${track.interest_rate}%` : '—'}</td>
-                        <td className="py-2 text-gray-700">{track.period_months ? `${track.period_months} חודשים` : '—'}</td>
-                        <td className="py-2 font-medium text-gray-900">{track.monthly_payment ? formatCurrency(track.monthly_payment) : '—'}</td>
-                      </tr>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${t.border}` }}>
+                    {['מסלול', 'סכום', 'ריבית', 'תקופה', 'החזר חודשי'].map(h => (
+                      <th key={h} style={{ textAlign: 'right', padding: '8px 6px', fontSize: 11, fontWeight: 700, color: t.textMuted }}>{h}</th>
                     ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-blue-50">
-                      <td className="py-2 font-bold text-gray-900">סה"כ</td>
-                      <td className="py-2 font-bold text-gray-900">{formatCurrency(totalAmount)}</td>
-                      <td /><td />
-                      <td className="py-2 font-bold text-gray-900">{formatCurrency(totalPayment)}</td>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tracks.map(track => (
+                    <tr key={track.id} style={{ borderBottom: `1px solid ${t.borderLight}` }}>
+                      <td style={{ padding: '9px 6px', color: t.text, fontWeight: 600 }}>{track.type}</td>
+                      <td style={{ padding: '9px 6px', color: t.textSub }}>{track.amount ? formatCurrency(track.amount) : '—'}</td>
+                      <td style={{ padding: '9px 6px', color: t.textSub }} dir="ltr">{track.interest_rate ? `${track.interest_rate}%` : '—'}</td>
+                      <td style={{ padding: '9px 6px', color: t.textSub }}>{track.period_months ? `${track.period_months} חודשים` : '—'}</td>
+                      <td style={{ padding: '9px 6px', color: t.text, fontWeight: 600 }}>{track.monthly_payment ? formatCurrency(track.monthly_payment) : '—'}</td>
                     </tr>
-                  </tfoot>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: t.primary + '14' }}>
+                    <td style={{ padding: '9px 6px', fontWeight: 800, color: t.text }}>סה"כ</td>
+                    <td style={{ padding: '9px 6px', fontWeight: 800, color: t.primary }}>{formatCurrency(totalAmount)}</td>
+                    <td /><td />
+                    <td style={{ padding: '9px 6px', fontWeight: 800, color: t.primary }}>{formatCurrency(totalPayment)}</td>
+                  </tr>
+                </tfoot>
+              </table>
             )}
           </div>
         )
@@ -754,172 +876,263 @@ export default function CustomerDetailPage() {
   )
 
   const renderCommunicationTab = () => (
-    <div className="space-y-4">
-      <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div>
-          <select className={`${inputClass} bg-white max-w-xs`} value=""
-            onChange={e => { if (e.target.value) setMessageText(e.target.value.replace('{שם}', customer.first_name)) }}>
+          <select
+            style={{ ...inputSt, maxWidth: 320 }}
+            value=""
+            onChange={e => { if (e.target.value) setMessageText(e.target.value.replace('{שם}', customer.first_name)) }}
+          >
             <option value="">בחר תבנית...</option>
-            {messageTemplates.map((t, i) => (
-              <option key={i} value={t}>{t.slice(0, 45)}...</option>
+            {messageTemplates.map((tpl, i) => (
+              <option key={i} value={tpl}>{tpl.slice(0, 45)}...</option>
             ))}
           </select>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select value={aiPurpose} onChange={e => setAiPurpose(e.target.value)}
-            className={`${inputClass} bg-white max-w-[170px]`}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+          <select
+            value={aiPurpose}
+            onChange={e => setAiPurpose(e.target.value)}
+            style={{ ...inputSt, maxWidth: 180 }}
+          >
             {['עדכון ללקוח', 'תזכורת לפגישה', 'בקשת מסמכים', 'מעקב סטטוס', 'ברכה'].map(p => (
               <option key={p} value={p}>{p}</option>
             ))}
           </select>
-          <button onClick={handleCompose} disabled={composing}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-            style={{ background: '#fef3c7', color: '#d97706' }}>
+          <button
+            onClick={handleCompose}
+            disabled={composing}
+            className="crm-btn"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 14px',
+              borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              border: 'none', fontFamily: 'Heebo,sans-serif',
+              background: t.accentBg, color: t.accent, opacity: composing ? 0.5 : 1,
+            }}
+          >
             {composing ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
             נסח עם AI
           </button>
         </div>
-        <textarea className={`${inputClass} min-h-[80px]`} placeholder="הקלד הודעה..."
-          value={messageText} onChange={e => setMessageText(e.target.value)} />
-        <div className="flex gap-2">
-          <button onClick={sendViaWhatsApp} disabled={sendingMsg || !messageText.trim()}
-            className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm disabled:opacity-50">
-            <MessageSquare size={16} />WhatsApp
+        <textarea
+          style={{ ...inputSt, minHeight: 80, resize: 'vertical' }}
+          placeholder="הקלד הודעה..."
+          value={messageText}
+          onChange={e => setMessageText(e.target.value)}
+        />
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={sendViaWhatsApp}
+            disabled={sendingMsg || !messageText.trim()}
+            className="crm-btn"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px',
+              borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none',
+              fontFamily: 'Heebo,sans-serif', background: t.success, color: '#fff',
+              opacity: sendingMsg || !messageText.trim() ? 0.5 : 1,
+            }}
+          >
+            <MessageSquare size={16} /> WhatsApp
           </button>
-          <button onClick={() => sendMessage('אימייל')} disabled={sendingMsg || !messageText.trim()}
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-50">
-            <Mail size={16} />אימייל
+          <button
+            onClick={() => sendMessage('אימייל')}
+            disabled={sendingMsg || !messageText.trim()}
+            className="crm-btn"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px',
+              borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none',
+              fontFamily: 'Heebo,sans-serif', background: t.info, color: '#fff',
+              opacity: sendingMsg || !messageText.trim() ? 0.5 : 1,
+            }}
+          >
+            <Mail size={16} /> אימייל
           </button>
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div style={{ ...card }}>
         {messages.length === 0 && (
-          <p className="text-center text-sm text-gray-400 py-8">אין הודעות עדיין</p>
+          <p style={{ textAlign: 'center', fontSize: 13, color: t.textMuted, padding: '24px 0' }}>אין הודעות עדיין</p>
         )}
-        {messages.map(msg => (
-          <div key={msg.id} className={`flex ${msg.direction === 'נשלח' ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[75%] rounded-xl p-3 ${
-              msg.direction === 'נשלח' ? 'bg-[#059669] text-white rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-bl-sm'
-            }`}>
-              <span className={`text-xs font-medium ${msg.direction === 'נשלח' ? 'text-blue-200' : 'text-gray-500'}`}>
-                {msg.channel} · {msg.direction}
-              </span>
-              <p className="text-sm mt-1">{msg.content}</p>
-              <p className={`text-xs mt-1 ${msg.direction === 'נשלח' ? 'text-blue-200' : 'text-gray-400'}`}>
-                {formatDate(msg.sent_at)}
-                {msg.direction === 'נשלח' && msg.delivery_status && msg.delivery_status !== 'received' && (
-                  <> · {DELIVERY_LABELS[msg.delivery_status] ?? msg.delivery_status}</>
-                )}
-              </p>
+        {messages.map((msg, i) => {
+          const out = msg.direction === 'נשלח'
+          return (
+            <div
+              key={msg.id}
+              style={{
+                display: 'flex', justifyContent: out ? 'flex-start' : 'flex-end', marginBottom: 14,
+                animation: `fadeUp 0.35s ease ${i * 0.06}s backwards`,
+              }}
+            >
+              <div style={{
+                maxWidth: '70%', padding: '12px 16px', borderRadius: 14,
+                background: out ? t.bg : t.primary + '18',
+                border: `1px solid ${t.border}`,
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: t.textMuted }}>
+                  {msg.channel} · {msg.direction}
+                </span>
+                <p style={{ fontSize: 14, color: t.text, marginTop: 4 }}>{msg.content}</p>
+                <p style={{ fontSize: 11, color: t.textMuted, marginTop: 5 }}>
+                  {formatDate(msg.sent_at)}
+                  {out && msg.delivery_status && msg.delivery_status !== 'received' && (
+                    <> · {DELIVERY_LABELS[msg.delivery_status] ?? msg.delivery_status}</>
+                  )}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
 
-  const renderTasksTab = () => (
-    <div className="space-y-4">
-      <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-        <h4 className="text-sm font-medium text-gray-700 mb-3">משימה חדשה</h4>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <div className="sm:col-span-2">
-            <input className={inputClass} placeholder="תיאור המשימה..."
-              value={newTask.title} onChange={e => setNewTask({ ...newTask, title: e.target.value })}
-              onKeyDown={e => { if (e.key === 'Enter') addTask() }} />
-          </div>
-          <div>
-            <input className={inputClass} type="date" value={newTask.due_date}
-              onChange={e => setNewTask({ ...newTask, due_date: e.target.value })} />
-          </div>
-          <div className="flex gap-2">
-            <select className={`${inputClass} bg-white`} value={newTask.priority}
-              onChange={e => setNewTask({ ...newTask, priority: e.target.value })}>
+  const renderTasksTab = () => {
+    const priorityColors: Record<string, { bg: string; text: string }> = {
+      'נמוכה': { bg: t.pillBg, text: t.textSub },
+      'בינונית': { bg: t.infoBg, text: t.info },
+      'גבוהה': { bg: t.warningBg, text: t.warning },
+      'דחופה': { bg: t.dangerBg, text: t.danger },
+    }
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={card}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 14 }}>משימה חדשה</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 10 }}>
+            <input
+              style={inputSt}
+              placeholder="תיאור המשימה..."
+              value={newTask.title}
+              onChange={e => setNewTask({ ...newTask, title: e.target.value })}
+              onKeyDown={e => { if (e.key === 'Enter') addTask() }}
+            />
+            <input
+              style={inputSt}
+              type="date"
+              value={newTask.due_date}
+              onChange={e => setNewTask({ ...newTask, due_date: e.target.value })}
+            />
+            <select
+              style={inputSt}
+              value={newTask.priority}
+              onChange={e => setNewTask({ ...newTask, priority: e.target.value })}
+            >
               {['נמוכה', 'בינונית', 'גבוהה', 'דחופה'].map(p => <option key={p} value={p}>{p}</option>)}
             </select>
-            <button onClick={addTask}
-              className="bg-[#059669] text-white px-3 py-2 rounded-lg hover:bg-[#047857] transition-colors">
+            <button onClick={addTask} className="crm-btn-primary" style={{ ...primaryBtn, padding: '0 14px' }}>
               <Plus size={18} />
             </button>
           </div>
         </div>
-      </div>
-
-      <div className="space-y-2">
-        {tasks.length === 0 && (
-          <p className="text-center text-sm text-gray-400 py-8">אין משימות עדיין</p>
-        )}
-        {tasks.map(task => (
-          <div key={task.id} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-            task.status === 'הושלמה' ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-white border-gray-200'
-          }`}>
-            <div className="flex items-center gap-3">
-              <button onClick={() => toggleTask(task)}
-                className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                  task.status === 'הושלמה' ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-[#059669]'
-                }`}>
-                {task.status === 'הושלמה' && <Check size={14} />}
-              </button>
-              <div>
-                <p className={`text-sm ${task.status === 'הושלמה' ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                  {task.title}
-                </p>
-                {task.due_date && <p className="text-xs text-gray-400">{formatDate(task.due_date)}</p>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {tasks.length === 0 && (
+            <p style={{ textAlign: 'center', fontSize: 13, color: t.textMuted, padding: '24px 0' }}>אין משימות עדיין</p>
+          )}
+          {tasks.map((task, i) => {
+            const done = task.status === 'הושלמה'
+            const pc = priorityColors[task.priority] || { bg: t.pillBg, text: t.textSub }
+            return (
+              <div
+                key={task.id}
+                style={{
+                  background: t.cardBg, borderRadius: 14, padding: '14px 18px',
+                  boxShadow: t.shadow, border: `1px solid ${t.border}`,
+                  display: 'flex', alignItems: 'center', gap: 14, opacity: done ? 0.55 : 1,
+                  animation: `fadeUp 0.4s ease ${i * 0.05}s backwards`,
+                }}
+              >
+                <button
+                  onClick={() => toggleTask(task)}
+                  className="crm-btn"
+                  style={{
+                    width: 21, height: 21, borderRadius: 6, flexShrink: 0, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: `2px solid ${done ? t.primary : t.border}`,
+                    background: done ? t.primary : 'transparent',
+                  }}
+                >
+                  {done && <Check size={12} color="#fff" strokeWidth={3} />}
+                </button>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 14, fontWeight: 500, color: t.text, textDecoration: done ? 'line-through' : 'none' }}>
+                    {task.title}
+                  </p>
+                  {task.due_date && <p style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>{formatDate(task.due_date)}</p>}
+                </div>
+                <span style={{ padding: '4px 12px', borderRadius: 20, background: pc.bg, color: pc.text, fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+                  {task.priority}
+                </span>
+                <button
+                  onClick={() => deleteTask(task.id)}
+                  className="crm-btn"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textMuted, display: 'flex', flexShrink: 0 }}
+                >
+                  <Trash2 size={15} />
+                </button>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`text-xs px-2 py-0.5 rounded-full ${priorityColors[task.priority]}`}>{task.priority}</span>
-              <button onClick={() => deleteTask(task.id)} className="text-gray-300 hover:text-red-500 transition-colors">
-                <Trash2 size={14} />
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  const renderCommissionTab = () => {
+    const comm = commission || {
+      id: '', customer_id: id!, amount: 0, status: 'ממתין' as const,
+      payment_date: null, notes: '', mortgage_id: null, created_at: '',
+    }
+    const paid = comm.status === 'שולם'
+    return (
+      <div style={{ ...card, maxWidth: 520 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16 }}>פרטי עמלה</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={label}>סכום עמלה</label>
+            <input style={inputSt} type="number" dir="ltr" value={comm.amount || 0}
+              onChange={e => setCommission({ ...comm, amount: parseInt(e.target.value) || 0 })} />
+            <p style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>{formatCurrency(comm.amount || 0)}</p>
+          </div>
+          <div>
+            <label style={label}>סטטוס תשלום</label>
+            <div>
+              <button
+                onClick={() => setCommission({
+                  ...comm,
+                  status: paid ? 'ממתין' : 'שולם',
+                  payment_date: paid ? null : new Date().toISOString().split('T')[0],
+                })}
+                className="crm-btn"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px',
+                  borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
+                  fontFamily: 'Heebo,sans-serif',
+                  background: paid ? t.successBg : t.warningBg,
+                  color: paid ? t.success : t.warning,
+                }}
+              >
+                {paid ? <Check size={15} /> : <Loader2 size={15} />}
+                {comm.status}
               </button>
             </div>
           </div>
-        ))}
-      </div>
-    </div>
-  )
-
-  const renderCommissionTab = () => {
-    const comm = commission || { id: '', customer_id: id!, amount: 0, status: 'ממתין' as const, payment_date: null, notes: '', mortgage_id: null, created_at: '' }
-    return (
-      <div className="max-w-lg space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">סכום עמלה</label>
-          <input className={inputClass} type="number" dir="ltr" value={comm.amount || 0}
-            onChange={e => setCommission({ ...comm, amount: parseInt(e.target.value) || 0 })} />
-          <p className="text-xs text-gray-400 mt-1">{formatCurrency(comm.amount || 0)}</p>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">סטטוס תשלום</label>
-          <button onClick={() => setCommission({
-            ...comm,
-            status: comm.status === 'ממתין' ? 'שולם' : 'ממתין',
-            payment_date: comm.status === 'ממתין' ? new Date().toISOString().split('T')[0] : null,
-          })}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              comm.status === 'שולם' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-            }`}>
-            {comm.status === 'שולם' ? <Check size={16} /> : <CreditCard size={16} />}
-            {comm.status}
-          </button>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">תאריך תשלום</label>
-          <input className={inputClass} type="date" value={comm.payment_date || ''}
-            onChange={e => setCommission({ ...comm, payment_date: e.target.value })} />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">הערות</label>
-          <textarea className={`${inputClass} min-h-[80px]`} value={comm.notes || ''}
-            onChange={e => setCommission({ ...comm, notes: e.target.value })} />
-        </div>
-        <div className="flex justify-end">
-          <button onClick={saveCommission} disabled={saving}
-            className="inline-flex items-center gap-2 bg-[#059669] text-white px-6 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            שמור שינויים
-          </button>
+          <div>
+            <label style={label}>תאריך תשלום</label>
+            <input style={inputSt} type="date" value={comm.payment_date || ''}
+              onChange={e => setCommission({ ...comm, payment_date: e.target.value })} />
+          </div>
+          <div>
+            <label style={label}>הערות</label>
+            <textarea style={{ ...inputSt, minHeight: 80, resize: 'vertical' }} value={comm.notes || ''}
+              onChange={e => setCommission({ ...comm, notes: e.target.value })} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button onClick={saveCommission} disabled={saving} className="crm-btn-primary" style={{ ...primaryBtn, opacity: saving ? 0.5 : 1 }}>
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              שמור שינויים
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -936,80 +1149,153 @@ export default function CustomerDetailPage() {
   }
 
   // -------------------------------------------------------------------------
+  // Header action buttons
+  // -------------------------------------------------------------------------
+  const heroActions: { label: string; icon: React.ReactNode; bg: string; fg: string; onClick: () => void }[] = [
+    { label: 'שלח הודעה', icon: <Send size={15} />, bg: t.successBg, fg: t.success, onClick: () => { setActiveTab('communication'); setMessageText('') } },
+    { label: 'שלח שאלון', icon: <ClipboardList size={15} />, bg: t.infoBg, fg: t.info, onClick: sendQuestionnaire },
+    { label: 'שלח לחתימה', icon: <PenTool size={15} />, bg: t.accentBg, fg: t.accent, onClick: sendSignatureRequest },
+    { label: 'צור תמהיל', icon: <Calculator size={15} />, bg: '#f3e8ff', fg: '#9333ea', onClick: () => navigate('/calculator') },
+    { label: 'מחק לקוח', icon: <Trash2 size={15} />, bg: t.dangerBg, fg: t.danger, onClick: () => setShowDeleteConfirm(true) },
+  ]
+
+  // -------------------------------------------------------------------------
   // Main render
   // -------------------------------------------------------------------------
   return (
-    <div className="animate-fade-in space-y-4">
-      {/* Back */}
-      <button onClick={() => navigate('/customers')}
-        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#059669] transition-colors">
-        <ArrowRight size={16} />חזרה לרשימת לקוחות
-      </button>
+    <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
+      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+        {/* Back */}
+        <button
+          onClick={() => navigate('/customers')}
+          className="crm-btn"
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+            color: t.textMuted, fontSize: 13, marginBottom: 20,
+            fontFamily: 'Heebo,sans-serif', borderRadius: 8, padding: '4px 8px',
+            transition: 'color 0.15s, background 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = t.text; e.currentTarget.style.background = t.bg }}
+          onMouseLeave={e => { e.currentTarget.style.color = t.textMuted; e.currentTarget.style.background = 'transparent' }}
+        >
+          ← חזרה ללקוחות
+        </button>
 
-      {/* Header */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-[#059669] text-white rounded-full flex items-center justify-center text-lg font-bold">
-              {customer.first_name[0]}{customer.last_name[0]}
+        {/* Hero */}
+        <div
+          style={{
+            background: t.cardBg, borderRadius: 20, padding: '24px 28px',
+            boxShadow: t.shadow, border: `1px solid ${t.border}`,
+            display: 'flex', alignItems: 'center', gap: 20, marginBottom: 22, flexWrap: 'wrap',
+            animation: 'fadeUp 0.4s ease 0.05s backwards',
+          }}
+        >
+          <div
+            style={{
+              width: 64, height: 64, borderRadius: 18,
+              background: t.primary + '20', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 26, fontWeight: 800, color: t.primary, flexShrink: 0,
+            }}
+          >
+            {customer.first_name.charAt(0)}{customer.last_name.charAt(0)}
+          </div>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6, flexWrap: 'wrap' }}>
+              <h2 style={{ fontSize: 22, fontWeight: 800, color: t.text }}>{customer.first_name} {customer.last_name}</h2>
+              <span style={{ padding: '4px 14px', borderRadius: 20, background: sc.bg, color: sc.text, fontSize: 13, fontWeight: 600 }}>
+                {customer.status}
+              </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl font-bold text-gray-900">{customer.first_name} {customer.last_name}</h1>
-                <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${statusColors[customer.status] || 'bg-gray-100 text-gray-600'}`}>
-                  {customer.status}
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+              {customer.phone && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: t.textSub }}>
+                  <Phone size={13} color={t.textMuted} />
+                  <span dir="ltr">{customer.phone}</span>
                 </span>
-              </div>
-              <p className="text-sm text-gray-500 mt-0.5">
-                {[customer.phone, customer.email, `נוצר: ${formatDate(customer.created_at)}`].filter(Boolean).join(' | ')}
-              </p>
+              )}
+              {customer.email && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: t.textSub }}>
+                  <Mail size={13} color={t.textMuted} />
+                  <span dir="ltr">{customer.email}</span>
+                </span>
+              )}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: t.textSub }}>
+                <BarChart3 size={13} color={t.textMuted} />
+                <span>הכנסה: {formatCurrency(familyIncome)}</span>
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: t.textSub }}>
+                <ClipboardList size={13} color={t.textMuted} />
+                <span>נוצר: {formatDate(customer.created_at)}</span>
+              </span>
             </div>
           </div>
-          <div className="flex gap-2 flex-wrap">
-            <button onClick={() => { setActiveTab('communication'); setMessageText('') }}
-              className="inline-flex items-center gap-2 bg-green-50 text-green-700 border border-green-200 px-3 py-2 rounded-lg hover:bg-green-100 transition-colors text-sm">
-              <Send size={16} />שלח הודעה
-            </button>
-            <button
-              onClick={sendQuestionnaire}
-              className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm">
-              <ClipboardList size={16} />שלח שאלון
-            </button>
-            <button
-              onClick={sendSignatureRequest}
-              className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 border border-amber-200 px-3 py-2 rounded-lg hover:bg-amber-100 transition-colors text-sm">
-              <PenTool size={16} />שלח לחתימה
-            </button>
-            <button onClick={() => navigate('/calculator')}
-              className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg hover:bg-purple-100 transition-colors text-sm">
-              <Calculator size={16} />צור תמהיל
-            </button>
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="inline-flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 px-3 py-2 rounded-lg hover:bg-red-100 transition-colors text-sm">
-              <Trash2 size={16} />מחק לקוח
-            </button>
+          <div style={{ textAlign: 'center', flexShrink: 0, padding: '0 10px' }}>
+            <p style={{ fontSize: 11, color: t.textMuted, marginBottom: 4 }}>סכום הלוואה</p>
+            <p style={{ fontSize: 22, fontWeight: 800, color: t.primary }}>
+              {totalLoanAmount > 0 ? formatCurrency(totalLoanAmount) : '—'}
+            </p>
           </div>
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="flex overflow-x-auto border-b border-gray-100">
-          {tabs.map(tab => {
-            const Icon = tab.icon
-            const isActive = activeTab === tab.key
+        {/* Hero action buttons */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20, animation: 'fadeUp 0.4s ease 0.08s backwards' }}>
+          {heroActions.map(a => (
+            <button
+              key={a.label}
+              onClick={a.onClick}
+              className="crm-btn"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px',
+                borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                fontFamily: 'Heebo,sans-serif', background: a.bg, color: a.fg,
+                border: `1px solid ${a.fg}30`,
+              }}
+            >
+              {a.icon}
+              {a.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab bar */}
+        <div
+          className="no-scrollbar"
+          style={{
+            display: 'flex', gap: 4, marginBottom: 20,
+            background: t.cardBg, borderRadius: 14, padding: 6,
+            boxShadow: t.shadow, border: `1px solid ${t.border}`, width: 'fit-content',
+            maxWidth: '100%', overflowX: 'auto',
+            animation: 'fadeUp 0.4s ease 0.1s backwards',
+          }}
+        >
+          {tabs.map(tb => {
+            const active = activeTab === tb.key
             return (
-              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
-                  isActive ? 'border-[#059669] text-[#059669]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}>
-                <Icon size={16} />{tab.label}
+              <button
+                key={tb.key}
+                onClick={() => setActiveTab(tb.key)}
+                className="crm-btn"
+                style={{
+                  background: active ? t.primary : 'transparent',
+                  color: active ? '#fff' : t.textSub,
+                  border: 'none', borderRadius: 9,
+                  padding: '8px 18px', fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', fontFamily: 'Heebo,sans-serif', whiteSpace: 'nowrap',
+                  transition: 'all 0.18s ease',
+                  boxShadow: active ? `0 2px 8px ${t.primary}40` : 'none',
+                }}
+              >
+                {tb.label}
               </button>
             )
           })}
         </div>
-        <div className="p-5">{tabContent[activeTab]()}</div>
+
+        {/* Tab content */}
+        <div key={activeTab} style={{ animation: 'fadeUp 0.3s ease backwards' }}>
+          {tabContent[activeTab]()}
+        </div>
       </div>
 
       <ConfirmDialog

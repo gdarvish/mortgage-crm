@@ -1,12 +1,12 @@
 import { useState, useMemo, useRef } from 'react'
-import { RefreshCw, Plus, Trash2, TrendingDown, Upload, Loader2, CheckCircle, X } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { RefreshCw, Plus, Trash2, BarChart3, UploadCloud, Loader2, CheckCircle, X } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { calculateMonthlyPayment, calculateRefinanceSavings, type TrackInput } from '@/utils/mortgageCalculations'
 import { customerService } from '@/services/customerService'
 import { documentService } from '@/services/documentService'
 import { toast } from '@/components/ui'
 import type { LoanTrackType, Customer } from '@/types/database'
+import { useTheme } from '@/theme/ThemeContext'
 
 const trackTypes: { value: LoanTrackType; label: string }[] = [
   { value: 'פריים',           label: 'פריים' },
@@ -17,18 +17,48 @@ const trackTypes: { value: LoanTrackType; label: string }[] = [
   { value: 'זכאות',           label: 'זכאות' },
 ]
 
-const cardStyle = {
-  background: '#ffffff',
-  borderRadius: 20,
-  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-  border: '1px solid #e7e5e4',
-  padding: '20px 22px',
+const TRACK_COLORS_RF = ['#059669', '#2563eb', '#d97706', '#8b5cf6', '#0ea5e9', '#f97316']
+
+// ─── SVG CHART HELPER ─────────────────────────────────────────────────────────
+function SVGLineRaw({ data, color = '#059669', h = 200, refY, labelPrefix = '₪' }: {
+  data: { l: string; v: number }[]
+  color?: string
+  h?: number
+  refY?: number
+  labelPrefix?: string
+}) {
+  if (!data || !data.length) return null
+  const pad = { l: 56, r: 12, t: 12, b: 28 }, W = 500, H = h
+  const vals = data.map(d => d.v)
+  const min = Math.min(...vals, 0)
+  const max = Math.max(...vals, 1)
+  const px = (i: number) => pad.l + (i / Math.max(data.length - 1, 1)) * (W - pad.l - pad.r)
+  const py = (v: number) => pad.t + (1 - (v - min) / (max - min || 1)) * (H - pad.t - pad.b)
+  const pts = data.map((d, i) => `${px(i).toFixed(1)},${py(d.v).toFixed(1)}`).join(' ')
+  const zeroY = py(0).toFixed(1)
+  const area = `${px(0).toFixed(1)},${zeroY} ` + pts + ` ${px(data.length - 1).toFixed(1)},${zeroY}`
+  const gridVals = [min, max / 2, max]
+  const fmt = (v: number) => v >= 1000 ? `${labelPrefix}${(v / 1000).toFixed(0)}K` : v <= -1000 ? `-${labelPrefix}${(-v / 1000).toFixed(0)}K` : `${labelPrefix}${Math.round(v)}`
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: h, display: 'block' }} preserveAspectRatio="none">
+      {gridVals.map((v, i) => (
+        <g key={i}>
+          <line x1={pad.l} y1={py(v).toFixed(1)} x2={W - pad.r} y2={py(v).toFixed(1)} stroke="#f0efed" strokeDasharray="4 3" />
+          <text x={pad.l - 4} y={py(v) + 4} textAnchor="end" fontSize={9} fill="#a8a29e">{fmt(v)}</text>
+        </g>
+      ))}
+      {refY !== undefined && <line x1={pad.l} y1={py(refY)} x2={W - pad.r} y2={py(refY)} stroke="#dc2626" strokeDasharray="4 3" strokeWidth={1.5} />}
+      <polygon points={area} fill={color + '15'} />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" />
+      {data.filter((_, i) => i % Math.ceil(data.length / 8) === 0 || i === data.length - 1).map((d, i) => (
+        <text key={i} x={px(data.indexOf(d))} y={H - 7} textAnchor="middle" fontSize={9} fill="#a8a29e">{d.l}</text>
+      ))}
+    </svg>
+  )
 }
 
-const inputCls = 'w-full px-2 py-1.5 text-[13px] outline-none'
-const inputSt = { border: '1.5px solid #e7e5e4', borderRadius: 8, color: '#1c1917', background: '#fff' }
-
 export default function RefinanceCalculatorPage() {
+  const t = useTheme()
   const [existingTracks, setExistingTracks] = useState<TrackInput[]>([
     { type: 'קל"צ', amount: 400000, interestRate: 5.2, periodMonths: 240 },
     { type: 'פריים', amount: 300000, interestRate: 6.5, periodMonths: 240 },
@@ -88,239 +118,249 @@ export default function RefinanceCalculatorPage() {
   )
 
   const cumulativeSavings = useMemo(() => {
-    const data = []
+    const data: { l: string; v: number }[] = []
     let cumulative = -earlyRepaymentFee
     for (let month = 1; month <= 240; month++) {
       cumulative += savings.monthlySaving
-      if (month % 6 === 0) data.push({ month, saving: Math.round(cumulative) })
+      if (month % 6 === 0) data.push({ l: `${month}`, v: Math.round(cumulative) })
     }
     return data
   }, [savings, earlyRepaymentFee])
 
-  const updateTrack = (tracks: TrackInput[], setTracks: (t: TrackInput[]) => void, idx: number, field: keyof TrackInput, value: number | string) => {
-    setTracks(tracks.map((t, i) => i === idx ? { ...t, [field]: value } : t))
+  const updateTrack = (
+    tracks: TrackInput[],
+    setTracks: (t: TrackInput[]) => void,
+    idx: number,
+    field: keyof TrackInput,
+    value: number | string,
+  ) => {
+    setTracks(tracks.map((tr, i) => i === idx ? { ...tr, [field]: value } : tr))
   }
 
-  const renderTrackEditor = (tracks: TrackInput[], setTracks: (t: TrackInput[]) => void, title: string) => (
-    <div style={cardStyle}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-[15px] font-bold" style={{ color: '#1c1917' }}>{title}</h2>
+  const card = {
+    background: t.cardBg,
+    borderRadius: 20,
+    boxShadow: t.shadow,
+    border: `1px solid ${t.border}`,
+  }
+  const rowSt = {
+    padding: '7px 10px', border: `1.5px solid ${t.border}`, borderRadius: 8,
+    fontSize: 12, color: t.text, background: t.inputBg, outline: 'none', fontFamily: 'Heebo,sans-serif',
+  }
+
+  const renderTrackEditor = (tracks: TrackInput[], setTracks: (t: TrackInput[]) => void, title: string, delay: number) => (
+    <div style={{ ...card, padding: '20px 22px', animation: `fadeUp 0.4s ease ${delay}s backwards` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text }}>{title}</h3>
         <button
           onClick={() => setTracks([...tracks, { type: 'קל"צ', amount: 0, interestRate: 4.0, periodMonths: 240 }])}
-          className="flex items-center gap-1 text-[12px] font-semibold px-3 py-1.5 text-white transition-all hover:opacity-90"
-          style={{ borderRadius: 10, background: '#059669' }}
+          className="crm-btn-primary"
+          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 9, border: 'none', cursor: 'pointer', background: t.primary, color: '#fff', fontFamily: 'Heebo,sans-serif' }}
         >
-          <Plus size={13} /> הוסף
+          <Plus size={12} strokeWidth={2.5} /> הוסף
         </button>
       </div>
-      <div className="space-y-2">
-        {tracks.map((track, idx) => (
-          <div key={idx} className="grid gap-2 items-end p-3 rounded-xl" style={{ background: '#faf9f7', gridTemplateColumns: '1.5fr 1fr 1fr 1fr auto' }}>
-            <div>
-              <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }}>סוג</label>
-              <select value={track.type} onChange={e => updateTrack(tracks, setTracks, idx, 'type', e.target.value)} className={inputCls} style={inputSt}>
-                {trackTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {tracks.map((track, idx) => {
+          const monthly = calculateMonthlyPayment(track.amount, track.interestRate, track.periodMonths)
+          const col = TRACK_COLORS_RF[idx % TRACK_COLORS_RF.length]
+          return (
+            <div key={idx} style={{ background: t.bg, borderRadius: 12, padding: '12px 14px', display: 'grid', gap: 8, gridTemplateColumns: '1.6fr 1fr 1fr 1fr auto', alignItems: 'end' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>סוג</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: col, flexShrink: 0 }} />
+                  <select value={track.type} onChange={e => updateTrack(tracks, setTracks, idx, 'type', e.target.value)} style={{ ...rowSt, flex: 1 }}>
+                    {trackTypes.map(tt => <option key={tt.value} value={tt.value}>{tt.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>יתרה (₪)</label>
+                <input type="number" value={track.amount} onChange={e => updateTrack(tracks, setTracks, idx, 'amount', +e.target.value || 0)} style={rowSt} dir="ltr" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>ריבית %</label>
+                <input type="number" step="0.1" value={track.interestRate} onChange={e => updateTrack(tracks, setTracks, idx, 'interestRate', +e.target.value || 0)} style={rowSt} dir="ltr" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>חודשים</label>
+                <input type="number" value={track.periodMonths} onChange={e => updateTrack(tracks, setTracks, idx, 'periodMonths', +e.target.value || 1)} style={rowSt} dir="ltr" />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: col, whiteSpace: 'nowrap' }}>{formatCurrency(Math.round(monthly))}</span>
+                <button onClick={() => setTracks(tracks.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.danger }}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
             </div>
-            <div>
-              <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }}>יתרה</label>
-              <input type="number" value={track.amount} onChange={e => updateTrack(tracks, setTracks, idx, 'amount', +e.target.value)} className={inputCls} style={inputSt} dir="ltr" />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }}>ריבית %</label>
-              <input type="number" step="0.1" value={track.interestRate} onChange={e => updateTrack(tracks, setTracks, idx, 'interestRate', +e.target.value)} className={inputCls} style={inputSt} dir="ltr" />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }}>חודשים</label>
-              <input type="number" value={track.periodMonths} onChange={e => updateTrack(tracks, setTracks, idx, 'periodMonths', +e.target.value)} className={inputCls} style={inputSt} dir="ltr" />
-            </div>
-            <div className="flex items-center gap-1.5 pb-0.5">
-              <span className="text-[12px] font-semibold" style={{ color: '#059669' }}>{formatCurrency(calculateMonthlyPayment(track.amount, track.interestRate, track.periodMonths))}</span>
-              <button onClick={() => setTracks(tracks.filter((_, i) => i !== idx))} style={{ color: '#dc2626' }}>
-                <Trash2 size={13} />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="mt-3 text-[13px] font-bold" style={{ color: '#059669' }}>
-        סה"כ: {formatCurrency(tracks.reduce((s, t) => s + calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths), 0))}/חודש
+          )
+        })}
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.primary, padding: '4px 0' }}>
+          סה"כ: {formatCurrency(Math.round(tracks.reduce((s, tr) => s + calculateMonthlyPayment(tr.amount, tr.interestRate, tr.periodMonths), 0)))}/חודש
+        </div>
       </div>
     </div>
   )
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
-            <RefreshCw size={22} style={{ color: '#059669' }} />
-            מחשבון מחזור משכנתא
-          </h1>
-        </div>
-        <button
-          onClick={openUploadModal}
-          className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold transition-all hover:opacity-90 shrink-0"
-          style={{ borderRadius: 12, background: '#f5f4f2', color: '#57534e', border: '1.5px solid #e7e5e4' }}
-        >
-          <Upload size={14} />
-          העלה PDF דוח יתרות
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {renderTrackEditor(existingTracks, setExistingTracks, 'תמהיל קיים')}
-        {renderTrackEditor(newTracks, setNewTracks, 'תמהיל מוצע')}
-      </div>
-
-      <div style={{ ...cardStyle }}>
-        <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>עמלת פירעון מוקדם</label>
-        <input
-          type="number"
-          value={earlyRepaymentFee}
-          onChange={e => setEarlyRepaymentFee(+e.target.value)}
-          className="px-3 py-2 outline-none text-[14px]"
-          style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, width: 180, color: '#1c1917' }}
-          dir="ltr"
-        />
-      </div>
-
-      {/* Comparison */}
-      <div style={cardStyle}>
-        <h2 className="text-[15px] font-bold mb-4 flex items-center gap-2" style={{ color: '#1c1917' }}>
-          <TrendingDown size={16} style={{ color: '#059669' }} />
-          השוואה
-        </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            { label: 'החזר נוכחי',  value: formatCurrency(savings.existingMonthly), color: '#57534e', bg: '#f5f4f2' },
-            { label: 'החזר חדש',    value: formatCurrency(savings.newMonthly),      color: '#059669', bg: '#d1fae5' },
-            { label: 'חיסכון חודשי', value: formatCurrency(savings.monthlySaving),  color: '#059669', bg: '#d1fae5' },
-            { label: 'חיסכון כולל', value: formatCurrency(savings.totalSaving),    color: '#059669', bg: '#d1fae5' },
-          ].map(c => (
-            <div key={c.label} className="text-center p-4 rounded-xl" style={{ background: c.bg }}>
-              <p className="text-[12px] mb-1" style={{ color: '#a8a29e' }}>{c.label}</p>
-              <p className="text-[18px] font-black tabular-nums" style={{ color: c.color }}>{c.value}</p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 flex items-center gap-4 flex-wrap text-[13px]" style={{ color: '#57534e' }}>
-          <span>עמלת פירעון: {formatCurrency(earlyRepaymentFee)}</span>
-          <span>Break-Even: {savings.breakEvenMonths === Infinity ? 'לא רלוונטי' : `${savings.breakEvenMonths} חודשים`}</span>
-          <span
-            className="font-bold px-3 py-1 rounded-full"
-            style={savings.isWorthIt
-              ? { background: '#d1fae5', color: '#065f46' }
-              : { background: '#fee2e2', color: '#dc2626' }}
+    <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
+      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, flexWrap: 'wrap', gap: 12, animation: 'fadeUp 0.4s ease backwards' }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <RefreshCw size={22} style={{ color: t.primary }} />
+              מחשבון מחזור משכנתא
+            </h1>
+          </div>
+          <button
+            onClick={openUploadModal}
+            className="crm-btn"
+            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 12, cursor: 'pointer', background: t.bg, color: t.textSub, border: `1.5px solid ${t.border}`, fontFamily: 'Heebo,sans-serif' }}
           >
-            {savings.isWorthIt ? '✅ כדאי לבצע מחזור' : '❌ לא כדאי כרגע'}
-          </span>
+            <UploadCloud size={14} />
+            העלה PDF דוח יתרות
+          </button>
         </div>
-      </div>
 
-      {/* Chart */}
-      <div style={cardStyle}>
-        <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>חיסכון מצטבר</h2>
-        <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={cumulativeSavings}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
-            <XAxis dataKey="month" label={{ value: 'חודש', position: 'bottom' }} tick={{ fontSize: 11, fill: '#a8a29e' }} />
-            <YAxis tickFormatter={v => `₪${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 11, fill: '#a8a29e' }} />
-            <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 12 }} />
-            <ReferenceLine y={0} stroke="#dc2626" strokeDasharray="3 3" />
-            <Line type="monotone" dataKey="saving" stroke="#059669" strokeWidth={2} name="חיסכון מצטבר" dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 18 }}>
+          {renderTrackEditor(existingTracks, setExistingTracks, 'תמהיל קיים', 0.05)}
+          {renderTrackEditor(newTracks, setNewTracks, 'תמהיל מוצע', 0.1)}
+        </div>
 
-      {/* Upload Modal */}
-      {showUploadModal && (
-        <div
-          className="fixed inset-0 flex items-center justify-center z-50 p-4"
-          style={{ background: 'rgba(28,25,23,0.5)' }}
-          onClick={() => setShowUploadModal(false)}
-        >
-          <div
-            className="w-full max-w-md animate-fade-in"
-            style={{ background: '#fff', borderRadius: 20, border: '1px solid #e7e5e4', padding: 28 }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[17px] font-bold" style={{ color: '#1c1917' }}>העלאת דוח יתרות</h2>
-              <button onClick={() => setShowUploadModal(false)} style={{ color: '#a8a29e' }}><X size={18} /></button>
-            </div>
+        {/* Fee */}
+        <div style={{ ...card, padding: '18px 22px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 14, animation: 'fadeUp 0.4s ease 0.15s backwards' }}>
+          <label style={{ fontSize: 13, color: t.textMuted, whiteSpace: 'nowrap' }}>עמלת פירעון מוקדם:</label>
+          <input
+            type="number"
+            value={earlyRepaymentFee}
+            onChange={e => setEarlyRepaymentFee(+e.target.value || 0)}
+            style={{ padding: '8px 12px', border: `1.5px solid ${t.border}`, borderRadius: 9, fontSize: 14, color: t.text, background: t.inputBg, outline: 'none', fontFamily: 'Heebo,sans-serif', width: 160 }}
+            dir="ltr"
+          />
+          <span style={{ fontSize: 13, color: t.textMuted }}>{formatCurrency(earlyRepaymentFee)}</span>
+        </div>
 
-            {uploadSuccess ? (
-              <div className="text-center py-6">
-                <CheckCircle size={40} style={{ color: '#059669', margin: '0 auto 12px' }} />
-                <p className="text-[14px] font-semibold" style={{ color: '#059669' }}>{uploadSuccess}</p>
-                <button
-                  onClick={() => setShowUploadModal(false)}
-                  className="mt-4 px-6 py-2 text-[13px] font-semibold text-white"
-                  style={{ borderRadius: 12, background: '#059669' }}
-                >סגור</button>
+        {/* Comparison */}
+        <div style={{ ...card, padding: '20px 24px', marginBottom: 18, animation: 'fadeUp 0.4s ease 0.2s backwards' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <BarChart3 size={16} style={{ color: t.primary }} />
+            השוואה
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 14 }}>
+            {[
+              { label: 'החזר נוכחי',   value: formatCurrency(savings.existingMonthly), color: t.textSub, bg: t.bg },
+              { label: 'החזר חדש',     value: formatCurrency(savings.newMonthly),      color: t.success, bg: t.successBg },
+              { label: 'חיסכון חודשי', value: formatCurrency(savings.monthlySaving),   color: t.success, bg: t.successBg },
+              { label: 'חיסכון כולל',  value: formatCurrency(savings.totalSaving),     color: t.primary, bg: t.primary + '15' },
+            ].map(c => (
+              <div key={c.label} style={{ padding: '14px 16px', borderRadius: 14, background: c.bg, textAlign: 'center' }}>
+                <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 5 }}>{c.label}</p>
+                <p style={{ fontSize: 18, fontWeight: 800, color: c.color }}>{c.value}</p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>לקוח</label>
-                  {loadingCustomers ? (
-                    <div className="flex items-center gap-2 text-[13px]" style={{ color: '#a8a29e' }}><Loader2 size={14} className="animate-spin" /> טוען...</div>
-                  ) : (
-                    <select
-                      value={selectedUploadCustomer}
-                      onChange={e => setSelectedUploadCustomer(e.target.value)}
-                      className="w-full px-3 py-2 outline-none text-[13px]"
-                      style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, color: '#1c1917' }}
-                    >
-                      <option value="">בחר לקוח...</option>
-                      {uploadCustomers.map(c => (
-                        <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>קובץ PDF</label>
-                  <input ref={reportFileRef} type="file" accept=".pdf,image/*" hidden onChange={handleReportFile} />
-                  <div
-                    className="border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors hover:border-[#059669]"
-                    style={{ borderColor: pendingFile ? '#059669' : '#e7e5e4', background: pendingFile ? '#d1fae520' : '#faf9f7' }}
-                    onClick={() => reportFileRef.current?.click()}
-                  >
-                    {pendingFile ? (
-                      <p className="text-[13px] font-semibold" style={{ color: '#059669' }}>{pendingFile.name}</p>
-                    ) : (
-                      <>
-                        <Upload size={24} style={{ color: '#a8a29e', margin: '0 auto 8px' }} />
-                        <p className="text-[13px]" style={{ color: '#a8a29e' }}>לחץ לבחירת קובץ PDF</p>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={handleUploadReport}
-                    disabled={uploadingReport || !pendingFile || !selectedUploadCustomer}
-                    className="flex-1 py-2.5 text-[13px] font-semibold text-white flex items-center justify-center gap-2 transition-all hover:opacity-90 disabled:opacity-50"
-                    style={{ borderRadius: 12, background: '#059669' }}
-                  >
-                    {uploadingReport ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-                    העלה לתיק לקוח
-                  </button>
-                  <button
-                    onClick={() => setShowUploadModal(false)}
-                    className="flex-1 py-2.5 text-[13px] font-semibold transition-all hover:opacity-80"
-                    style={{ borderRadius: 12, background: '#f5f4f2', color: '#57534e' }}
-                  >ביטול</button>
-                </div>
-              </div>
-            )}
+            ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', fontSize: 13, color: t.textSub }}>
+            <span>עמלת פירעון: {formatCurrency(earlyRepaymentFee)}</span>
+            <span>Break-Even: {savings.breakEvenMonths === Infinity ? 'לא רלוונטי' : `${savings.breakEvenMonths} חודשים`}</span>
+            <span style={{ padding: '4px 14px', borderRadius: 20, fontWeight: 700, fontSize: 13, background: savings.isWorthIt ? t.successBg : t.dangerBg, color: savings.isWorthIt ? t.success : t.danger }}>
+              {savings.isWorthIt ? '✅ כדאי לבצע מחזור' : '❌ לא כדאי כרגע'}
+            </span>
           </div>
         </div>
-      )}
+
+        {/* Chart */}
+        <div style={{ ...card, padding: '20px 24px', animation: 'fadeUp 0.4s ease 0.25s backwards' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 16 }}>חיסכון מצטבר</h3>
+          <SVGLineRaw data={cumulativeSavings} color={t.primary} h={200} refY={0} />
+        </div>
+
+        {/* Upload Modal */}
+        {showUploadModal && (
+          <div
+            style={{ position: 'fixed', inset: 0, background: 'rgba(28,25,23,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}
+            onClick={() => setShowUploadModal(false)}
+          >
+            <div
+              style={{ background: t.cardBg, borderRadius: 20, border: `1px solid ${t.border}`, padding: 28, width: '100%', maxWidth: 440, boxShadow: t.shadowHover, animation: 'scaleIn 0.25s ease' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <h2 style={{ fontSize: 17, fontWeight: 800, color: t.text }}>העלאת דוח יתרות</h2>
+                <button onClick={() => setShowUploadModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textMuted }}><X size={18} /></button>
+              </div>
+
+              {uploadSuccess ? (
+                <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                  <CheckCircle size={40} style={{ color: t.success, margin: '0 auto 12px' }} />
+                  <p style={{ fontSize: 14, fontWeight: 600, color: t.success }}>{uploadSuccess}</p>
+                  <button
+                    onClick={() => setShowUploadModal(false)}
+                    className="crm-btn-primary"
+                    style={{ marginTop: 16, padding: '8px 24px', fontSize: 13, fontWeight: 600, color: '#fff', borderRadius: 12, border: 'none', cursor: 'pointer', background: t.primary, fontFamily: 'Heebo,sans-serif' }}
+                  >סגור</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6 }}>לקוח</label>
+                    {loadingCustomers ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: t.textMuted }}><Loader2 size={14} className="animate-spin" /> טוען...</div>
+                    ) : (
+                      <select
+                        value={selectedUploadCustomer}
+                        onChange={e => setSelectedUploadCustomer(e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px', fontSize: 13, outline: 'none', border: `1.5px solid ${t.border}`, borderRadius: 10, color: t.text, background: t.inputBg, fontFamily: 'Heebo,sans-serif' }}
+                      >
+                        <option value="">בחר לקוח...</option>
+                        {uploadCustomers.map(c => (
+                          <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6 }}>קובץ PDF</label>
+                    <input ref={reportFileRef} type="file" accept=".pdf,image/*" hidden onChange={handleReportFile} />
+                    <div
+                      style={{ border: `2px dashed ${pendingFile ? t.primary : t.border}`, borderRadius: 14, padding: '40px 24px', textAlign: 'center', cursor: 'pointer', background: pendingFile ? t.successBg : t.bg }}
+                      onClick={() => reportFileRef.current?.click()}
+                    >
+                      {pendingFile ? (
+                        <p style={{ fontSize: 13, fontWeight: 600, color: t.primary }}>{pendingFile.name}</p>
+                      ) : (
+                        <>
+                          <UploadCloud size={28} style={{ color: t.textMuted, margin: '0 auto 10px' }} />
+                          <p style={{ fontSize: 13, color: t.textMuted }}>לחץ לבחירת קובץ PDF</p>
+                          <p style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>PDF, JPG עד 10MB</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      onClick={handleUploadReport}
+                      disabled={uploadingReport || !pendingFile || !selectedUploadCustomer}
+                      className="crm-btn-primary"
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '11px 0', fontSize: 14, fontWeight: 600, color: '#fff', borderRadius: 12, border: 'none', cursor: 'pointer', background: t.primary, fontFamily: 'Heebo,sans-serif', opacity: (uploadingReport || !pendingFile || !selectedUploadCustomer) ? 0.5 : 1 }}
+                    >
+                      {uploadingReport ? <Loader2 size={15} className="animate-spin" /> : <UploadCloud size={15} />}
+                      העלה לתיק לקוח
+                    </button>
+                    <button
+                      onClick={() => setShowUploadModal(false)}
+                      className="crm-btn"
+                      style={{ flex: 1, padding: '11px 0', fontSize: 14, fontWeight: 600, borderRadius: 12, border: `1px solid ${t.border}`, cursor: 'pointer', background: t.bg, color: t.textSub, fontFamily: 'Heebo,sans-serif' }}
+                    >ביטול</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

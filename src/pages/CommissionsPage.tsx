@@ -1,14 +1,13 @@
 import { useState } from 'react'
-import { DollarSign, TrendingUp, Clock, CheckCircle, Loader2 } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { CheckSquare, AlertTriangle, DollarSign } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { useTheme } from '@/theme/ThemeContext'
 import { useCommissions } from '@/hooks/queries/useCommissions'
-
-const hebrewMonths = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ']
 
 type CommissionRow = {
   id: string
   customerName: string
+  initials: string
   loanAmount: number
   amount: number
   status: string
@@ -17,141 +16,250 @@ type CommissionRow = {
 }
 
 export default function CommissionsPage() {
-  const [statusFilter, setStatusFilter] = useState('הכל')
+  const t = useTheme()
+  const [filter, setFilter] = useState('הכל')
 
   const { data: rawCommissions = [], isLoading: loading } = useCommissions()
 
-  const commissions: CommissionRow[] = rawCommissions.map(c => ({
-    id: c.id,
-    customerName: c.customer
-      ? `${c.customer.first_name} ${c.customer.last_name}`
-      : 'לא ידוע',
-    loanAmount: c.mortgage?.loan_amount ?? 0,
-    amount: c.amount ?? 0,
-    status: c.status ?? 'ממתין',
-    paymentDate: c.payment_date ?? null,
-    createdAt: c.created_at ?? '',
-  }))
-
-  const filtered = commissions.filter(c => statusFilter === 'הכל' || c.status === statusFilter)
-  const totalPaid    = commissions.filter(c => c.status === 'שולם').reduce((s, c) => s + c.amount, 0)
-  const totalPending = commissions.filter(c => c.status === 'ממתין').reduce((s, c) => s + c.amount, 0)
-
-  // Monthly bar chart — last 6 months
-  const now = new Date()
-  const monthlyData = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
-    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59)
-    const amount = commissions
-      .filter(c => c.status === 'שולם' && c.paymentDate && new Date(c.paymentDate) >= d && new Date(c.paymentDate) <= monthEnd)
-      .reduce((s, c) => s + c.amount, 0)
-    return { month: hebrewMonths[d.getMonth()], amount }
+  const commissions: CommissionRow[] = rawCommissions.map((c) => {
+    const name = c.customer ? `${c.customer.first_name} ${c.customer.last_name}` : 'לא ידוע'
+    return {
+      id: c.id,
+      customerName: name,
+      initials: name.charAt(0) || '?',
+      loanAmount: c.mortgage?.loan_amount ?? 0,
+      amount: c.amount ?? 0,
+      status: c.status ?? 'ממתין',
+      paymentDate: c.payment_date ?? null,
+      createdAt: c.created_at ?? '',
+    }
   })
 
-  const cardStyle = {
-    background: '#ffffff',
-    borderRadius: 20,
-    boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-    border: '1px solid #e7e5e4',
-    padding: '22px 24px',
-  }
+  const filtered = commissions.filter((c) => filter === 'הכל' || c.status === filter)
+
+  const paid = commissions.filter((c) => c.status === 'שולם').reduce((s, c) => s + c.amount, 0)
+  const pending = commissions.filter((c) => c.status === 'ממתין').reduce((s, c) => s + c.amount, 0)
+
+  const now = new Date()
+  const month = commissions
+    .filter((c) => {
+      if (c.status !== 'שולם' || !c.paymentDate) return false
+      const d = new Date(c.paymentDate)
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+    })
+    .reduce((s, c) => s + c.amount, 0)
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} style={{ color: '#059669' }} className="animate-spin" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 256 }}>
+        <div
+          className="animate-spin"
+          style={{
+            width: 32,
+            height: 32,
+            border: `3px solid ${t.border}`,
+            borderTopColor: t.primary,
+            borderRadius: '50%',
+          }}
+        />
       </div>
     )
   }
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
-      <div>
-        <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>עמלות</h1>
-        <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>{commissions.length} עמלות במערכת</p>
-      </div>
-
-      {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          { label: 'שולם',    value: totalPaid,              icon: CheckCircle, color: '#059669' },
-          { label: 'ממתין',   value: totalPending,           icon: Clock,       color: '#d97706' },
-          { label: 'סה"כ',    value: totalPaid + totalPending, icon: TrendingUp, color: '#059669' },
-        ].map((card) => (
-          <div key={card.label} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: card.color + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <card.icon size={20} style={{ color: card.color }} />
-            </div>
-            <div>
-              <p className="font-black tabular-nums" style={{ fontSize: 22, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>{formatCurrency(card.value)}</p>
-              <p className="text-[13px]" style={{ color: '#a8a29e' }}>{card.label}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Chart */}
-        <div style={cardStyle}>
-          <p className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>הכנסות לפי חודש</p>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#a8a29e' }} axisLine={false} tickLine={false} />
-              <YAxis tickFormatter={v => `₪${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 11, fill: '#a8a29e' }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 12 }} />
-              <Bar dataKey="amount" fill="#059669" radius={[6, 6, 0, 0]} animationDuration={750} />
-            </BarChart>
-          </ResponsiveContainer>
+    <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
+      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+        <div style={{ marginBottom: 28, animation: 'fadeUp 0.4s ease backwards' }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, marginBottom: 4 }}>עמלות</h1>
+          <p style={{ fontSize: 13, color: t.textMuted }}>מעקב עמלות ותשלומים</p>
         </div>
 
-        {/* List */}
-        <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-          <div className="flex items-center gap-2 px-6 py-4 border-b" style={{ borderColor: '#f5f4f2' }}>
-            <DollarSign size={16} style={{ color: '#059669' }} />
-            <h2 className="text-[15px] font-bold" style={{ color: '#1c1917' }}>רשימת עמלות</h2>
-            <div className="flex gap-1 mr-auto">
-              {['הכל', 'שולם', 'ממתין'].map(s => (
-                <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
-                  className="px-3 py-1 text-[12px] font-semibold transition-all"
-                  style={{
-                    borderRadius: 20,
-                    background: statusFilter === s ? '#059669' : '#f5f4f2',
-                    color: statusFilter === s ? '#fff' : '#57534e',
-                  }}
-                >{s}</button>
-              ))}
-            </div>
-          </div>
-          {filtered.length === 0 ? (
-            <div className="py-12 text-center text-[13px]" style={{ color: '#a8a29e' }}>אין עמלות</div>
-          ) : (
-            <div className="divide-y" style={{ borderColor: '#f5f4f2' }}>
-              {filtered.map(c => (
-                <div key={c.id} className="flex items-center justify-between px-6 py-3">
+        {/* KPIs */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 18, marginBottom: 24 }}>
+          {[
+            { label: 'שולם סה"כ', value: formatCurrency(paid), col: '#059669', bg: '#d1fae5', icon: CheckSquare },
+            { label: 'ממתין לתשלום', value: formatCurrency(pending), col: '#d97706', bg: '#fef3c7', icon: AlertTriangle },
+            { label: 'החודש', value: formatCurrency(month), col: t.primary, bg: t.primary + '18', icon: DollarSign },
+          ].map((c, i) => {
+            const CardIcon = c.icon
+            return (
+              <div
+                key={c.label}
+                style={{
+                  background: t.cardBg,
+                  borderRadius: 20,
+                  padding: '24px 26px',
+                  boxShadow: t.shadow,
+                  border: `1px solid ${t.border}`,
+                  animation: `fadeUp 0.4s ease ${i * 0.08 + 0.05}s backwards`,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
                   <div>
-                    <p className="text-[13px] font-semibold" style={{ color: '#1c1917' }}>{c.customerName}</p>
-                    {c.loanAmount > 0 && <p className="text-[12px]" style={{ color: '#a8a29e' }}>הלוואה: {formatCurrency(c.loanAmount)}</p>}
+                    <p style={{ fontSize: 12, color: t.textMuted, fontWeight: 500, marginBottom: 8, letterSpacing: '0.03em' }}>
+                      {c.label}
+                    </p>
+                    <p style={{ fontSize: 26, fontWeight: 800, color: t.text, lineHeight: 1 }}>{c.value}</p>
                   </div>
-                  <div className="text-left flex flex-col items-end gap-1">
-                    <p className="font-black tabular-nums text-[15px]" style={{ color: '#059669' }}>{formatCurrency(c.amount)}</p>
-                    <span
-                      className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{
-                        background: c.status === 'שולם' ? '#d1fae5' : '#fef3c7',
-                        color: c.status === 'שולם' ? '#065f46' : '#b45309',
-                      }}
-                    >{c.status}</span>
-                    {c.paymentDate && <p className="text-[11px]" style={{ color: '#a8a29e' }}>{formatDate(c.paymentDate)}</p>}
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 13,
+                      background: c.bg,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <CardIcon size={20} color={c.col} />
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Filter + table */}
+        <div
+          style={{
+            background: t.cardBg,
+            borderRadius: 20,
+            boxShadow: t.shadow,
+            border: `1px solid ${t.border}`,
+            overflow: 'hidden',
+            animation: 'fadeUp 0.4s ease 0.3s backwards',
+          }}
+        >
+          <div style={{ padding: '16px 22px', borderBottom: `1px solid ${t.border}`, display: 'flex', gap: 8, alignItems: 'center' }}>
+            {['הכל', 'שולם', 'ממתין'].map((s) => (
+              <button
+                key={s}
+                onClick={() => setFilter(s)}
+                className="crm-btn"
+                style={{
+                  padding: '5px 16px',
+                  borderRadius: 20,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: filter === s ? 700 : 400,
+                  background: filter === s ? t.primary : t.bg,
+                  color: filter === s ? '#fff' : t.textSub,
+                  fontFamily: 'Heebo,sans-serif',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {s}
+              </button>
+            ))}
+            <span style={{ marginRight: 'auto', fontSize: 13, color: t.textMuted }}>{filtered.length} רשומות</span>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div style={{ padding: '48px 0', textAlign: 'center', fontSize: 13, color: t.textMuted }}>אין עמלות</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
+                  {['לקוח', 'סכום הלוואה', 'עמלה', 'אחוז', 'סטטוס', 'תאריך תשלום'].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: '13px 22px',
+                        textAlign: 'right',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: t.textMuted,
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((c, i) => (
+                  <CommissionRowEl key={c.id} row={c} index={i} isLast={i === filtered.length - 1} t={t} />
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
       </div>
     </div>
+  )
+}
+
+interface CommissionRowProps {
+  row: CommissionRow
+  index: number
+  isLast: boolean
+  t: ReturnType<typeof useTheme>
+}
+
+function CommissionRowEl({ row, index, isLast, t }: CommissionRowProps) {
+  const [hov, setHov] = useState(false)
+  const isPaid = row.status === 'שולם'
+  const pct = row.loanAmount > 0 ? ((row.amount / row.loanAmount) * 100).toFixed(2) : '0.00'
+  return (
+    <tr
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        borderBottom: isLast ? 'none' : `1px solid ${t.borderLight}`,
+        background: hov ? t.bg : 'transparent',
+        transition: 'background 0.12s',
+        animation: `fadeUp 0.35s ease ${index * 0.04 + 0.35}s backwards`,
+      }}
+    >
+      <td style={{ padding: '15px 22px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 9,
+              background: t.primary + '20',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 12,
+              fontWeight: 800,
+              color: t.primary,
+            }}
+          >
+            {row.initials}
+          </div>
+          <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{row.customerName}</span>
+        </div>
+      </td>
+      <td style={{ padding: '15px 22px', fontSize: 13, color: t.textSub }}>
+        {row.loanAmount > 0 ? formatCurrency(row.loanAmount) : '—'}
+      </td>
+      <td style={{ padding: '15px 22px', fontSize: 15, fontWeight: 800, color: isPaid ? '#059669' : t.text }}>
+        {formatCurrency(row.amount)}
+      </td>
+      <td style={{ padding: '15px 22px', fontSize: 13, color: t.textMuted }}>{pct}%</td>
+      <td style={{ padding: '15px 22px' }}>
+        <span
+          style={{
+            padding: '4px 12px',
+            borderRadius: 20,
+            background: isPaid ? '#d1fae5' : '#fef3c7',
+            color: isPaid ? '#065f46' : '#b45309',
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          {row.status}
+        </span>
+      </td>
+      <td style={{ padding: '15px 22px', fontSize: 13, color: t.textMuted }}>
+        {row.paymentDate ? formatDate(row.paymentDate) : '—'}
+      </td>
+    </tr>
   )
 }

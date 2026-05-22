@@ -5,6 +5,7 @@ import { History, Loader2, ArrowLeft } from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { fromDocs, awaitUserId } from '@/services/_firestoreHelpers'
 import { formatDate } from '@/lib/utils'
+import { useTheme } from '@/theme/ThemeContext'
 import type { AuditLogEntry } from '@/types/database'
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -36,13 +37,6 @@ const FIELD_LABELS: Record<string, string> = {
   amount: 'סכום',
 }
 
-const cardStyle = {
-  background: '#ffffff',
-  borderRadius: 20,
-  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-  border: '1px solid #e7e5e4',
-}
-
 function fieldLabel(key: string): string {
   return FIELD_LABELS[key] ?? key
 }
@@ -54,6 +48,7 @@ function formatValue(value: unknown): string {
 }
 
 export default function AuditLogPage() {
+  const t = useTheme()
   const [entityFilter, setEntityFilter] = useState('הכל')
 
   const { data: entries = [], isLoading: loading } = useQuery({
@@ -80,83 +75,115 @@ export default function AuditLogPage() {
     [entries, entityFilter]
   )
 
+  const cardStyle = {
+    background: t.cardBg,
+    borderRadius: 20,
+    boxShadow: t.shadow,
+    border: `1px solid ${t.border}`,
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} style={{ color: '#059669' }} className="animate-spin" />
+        <Loader2 size={32} style={{ color: t.primary }} className="animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
-      <div>
-        <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
-          <History size={22} style={{ color: '#059669' }} />
-          יומן שינויים
-        </h1>
-        <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>
-          {entries.length} שינויים אחרונים נרשמו במערכת
-        </p>
-      </div>
-
-      <div className="flex gap-2 flex-wrap">
-        {['הכל', 'לקוח', 'ליד', 'משכנתא', 'מסמך'].map((label) => (
-          <button
-            key={label}
-            onClick={() => setEntityFilter(label)}
-            className="px-4 py-2 text-[13px] font-semibold transition-all"
-            style={{
-              borderRadius: 20,
-              background: entityFilter === label ? '#059669' : '#f5f4f2',
-              color: entityFilter === label ? '#fff' : '#57534e',
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20" style={cardStyle}>
-          <History size={40} style={{ color: '#d6d3d1' }} className="mb-3" />
-          <p className="text-[15px] font-semibold" style={{ color: '#57534e' }}>אין שינויים להצגה</p>
-          <p className="text-[13px] mt-1" style={{ color: '#a8a29e' }}>
-            שינויים על לקוחות, לידים ומשכנתאות יופיעו כאן
+    <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
+      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <History size={22} style={{ color: t.primary }} />
+            יומן שינויים
+          </h1>
+          <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>
+            {entries.length} שינויים אחרונים נרשמו במערכת
           </p>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map((entry) => (
-            <div key={entry.id} style={{ ...cardStyle, padding: '16px 20px' }}>
-              <div className="flex items-center justify-between mb-3">
-                <span
-                  className="text-[12px] font-semibold px-2.5 py-0.5 rounded-full"
-                  style={{ background: '#d1fae5', color: '#065f46' }}
-                >
-                  {ENTITY_LABELS[entry.entity_type] ?? entry.entity_type}
-                </span>
-                <span className="text-[12px]" style={{ color: '#a8a29e' }}>{formatDate(entry.changed_at)}</span>
-              </div>
-              <div className="space-y-1.5">
-                {entry.changed_fields.map((field) => {
-                  const change = entry.changes[field]
-                  return (
-                    <div key={field} className="flex items-center gap-2 text-[13px] flex-wrap">
-                      <span className="font-semibold" style={{ color: '#1c1917', minWidth: 110 }}>
-                        {fieldLabel(field)}
-                      </span>
-                      <span style={{ color: '#a8a29e' }}>{formatValue(change?.from)}</span>
-                      <ArrowLeft size={13} style={{ color: '#d6d3d1' }} />
-                      <span style={{ color: '#059669' }}>{formatValue(change?.to)}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+
+        <div className="flex gap-2 flex-wrap" style={{ marginBottom: 20 }}>
+          {['הכל', 'לקוח', 'ליד', 'משכנתא', 'מסמך'].map((label) => {
+            const active = entityFilter === label
+            return (
+              <button
+                key={label}
+                onClick={() => setEntityFilter(label)}
+                className="crm-btn"
+                style={{
+                  padding: '8px 16px',
+                  fontSize: 13,
+                  fontWeight: active ? 700 : 500,
+                  borderRadius: 20,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'Heebo,sans-serif',
+                  background: active ? t.primary : t.bg,
+                  color: active ? '#fff' : t.textSub,
+                  transition: 'all 0.15s',
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
         </div>
-      )}
+
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center" style={{ ...cardStyle, padding: '80px 40px' }}>
+            <History size={40} style={{ color: t.textMuted }} className="mb-3" />
+            <p style={{ fontSize: 15, fontWeight: 600, color: t.textSub }}>אין שינויים להצגה</p>
+            <p style={{ fontSize: 13, marginTop: 4, color: t.textMuted }}>
+              שינויים על לקוחות, לידים ומשכנתאות יופיעו כאן
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((entry, i) => (
+              <div
+                key={entry.id}
+                style={{
+                  ...cardStyle,
+                  padding: '16px 20px',
+                  animation: `fadeUp 0.35s ease ${i * 0.04 + 0.05}s backwards`,
+                }}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      padding: '3px 10px',
+                      borderRadius: 20,
+                      background: t.successBg,
+                      color: t.success,
+                    }}
+                  >
+                    {ENTITY_LABELS[entry.entity_type] ?? entry.entity_type}
+                  </span>
+                  <span style={{ fontSize: 12, color: t.textMuted }}>{formatDate(entry.changed_at)}</span>
+                </div>
+                <div className="space-y-1.5">
+                  {entry.changed_fields.map((field) => {
+                    const change = entry.changes[field]
+                    return (
+                      <div key={field} className="flex items-center gap-2 text-[13px] flex-wrap">
+                        <span style={{ fontWeight: 600, color: t.text, minWidth: 110 }}>
+                          {fieldLabel(field)}
+                        </span>
+                        <span style={{ color: t.textMuted }}>{formatValue(change?.from)}</span>
+                        <ArrowLeft size={13} style={{ color: t.textMuted }} />
+                        <span style={{ color: t.primary }}>{formatValue(change?.to)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -1,23 +1,46 @@
 import { useState } from 'react'
 import { PieChart as PieChartIcon, Download } from 'lucide-react'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
+import { useTheme } from '@/theme/ThemeContext'
 
-const COLORS = ['#059669', '#34d399', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#6b7280']
-
-const cardStyle = {
-  background: '#ffffff',
-  borderRadius: 20,
-  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-  border: '1px solid #e7e5e4',
-}
+const EXPENSE_COLORS = ['#a8a29e', '#d97706', '#8b5cf6', '#ef4444', '#0ea5e9', '#f97316', '#10b981']
 
 interface Expense {
   category: string
   amount: number
 }
 
+interface DonutDatum { v: number; c: string; l: string }
+
+function SVGDonut({ data, size = 170 }: { data: DonutDatum[]; size?: number }) {
+  const total = data.reduce((s, d) => s + (d.v || 0), 0) || 1
+  const cx = size / 2, cy = size / 2, r = size * 0.4, ri = size * 0.24
+  const segs: (DonutDatum & { a0: number; a1: number })[] = []
+  data.reduce((startAngle, d) => {
+    const sw = ((d.v || 0) / total) * Math.PI * 2
+    segs.push({ ...d, a0: startAngle, a1: startAngle + sw })
+    return startAngle + sw
+  }, -Math.PI / 2)
+  const arcPath = (cx: number, cy: number, r: number, a0: number, a1: number) => {
+    const x1 = cx + r * Math.cos(a0), y1 = cy + r * Math.sin(a0)
+    const x2 = cx + r * Math.cos(a1), y2 = cy + r * Math.sin(a1)
+    const lg = a1 - a0 > Math.PI ? 1 : 0
+    return `M${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${lg} 1 ${x2.toFixed(2)},${y2.toFixed(2)}`
+  }
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} style={{ width: size, height: size, display: 'block' }}>
+      {segs.map((s, i) => {
+        const outer = arcPath(cx, cy, r, s.a0, s.a1)
+        const inner = arcPath(cx, cy, ri, s.a1, s.a0)
+        const ix = (cx + ri * Math.cos(s.a1)).toFixed(2), iy = (cy + ri * Math.sin(s.a1)).toFixed(2)
+        return <path key={i} d={`${outer} L${ix},${iy} ${inner} Z`} fill={s.c || '#059669'} stroke="#fff" strokeWidth={1} />
+      })}
+    </svg>
+  )
+}
+
 export default function FamilyEconomicsPage() {
+  const t = useTheme()
   const [income1, setIncome1] = useState(15000)
   const [income2, setIncome2] = useState(12000)
   const [mortgagePayment, setMortgagePayment] = useState(5500)
@@ -40,127 +63,182 @@ export default function FamilyEconomicsPage() {
   const totalWithMortgage = totalExpenses + mortgagePayment
   const remaining = totalIncome - totalWithMortgage
   const dti = totalIncome > 0 ? (mortgagePayment / totalIncome) * 100 : 0
+  const expPct = totalIncome > 0 ? (totalExpenses / totalIncome) * 100 : 0
 
-  const chartData = [...expenses.map(e => ({ name: e.category, value: e.amount })), { name: 'משכנתא', value: mortgagePayment }]
+  const status = remaining >= 5000
+    ? { label: 'מצב כלכלי מצוין — יש מרווח נוח', color: t.success, bg: t.successBg }
+    : remaining >= 3000
+      ? { label: 'מצב תקין — מומלץ לשמור על מרווח', color: t.warning, bg: t.warningBg }
+      : remaining >= 0
+        ? { label: 'מצב צפוף — שקול להפחית החזר', color: t.warning, bg: t.warningBg }
+        : { label: 'חריגה מההכנסה!', color: t.danger, bg: t.dangerBg }
 
-  const isHealthy = remaining >= 3000
-  const recommendation = remaining >= 5000 ? 'מצב כלכלי מצוין - יש מרווח נוח' :
-    remaining >= 3000 ? 'מצב תקין - מומלץ לשמור על מרווח' :
-    remaining >= 0 ? 'מצב צפוף - שקול להפחית החזר' : 'חריגה מההכנסה!'
+  const donutData: DonutDatum[] = [
+    ...expenses.map((e, i) => ({ v: e.amount, c: EXPENSE_COLORS[i % EXPENSE_COLORS.length], l: e.category })),
+    { v: mortgagePayment, c: t.primary, l: 'משכנתא' },
+  ]
+
+  const inputSt: React.CSSProperties = {
+    width: '100%', padding: '9px 12px', border: `1.5px solid ${t.border}`,
+    borderRadius: 9, fontSize: 13, color: t.text, background: t.inputBg,
+    outline: 'none', fontFamily: 'Heebo,sans-serif',
+  }
+  const numSt: React.CSSProperties = { ...inputSt, width: 110, flexShrink: 0 }
+  const labelSt: React.CSSProperties = {
+    display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 5,
+  }
+
+  const handlePrint = () => window.print()
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
-      <div>
-        <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
-          <PieChartIcon size={22} style={{ color: '#059669' }} />
-          מחשבון כלכלת משפחה
-        </h1>
-        <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>ניתוח הכנסות, הוצאות ויכולת עמידה במשכנתא</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Input */}
-        <div className="lg:col-span-2 space-y-4">
-          <div style={{ ...cardStyle, padding: 20 }}>
-            <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>הכנסות</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>הכנסה לווה 1</label>
-                <input type="number" value={income1} onChange={e => setIncome1(+e.target.value)} className="w-full px-3 py-2 border border-[#e7e5e4] rounded-lg text-[13px] text-[#1c1917] outline-none focus:border-[#059669] bg-white" dir="ltr" />
-              </div>
-              <div>
-                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>הכנסה לווה 2</label>
-                <input type="number" value={income2} onChange={e => setIncome2(+e.target.value)} className="w-full px-3 py-2 border border-[#e7e5e4] rounded-lg text-[13px] text-[#1c1917] outline-none focus:border-[#059669] bg-white" dir="ltr" />
-              </div>
-            </div>
-            <div className="mt-3">
-              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>החזר משכנתא מבוקש</label>
-              <input type="number" value={mortgagePayment} onChange={e => setMortgagePayment(+e.target.value)} className="w-full px-3 py-2 border border-[#e7e5e4] rounded-lg text-[13px] text-[#1c1917] outline-none focus:border-[#059669] bg-white" dir="ltr" />
-            </div>
-          </div>
-
-          <div style={{ ...cardStyle, padding: 20 }}>
-            <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>הוצאות חודשיות</h2>
-            <div className="space-y-3">
-              {expenses.map((expense, idx) => (
-                <div key={idx} className="flex items-center gap-3">
-                  <span className="text-[13px] flex-1 min-w-0" style={{ color: '#57534e' }}>{expense.category}</span>
-                  <input type="number" value={expense.amount} onChange={e => updateExpense(idx, +e.target.value)} className="w-28 shrink-0 px-3 py-2 border border-[#e7e5e4] rounded-lg text-[13px] text-[#1c1917] outline-none focus:border-[#059669] bg-white" dir="ltr" />
-                  <span className="text-[12px] w-24 shrink-0 text-left" style={{ color: '#a8a29e' }}>{formatCurrency(expense.amount)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+    <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
+      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+        <div style={{ marginBottom: 28 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <PieChartIcon size={22} style={{ color: t.primary }} />
+            מחשבון כלכלת משפחה
+          </h1>
+          <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>ניתוח הכנסות, הוצאות ויכולת עמידה במשכנתא</p>
         </div>
 
-        {/* Results */}
-        <div className="space-y-4">
-          <div style={{ ...cardStyle, padding: 20 }}>
-            <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>סיכום</h2>
-            <div className="space-y-1">
-              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid #f5f4f2' }}><span className="text-[13px]" style={{ color: '#57534e' }}>סה"כ הכנסות</span><span className="text-[13px] font-semibold" style={{ color: '#059669' }}>{formatCurrency(totalIncome)}</span></div>
-              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid #f5f4f2' }}><span className="text-[13px]" style={{ color: '#57534e' }}>סה"כ הוצאות</span><span className="text-[13px] font-semibold" style={{ color: '#1c1917' }}>{formatCurrency(totalExpenses)}</span></div>
-              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid #f5f4f2' }}><span className="text-[13px]" style={{ color: '#57534e' }}>משכנתא</span><span className="text-[13px] font-semibold" style={{ color: '#059669' }}>{formatCurrency(mortgagePayment)}</span></div>
-              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid #f5f4f2' }}><span className="text-[13px]" style={{ color: '#57534e' }}>סה"כ הוצאות + משכנתא</span><span className="text-[13px] font-bold" style={{ color: '#1c1917' }}>{formatCurrency(totalWithMortgage)}</span></div>
-              <div className="flex justify-between py-2">
-                <span className="text-[13px]" style={{ color: '#57534e' }}>נשאר</span>
-                <span className="text-[18px] font-black" style={{ color: remaining >= 3000 ? '#059669' : remaining >= 0 ? '#d97706' : '#dc2626' }}>{formatCurrency(remaining)}</span>
-              </div>
-            </div>
-
-            {/* Visual Bar */}
-            <div className="mt-4">
-              <div className="h-3 rounded-full overflow-hidden" style={{ background: '#f5f4f2' }}>
-                <div className="h-full flex">
-                  <div className="h-full" style={{ width: `${(totalExpenses / totalIncome) * 100}%`, background: '#a8a29e' }} />
-                  <div className="h-full" style={{ width: `${(mortgagePayment / totalIncome) * 100}%`, background: '#059669' }} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 20 }}>
+          {/* Inputs */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{
+              background: t.cardBg, borderRadius: 20, padding: '20px 24px',
+              boxShadow: t.shadow, border: `1px solid ${t.border}`,
+            }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16 }}>הכנסות</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={labelSt}>הכנסה לווה 1</label>
+                  <input type="number" value={income1} onChange={e => setIncome1(+e.target.value || 0)} style={inputSt} dir="ltr" />
+                </div>
+                <div>
+                  <label style={labelSt}>הכנסה לווה 2</label>
+                  <input type="number" value={income2} onChange={e => setIncome2(+e.target.value || 0)} style={inputSt} dir="ltr" />
                 </div>
               </div>
-              <div className="flex justify-between text-[11px] mt-1" style={{ color: '#a8a29e' }}>
-                <span>הוצאות: {((totalExpenses / totalIncome) * 100).toFixed(0)}%</span>
-                <span>משכנתא: {dti.toFixed(0)}%</span>
-                <span>מרווח: {((remaining / totalIncome) * 100).toFixed(0)}%</span>
+              <div>
+                <label style={labelSt}>החזר משכנתא מבוקש</label>
+                <input type="number" value={mortgagePayment} onChange={e => setMortgagePayment(+e.target.value || 0)} style={inputSt} dir="ltr" />
               </div>
             </div>
 
-            {/* Recommendation */}
-            <div
-              className="mt-4 p-3 rounded-xl text-[13px] font-semibold"
+            <div style={{
+              background: t.cardBg, borderRadius: 20, padding: '20px 24px',
+              boxShadow: t.shadow, border: `1px solid ${t.border}`,
+            }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16 }}>הוצאות חודשיות</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {expenses.map((e, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{
+                      width: 10, height: 10, borderRadius: '50%',
+                      background: EXPENSE_COLORS[i % EXPENSE_COLORS.length], flexShrink: 0,
+                    }} />
+                    <span style={{ fontSize: 13, flex: 1, color: t.textSub }}>{e.category}</span>
+                    <input
+                      type="number" value={e.amount}
+                      onChange={ev => updateExpense(i, +ev.target.value || 0)}
+                      style={numSt} dir="ltr"
+                    />
+                    <span style={{ fontSize: 12, color: t.textMuted, width: 80, textAlign: 'left', flexShrink: 0 }}>
+                      {formatCurrency(e.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Results */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{
+              background: t.cardBg, borderRadius: 20, padding: '20px 24px',
+              boxShadow: t.shadow, border: `1px solid ${t.border}`,
+            }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16 }}>סיכום</h3>
+              {[
+                { l: 'סה"כ הכנסות', v: formatCurrency(totalIncome), color: t.success },
+                { l: 'סה"כ הוצאות', v: formatCurrency(totalExpenses), color: t.text },
+                { l: 'החזר משכנתא', v: formatCurrency(mortgagePayment), color: t.primary },
+                { l: 'סה"כ הוצאות + משכנתא', v: formatCurrency(totalWithMortgage), color: t.text, bold: true },
+              ].map(rrow => (
+                <div key={rrow.l} style={{
+                  display: 'flex', justifyContent: 'space-between', padding: '10px 0',
+                  borderBottom: `1px solid ${t.borderLight}`,
+                }}>
+                  <span style={{ fontSize: 13, color: t.textMuted }}>{rrow.l}</span>
+                  <span style={{ fontSize: rrow.bold ? 14 : 13, fontWeight: rrow.bold ? 700 : 600, color: rrow.color }}>{rrow.v}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0' }}>
+                <span style={{ fontSize: 13, color: t.textMuted }}>נשאר</span>
+                <span style={{ fontSize: 22, fontWeight: 800, color: status.color }}>{formatCurrency(remaining)}</span>
+              </div>
+
+              {/* Visual bar */}
+              <div style={{ height: 10, borderRadius: 5, background: t.border, overflow: 'hidden', marginBottom: 8 }}>
+                <div style={{ display: 'flex', height: '100%' }}>
+                  <div style={{ width: `${Math.min(expPct, 100)}%`, background: '#a8a29e', transition: 'width 0.5s' }} />
+                  <div style={{ width: `${Math.min(dti, 100 - expPct)}%`, background: t.primary, transition: 'width 0.5s' }} />
+                </div>
+              </div>
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', fontSize: 11,
+                color: t.textMuted, marginBottom: 14,
+              }}>
+                <span>הוצאות: {expPct.toFixed(0)}%</span>
+                <span>משכנתא: {dti.toFixed(0)}%</span>
+                <span>מרווח: {totalIncome > 0 ? ((remaining / totalIncome) * 100).toFixed(0) : 0}%</span>
+              </div>
+
+              <div style={{
+                padding: '11px 14px', borderRadius: 12, background: status.bg,
+                color: status.color, fontSize: 13, fontWeight: 600,
+              }}>
+                {status.label}
+              </div>
+            </div>
+
+            {/* Donut */}
+            <div style={{
+              background: t.cardBg, borderRadius: 20, padding: '20px 24px',
+              boxShadow: t.shadow, border: `1px solid ${t.border}`,
+            }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 14 }}>חלוקת הוצאות</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <SVGDonut data={donutData} size={150} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+                  {donutData.slice(0, 6).map((d, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: d.c, flexShrink: 0 }} />
+                      <span style={{
+                        fontSize: 11, color: t.textMuted, flex: 1, overflow: 'hidden',
+                        textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>{d.l}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: t.text }}>{formatCurrency(d.v)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handlePrint}
+              className="crm-btn-primary"
               style={{
-                background: isHealthy ? '#d1fae5' : remaining >= 0 ? '#fef3c7' : '#fee2e2',
-                color: isHealthy ? '#065f46' : remaining >= 0 ? '#d97706' : '#dc2626',
+                background: t.primary, color: '#fff', border: 'none', borderRadius: 14,
+                padding: '11px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                fontFamily: 'Heebo,sans-serif', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', gap: 8, boxShadow: `0 4px 14px ${t.primary}45`,
               }}
             >
-              {recommendation}
-            </div>
-
-            {remaining < 3000 && remaining >= 0 && (
-              <div className="mt-2 p-3 rounded-xl text-[13px]" style={{ background: '#fef3c7', color: '#d97706' }}>
-                המרווח פחות מ-3,000 ₪ - מומלץ לבחון הפחתת ההחזר או צמצום הוצאות
-              </div>
-            )}
+              <Download size={15} />
+              הורד PDF
+            </button>
           </div>
-
-          {/* Pie Chart */}
-          <div style={{ ...cardStyle, padding: 20 }}>
-            <h2 className="text-[15px] font-bold mb-3" style={{ color: '#1c1917' }}>חלוקת הוצאות</h2>
-            <ResponsiveContainer width="100%" height={230}>
-              <PieChart>
-                <Pie data={chartData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false}>
-                  {chartData.map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
-                </Pie>
-                <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 13 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          <button
-            className="w-full flex items-center justify-center gap-2 text-[13px] font-semibold text-white transition-all hover:opacity-90"
-            style={{ borderRadius: 12, background: '#059669', padding: '10px 0', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
-          >
-            <Download size={16} />
-            הורד PDF
-          </button>
         </div>
       </div>
     </div>

@@ -1,42 +1,44 @@
 import { useState, useRef, lazy, Suspense } from 'react'
-import { FileText, Upload, Download, Search, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Trash2, Eye } from 'lucide-react'
+import { Search, Plus, FileText, CheckSquare, AlertTriangle, X, Loader2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { useDocuments, useUploadDocument, useDeleteDocument, type DocumentWithCustomer } from '@/hooks/queries/useDocuments'
+import { useTheme } from '@/theme/ThemeContext'
+import {
+  useDocuments,
+  useUploadDocument,
+  useDeleteDocument,
+  type DocumentWithCustomer,
+} from '@/hooks/queries/useDocuments'
 import { useCustomers } from '@/hooks/queries/useCustomers'
 import { toast, ConfirmDialog } from '@/components/ui'
+import type { DocumentStatus } from '@/types/database'
 
 // react-pdf pulls in pdf.js (~370KB) — load it only when a preview opens.
 const DocumentPreview = lazy(() =>
   import('@/components/DocumentPreview').then((m) => ({ default: m.DocumentPreview }))
 )
 
-const statusIcons: Record<string, { icon: typeof CheckCircle; color: string }> = {
-  'תקין':    { icon: CheckCircle,  color: '#059669' },
-  'ממתין':   { icon: Clock,        color: '#d97706' },
-  'חסר':     { icon: XCircle,      color: '#dc2626' },
-  'פג תוקף': { icon: AlertCircle,  color: '#a8a29e' },
-}
-
-const categories = ['הכל', 'זיהוי', 'הכנסות', 'חשבון בנק', 'נכס', 'כללי']
 const docTypes = ['תעודת זהות + ספח', '3 תלושי שכר', 'הסכם רכישה', 'נסח טאבו', 'דוח פלאש BDI', 'אחר']
+const docStatuses: (DocumentStatus | 'הכל')[] = ['הכל', 'תקין', 'ממתין', 'חסר', 'פג תוקף']
 
-const cardStyle = {
-  background: '#ffffff',
-  borderRadius: 20,
-  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-  border: '1px solid #e7e5e4',
+// Reproduced from design crm-pages2.jsx dsColors (keyed to the real status model).
+const dsColors: Record<string, { bg: string; text: string }> = {
+  'תקין': { bg: '#d1fae5', text: '#065f46' },
+  'ממתין': { bg: '#fef3c7', text: '#b45309' },
+  'חסר': { bg: '#fee2e2', text: '#dc2626' },
+  'פג תוקף': { bg: '#f3e8ff', text: '#7e22ce' },
 }
 
 type DocRow = DocumentWithCustomer
 
 export default function DocumentsPage() {
+  const t = useTheme()
   const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('הכל')
-  const [statusFilter, setStatusFilter] = useState('הכל')
+  const [statusFilter, setStatusFilter] = useState<DocumentStatus | 'הכל'>('הכל')
   const [uploadType, setUploadType] = useState(docTypes[0])
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [docToDelete, setDocToDelete] = useState<DocRow | null>(null)
   const [previewDoc, setPreviewDoc] = useState<DocRow | null>(null)
+  const [hovRow, setHovRow] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: docs = [], isLoading: loading } = useDocuments()
@@ -57,6 +59,14 @@ export default function DocumentsPage() {
     e.target.value = ''
   }
 
+  const triggerUpload = () => {
+    if (!selectedCustomerId) {
+      toast.warning('בחר לקוח לפני ההעלאה')
+      return
+    }
+    fileInputRef.current?.click()
+  }
+
   const handleDeleteDoc = () => {
     if (!docToDelete) return
     deleteDocument.mutate(docToDelete.id, {
@@ -71,193 +81,460 @@ export default function DocumentsPage() {
     })
   }
 
-  const filtered = docs.filter(d => {
-    const matchSearch = !search || (d.customerName ?? '').includes(search) || (d.type ?? '').includes(search)
-    const matchCategory = categoryFilter === 'הכל' || d.category === categoryFilter
+  const filtered = docs.filter((d) => {
+    const matchSearch =
+      !search || (d.customerName ?? '').includes(search) || (d.type ?? '').includes(search)
     const matchStatus = statusFilter === 'הכל' || d.status === statusFilter
-    return matchSearch && matchCategory && matchStatus
+    return matchSearch && matchStatus
   })
 
-  const stats = {
+  const counts = {
     total: docs.length,
-    ok: docs.filter(d => d.status === 'תקין').length,
-    pending: docs.filter(d => d.status === 'ממתין').length,
-    missing: docs.filter(d => d.status === 'חסר').length,
-    expired: docs.filter(d => d.status === 'פג תוקף').length,
+    ok: docs.filter((d) => d.status === 'תקין').length,
+    pending: docs.filter((d) => d.status === 'ממתין').length,
+    missing: docs.filter((d) => d.status === 'חסר').length,
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} style={{ color: '#059669' }} className="animate-spin" />
-      </div>
-    )
+  const summaryCards = [
+    { label: 'סה"כ מסמכים', value: counts.total, color: t.primary, Icon: FileText },
+    { label: 'אושרו', value: counts.ok, color: '#059669', Icon: CheckSquare },
+    { label: 'ממתינים', value: counts.pending, color: '#d97706', Icon: AlertTriangle },
+    { label: 'חסרים', value: counts.missing, color: '#dc2626', Icon: X },
+  ]
+
+  const inputSt: React.CSSProperties = {
+    border: `1.5px solid ${t.border}`,
+    borderRadius: 9,
+    fontSize: 13,
+    color: t.text,
+    background: t.cardBg,
+    outline: 'none',
+    fontFamily: 'Heebo,sans-serif',
+    padding: '8px 12px',
   }
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>מסמכים</h1>
-          <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>{docs.length} מסמכים</p>
-        </div>
-        <div className="flex gap-2 shrink-0 items-center flex-wrap justify-end">
-          <select
-            value={selectedCustomerId}
-            onChange={e => setSelectedCustomerId(e.target.value)}
-            className="text-[12px] px-3 py-2 outline-none"
-            style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, color: selectedCustomerId ? '#1c1917' : '#a8a29e', background: '#fff' }}
-          >
-            <option value="">בחר לקוח...</option>
-            {customers.map(c => (
-              <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
-            ))}
-          </select>
-          <select
-            value={uploadType}
-            onChange={e => setUploadType(e.target.value)}
-            className="text-[12px] px-3 py-2 outline-none"
-            style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, color: '#57534e', background: '#fff' }}
-          >
-            {docTypes.map(t => <option key={t}>{t}</option>)}
-          </select>
-          <input type="file" hidden ref={fileInputRef} onChange={handleFileUpload} />
-          <button
-            onClick={() => {
-              if (!selectedCustomerId) { toast.warning('בחר לקוח לפני ההעלאה'); return }
-              fileInputRef.current?.click()
-            }}
-            disabled={uploadDocument.isPending}
-            className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
-            style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
-          >
-            {uploadDocument.isPending ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-            העלה מסמך
-          </button>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {[
-          { label: 'סה"כ', value: stats.total, color: '#059669' },
-          { label: 'תקין', value: stats.ok, color: '#059669' },
-          { label: 'ממתין', value: stats.pending, color: '#d97706' },
-          { label: 'חסר', value: stats.missing, color: '#dc2626' },
-          { label: 'פג תוקף', value: stats.expired, color: '#a8a29e' },
-        ].map(s => (
-          <div
-            key={s.label}
-            onClick={() => setStatusFilter(s.label === 'סה"כ' ? 'הכל' : s.label)}
-            className="text-center cursor-pointer transition-all hover:opacity-80"
-            style={{ ...cardStyle, padding: '14px 12px' }}
-          >
-            <p className="font-black tabular-nums" style={{ fontSize: 22, color: s.color }}>{s.value}</p>
-            <p className="text-[13px]" style={{ color: '#57534e' }}>{s.label}</p>
+    <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
+      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: 16,
+            marginBottom: 28,
+            flexWrap: 'wrap',
+            animation: 'fadeUp 0.4s ease backwards',
+          }}
+        >
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, marginBottom: 4 }}>מסמכים</h1>
+            <p style={{ fontSize: 13, color: t.textMuted }}>{docs.length} מסמכים במערכת</p>
           </div>
-        ))}
-      </div>
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <select
+              value={selectedCustomerId}
+              onChange={(e) => setSelectedCustomerId(e.target.value)}
+              style={{ ...inputSt, color: selectedCustomerId ? t.text : t.textMuted }}
+            >
+              <option value="">בחר לקוח...</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.first_name} {c.last_name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={uploadType}
+              onChange={(e) => setUploadType(e.target.value)}
+              style={{ ...inputSt, color: t.textSub }}
+            >
+              {docTypes.map((dt) => (
+                <option key={dt}>{dt}</option>
+              ))}
+            </select>
+            <input type="file" hidden ref={fileInputRef} onChange={handleFileUpload} />
+            <button
+              onClick={triggerUpload}
+              disabled={uploadDocument.isPending}
+              className="crm-btn-primary"
+              style={{
+                background: t.primary,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 12,
+                padding: '10px 22px',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'Heebo,sans-serif',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                boxShadow: `0 4px 14px ${t.primary}45`,
+                opacity: uploadDocument.isPending ? 0.5 : 1,
+                flexShrink: 0,
+              }}
+            >
+              {uploadDocument.isPending ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Plus size={15} color="#fff" strokeWidth={2.5} />
+              )}
+              העלאת מסמך
+            </button>
+          </div>
+        </div>
 
-      {/* Filters */}
-      <div style={{ ...cardStyle, padding: 16 }}>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search size={16} className="absolute" style={{ right: 12, top: '50%', transform: 'translateY(-50%)', color: '#a8a29e' }} />
+        {/* Summary cards */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4,1fr)',
+            gap: 16,
+            marginBottom: 22,
+          }}
+        >
+          {summaryCards.map((c, i) => (
+            <div
+              key={c.label}
+              style={{
+                background: t.cardBg,
+                borderRadius: 16,
+                padding: '20px 22px',
+                boxShadow: t.shadow,
+                border: `1px solid ${t.border}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                animation: `fadeUp 0.4s ease ${i * 0.07 + 0.05}s backwards`,
+              }}
+            >
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 12,
+                  background: c.color + '18',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <c.Icon size={18} color={c.color} />
+              </div>
+              <div>
+                <p
+                  style={{
+                    fontSize: 24,
+                    fontWeight: 800,
+                    color: t.text,
+                    lineHeight: 1,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {c.value}
+                </p>
+                <p style={{ fontSize: 12, color: t.textMuted, marginTop: 3 }}>{c.label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Filter bar */}
+        <div
+          style={{
+            background: t.cardBg,
+            borderRadius: 14,
+            border: `1px solid ${t.border}`,
+            boxShadow: t.shadow,
+            padding: '14px 18px',
+            marginBottom: 18,
+            display: 'flex',
+            gap: 14,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            animation: 'fadeUp 0.4s ease 0.2s backwards',
+          }}
+        >
+          <div style={{ position: 'relative', flex: 1, maxWidth: 280, minWidth: 200 }}>
+            <span
+              style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)' }}
+            >
+              <Search size={15} color={t.textMuted} />
+            </span>
             <input
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="חפש לפי לקוח או סוג מסמך..."
-              className="w-full pr-10 pl-4 py-2 outline-none text-[13px]"
-              style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, color: '#1c1917' }}
+              style={{
+                width: '100%',
+                paddingRight: 38,
+                paddingLeft: 14,
+                height: 38,
+                borderRadius: 9,
+                border: `1px solid ${t.border}`,
+                background: t.inputBg,
+                color: t.text,
+                fontSize: 14,
+                outline: 'none',
+                fontFamily: 'Heebo,sans-serif',
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = t.primary
+                e.target.style.boxShadow = `0 0 0 3px ${t.primary}18`
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = t.border
+                e.target.style.boxShadow = 'none'
+              }}
             />
           </div>
-          <div className="flex gap-1 flex-wrap">
-            {categories.map(c => (
-              <button
-                key={c}
-                onClick={() => setCategoryFilter(c)}
-                className="px-3 py-1.5 text-[12px] font-semibold transition-all"
-                style={{
-                  borderRadius: 20,
-                  background: categoryFilter === c ? '#059669' : '#f5f4f2',
-                  color: categoryFilter === c ? '#fff' : '#57534e',
-                }}
-              >{c}</button>
-            ))}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {docStatuses.map((s) => {
+              const active = statusFilter === s
+              const sc = dsColors[s] || { bg: t.primary, text: '#fff' }
+              return (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className="crm-btn"
+                  style={{
+                    padding: '5px 14px',
+                    borderRadius: 20,
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: active ? 600 : 400,
+                    background: active ? (s === 'הכל' ? t.primary : sc.bg) : t.bg,
+                    color: active ? (s === 'הכל' ? '#fff' : sc.text) : t.textSub,
+                    fontFamily: 'Heebo,sans-serif',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {s}
+                </button>
+              )
+            })}
           </div>
         </div>
-      </div>
 
-      {/* Table */}
-      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-        {filtered.length === 0 ? (
-          <div className="py-16 text-center">
-            <FileText size={40} style={{ color: '#d6d3d1', margin: '0 auto 12px' }} />
-            <p className="text-[15px] font-semibold" style={{ color: '#57534e' }}>לא נמצאו מסמכים</p>
-            <p className="text-[13px] mt-1" style={{ color: '#a8a29e' }}>העלה מסמך ראשון באמצעות הכפתור למעלה</p>
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr style={{ background: '#faf9f7', borderBottom: '1px solid #f5f4f2' }}>
-                {['לקוח', 'סוג מסמך', 'קטגוריה', 'סטטוס', 'תאריך', 'פעולות'].map(h => (
-                  <th key={h} className="text-right p-3 text-[11px] font-bold uppercase" style={{ color: '#a8a29e' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(d => {
-                const si = statusIcons[d.status ?? ''] ?? { icon: FileText, color: '#a8a29e' }
-                return (
-                  <tr key={d.id} className="border-b transition-colors hover:bg-[#faf9f7]" style={{ borderColor: '#f5f4f2' }}>
-                    <td className="p-3 text-[13px] font-semibold" style={{ color: '#1c1917' }}>{d.customerName || '—'}</td>
-                    <td className="p-3 text-[13px]" style={{ color: '#57534e' }}>{d.type || '—'}</td>
-                    <td className="p-3 text-[12px]" style={{ color: '#a8a29e' }}>{d.category || '—'}</td>
-                    <td className="p-3">
-                      <span className="inline-flex items-center gap-1 text-[12px] font-semibold">
-                        <si.icon size={13} style={{ color: si.color }} />
-                        <span style={{ color: si.color }}>{d.status || '—'}</span>
-                      </span>
-                    </td>
-                    <td className="p-3 text-[12px]" style={{ color: '#a8a29e' }}>{d.uploaded_at ? formatDate(d.uploaded_at) : '—'}</td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-2">
-                        {d.file_url && (
-                          <button
-                            onClick={() => setPreviewDoc(d)}
-                            className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-lg"
-                            style={{ background: '#f5f4f2', color: '#57534e' }}
+        {/* Table */}
+        <div
+          style={{
+            background: t.cardBg,
+            borderRadius: 18,
+            border: `1px solid ${t.border}`,
+            boxShadow: t.shadow,
+            overflow: 'hidden',
+            animation: 'fadeUp 0.4s ease 0.25s backwards',
+          }}
+        >
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
+              <Loader2 size={28} color={t.primary} className="animate-spin" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div style={{ padding: '64px 24px', textAlign: 'center' }}>
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 16,
+                  background: t.bg,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 12px',
+                }}
+              >
+                <FileText size={24} color={t.textMuted} />
+              </div>
+              <p style={{ fontSize: 15, fontWeight: 600, color: t.textSub }}>לא נמצאו מסמכים</p>
+              <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>
+                העלה מסמך ראשון באמצעות הכפתור למעלה
+              </p>
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
+                  {['לקוח', 'סוג מסמך', 'סטטוס', 'הועלה', 'תפוגה', 'פעולות'].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: '13px 20px',
+                        textAlign: 'right',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: t.textMuted,
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((d, i) => {
+                  const sc = dsColors[d.status ?? ''] || { bg: t.pillBg, text: t.textSub }
+                  const hov = hovRow === d.id
+                  const expiry = d.expires_at ? formatDate(d.expires_at) : null
+                  const av = (d.customerName ?? '').trim().charAt(0) || '—'
+                  return (
+                    <tr
+                      key={d.id}
+                      onMouseEnter={() => setHovRow(d.id)}
+                      onMouseLeave={() => setHovRow(null)}
+                      style={{
+                        borderBottom:
+                          i < filtered.length - 1 ? `1px solid ${t.borderLight}` : 'none',
+                        background: hov ? t.bg : 'transparent',
+                        transition: 'background 0.12s',
+                        animation: `fadeUp 0.35s ease ${i * 0.04 + 0.3}s backwards`,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <td style={{ padding: '14px 20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 9,
+                              background: t.primary + '20',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 12,
+                              fontWeight: 800,
+                              color: t.primary,
+                              flexShrink: 0,
+                            }}
                           >
-                            <Eye size={12} /> תצוגה
-                          </button>
-                        )}
-                        {d.file_url && (
-                          <a
-                            href={d.file_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-lg"
-                            style={{ background: '#d1fae5', color: '#065f46' }}
-                          >
-                            <Download size={12} /> הורד
-                          </a>
-                        )}
-                        <button
-                          onClick={() => setDocToDelete(d)}
-                          className="inline-flex items-center justify-center transition-colors hover:text-red-600"
-                          style={{ color: '#d6d3d1' }}
-                          aria-label="מחק מסמך"
+                            {av}
+                          </div>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>
+                            {d.customerName || '—'}
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '14px 20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <FileText size={14} color={t.textMuted} />
+                          <span style={{ fontSize: 13, color: t.text }}>{d.type || '—'}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '14px 20px' }}>
+                        <span
+                          style={{
+                            padding: '4px 12px',
+                            borderRadius: 20,
+                            background: sc.bg,
+                            color: sc.text,
+                            fontSize: 12,
+                            fontWeight: 600,
+                          }}
                         >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
+                          {d.status || '—'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 20px', fontSize: 13, color: t.textSub }}>
+                        {d.uploaded_at ? formatDate(d.uploaded_at) : '—'}
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 20px',
+                          fontSize: 13,
+                          color:
+                            d.status === 'פג תוקף' ? '#dc2626' : expiry ? '#d97706' : t.textMuted,
+                          fontWeight: expiry ? 600 : 400,
+                        }}
+                      >
+                        {expiry || '—'}
+                      </td>
+                      <td style={{ padding: '14px 20px' }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 8,
+                            opacity: hov ? 1 : 0,
+                            transition: 'opacity 0.15s',
+                          }}
+                        >
+                          {d.file_url && (
+                            <button
+                              className="crm-btn"
+                              onClick={() => setPreviewDoc(d)}
+                              style={{
+                                background: t.primary + '15',
+                                color: t.primary,
+                                border: 'none',
+                                borderRadius: 8,
+                                padding: '5px 12px',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                fontFamily: 'Heebo,sans-serif',
+                              }}
+                            >
+                              צפייה
+                            </button>
+                          )}
+                          <button
+                            className="crm-btn"
+                            onClick={triggerUpload}
+                            style={{
+                              background: t.bg,
+                              color: t.textSub,
+                              border: `1px solid ${t.border}`,
+                              borderRadius: 8,
+                              padding: '5px 12px',
+                              fontSize: 12,
+                              cursor: 'pointer',
+                              fontFamily: 'Heebo,sans-serif',
+                            }}
+                          >
+                            העלה מחדש
+                          </button>
+                          <button
+                            className="crm-btn"
+                            onClick={() => setDocToDelete(d)}
+                            style={{
+                              background: t.dangerBg,
+                              color: t.danger,
+                              border: 'none',
+                              borderRadius: 8,
+                              padding: '5px 12px',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              fontFamily: 'Heebo,sans-serif',
+                            }}
+                          >
+                            מחק
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
       <ConfirmDialog

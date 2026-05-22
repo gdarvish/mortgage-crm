@@ -16,6 +16,8 @@ import {
 import type { LoanTrackType, PropertyType } from '@/types/database'
 import { functions } from '@/lib/firebase'
 import { toast } from '@/components/ui'
+import { useTheme } from '@/theme/ThemeContext'
+import type { Theme } from '@/theme/themes'
 
 const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
 
@@ -36,9 +38,11 @@ const propertyTypes: { value: PropertyType; label: string }[] = [
 
 const emptyTrack: TrackInput = { type: 'קל"צ', amount: 0, interestRate: 4.5, periodMonths: 300 }
 
-function InputField({
-  label, value, onChange, type = 'number', prefix, suffix, readOnly = false,
+// ─── SHARED: INPUT FIELD ──────────────────────────────────────────────────────
+function Field({
+  t, label, value, onChange, type = 'text', prefix, suffix, readOnly,
 }: {
+  t: Theme
   label: string
   value: number | string
   onChange?: (v: string) => void
@@ -47,49 +51,39 @@ function InputField({
   suffix?: string
   readOnly?: boolean
 }) {
-  const [focused, setFocused] = useState(false)
+  const [focus, setFocus] = useState(false)
   return (
     <div>
-      <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e', letterSpacing: '0.03em' }}>
-        {label}
-      </label>
-      <div
-        className="flex items-center overflow-hidden transition-all duration-150"
-        style={{
-          border: `1.5px solid ${focused ? '#059669' : '#e7e5e4'}`,
-          borderRadius: 10,
-          background: readOnly ? '#faf9f7' : '#ffffff',
-          boxShadow: focused ? '0 0 0 3px rgba(5,150,105,0.12)' : 'none',
-        }}
-      >
-        {prefix && (
-          <span className="px-3 text-[14px] font-semibold shrink-0" style={{ color: '#a8a29e' }}>{prefix}</span>
-        )}
+      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6, letterSpacing: '0.03em' }}>{label}</label>
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        border: `1.5px solid ${focus ? t.primary : t.border}`,
+        borderRadius: 10, background: readOnly ? t.bg : t.inputBg,
+        boxShadow: focus ? `0 0 0 3px ${t.primary}18` : 'none',
+        transition: 'border-color 0.15s, box-shadow 0.15s', overflow: 'hidden',
+      }}>
+        {prefix && <span style={{ padding: '0 10px 0 4px', color: t.textMuted, fontSize: 14, fontWeight: 600, flexShrink: 0 }}>{prefix}</span>}
         <input
-          type={type}
-          value={value}
+          type={type} value={value}
+          onChange={onChange ? e => onChange(e.target.value) : undefined}
           readOnly={readOnly}
-          onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          className="flex-1 py-2.5 bg-transparent outline-none text-[14px]"
-          style={{
-            color: readOnly ? '#57534e' : '#1c1917',
-            paddingRight: prefix ? 4 : 12,
-            paddingLeft: suffix ? 4 : 12,
-            fontFamily: 'var(--font-heebo)',
-          }}
+          onFocus={() => setFocus(true)}
+          onBlur={() => setFocus(false)}
           dir="ltr"
+          style={{
+            flex: 1, padding: '10px 12px', border: 'none', outline: 'none',
+            background: 'transparent', color: readOnly ? t.textSub : t.text,
+            fontSize: 14, fontFamily: 'Heebo,sans-serif',
+          }}
         />
-        {suffix && (
-          <span className="px-3 text-[13px] shrink-0" style={{ color: '#a8a29e' }}>{suffix}</span>
-        )}
+        {suffix && <span style={{ padding: '0 12px', color: t.textMuted, fontSize: 13, flexShrink: 0 }}>{suffix}</span>}
       </div>
     </div>
   )
 }
 
 export default function MortgageCalculatorPage() {
+  const t = useTheme()
   const [propertyPrice, setPropertyPrice] = useState(1500000)
   const [ownCapital, setOwnCapital] = useState(300000)
   const [propertyType, setPropertyType] = useState<PropertyType>('דירה_ראשונה')
@@ -106,16 +100,16 @@ export default function MortgageCalculatorPage() {
 
   const loanAmount  = Math.max(0, propertyPrice - ownCapital)
   const ltv         = propertyPrice > 0 ? Math.round((loanAmount / propertyPrice) * 100) : 0
-  const ltvColor    = ltv > 75 ? '#dc2626' : ltv > 60 ? '#d97706' : '#059669'
-  const tracksTotal = tracks.reduce((s, t) => s + t.amount, 0)
+  const ltvColor    = ltv > 75 ? t.danger : ltv > 60 ? t.warning : t.success
+  const tracksTotal = tracks.reduce((s, tr) => s + tr.amount, 0)
 
   const totalMonthlyPayment = useMemo(() =>
-    tracks.reduce((sum, t) => sum + effectiveMonthlyPayment(t), 0),
+    tracks.reduce((sum, tr) => sum + effectiveMonthlyPayment(tr), 0),
     [tracks]
   )
 
   const totalCost = useMemo(() =>
-    tracks.reduce((s, t) => s + effectiveMonthlyPayment(t) * t.periodMonths, 0),
+    tracks.reduce((s, tr) => s + effectiveMonthlyPayment(tr) * tr.periodMonths, 0),
     [tracks]
   )
 
@@ -144,7 +138,7 @@ export default function MortgageCalculatorPage() {
   const addTrack = () => setTracks([...tracks, { ...emptyTrack }])
   const removeTrack = (idx: number) => setTracks(tracks.filter((_, i) => i !== idx))
   const updateTrack = (idx: number, field: keyof TrackInput, value: number | string) => {
-    setTracks(tracks.map((t, i) => i === idx ? { ...t, [field]: value } : t))
+    setTracks(tracks.map((tr, i) => i === idx ? { ...tr, [field]: value } : tr))
   }
   const applyRecommendation = (idx: number) => {
     setTracks(recommendations[idx].tracks)
@@ -161,12 +155,12 @@ export default function MortgageCalculatorPage() {
         loanAmount,
         ltv,
         monthlyIncome,
-        tracks: tracks.map(t => ({
-          type: t.type,
-          amount: t.amount,
-          interestRate: t.interestRate,
-          periodMonths: t.periodMonths,
-          monthlyPayment: Math.round(effectiveMonthlyPayment(t)),
+        tracks: tracks.map(tr => ({
+          type: tr.type,
+          amount: tr.amount,
+          interestRate: tr.interestRate,
+          periodMonths: tr.periodMonths,
+          monthlyPayment: Math.round(effectiveMonthlyPayment(tr)),
         })),
         totalMonthlyPayment: Math.round(totalMonthlyPayment),
         totalCost: Math.round(totalCost),
@@ -201,11 +195,11 @@ export default function MortgageCalculatorPage() {
       }
       if (Array.isArray(data.tracks) && data.tracks.length > 0) {
         setTracks(
-          data.tracks.map(t => ({
-            type: t.type,
-            amount: t.amount,
-            interestRate: t.interest_rate,
-            periodMonths: t.period_months,
+          data.tracks.map(tr => ({
+            type: tr.type,
+            amount: tr.amount,
+            interestRate: tr.interest_rate,
+            periodMonths: tr.period_months,
           }))
         )
       }
@@ -218,409 +212,336 @@ export default function MortgageCalculatorPage() {
     }
   }
 
-  const cardStyle = {
-    background: '#ffffff',
+  const card = {
+    background: t.cardBg,
     borderRadius: 20,
-    boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-    border: '1px solid #e7e5e4',
+    boxShadow: t.shadow,
+    border: `1px solid ${t.border}`,
   }
 
   return (
-    <div className="animate-fade-in max-w-[1360px] mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
-          מחשבון משכנתא
-        </h1>
-        <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>חשב תשלום חודשי לפי מסלולים</p>
-      </div>
+    <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
+      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+        {/* Header */}
+        <div style={{ marginBottom: 28, animation: 'fadeUp 0.4s ease backwards' }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, marginBottom: 4 }}>מחשבון משכנתא</h1>
+          <p style={{ fontSize: 13, color: t.textMuted }}>חשב תשלום חודשי לפי מסלולים</p>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-5">
-        {/* ── LEFT COLUMN ── */}
-        <div className="flex flex-col gap-4">
-          {/* Property inputs */}
-          <div style={{ ...cardStyle, padding: '22px 24px' }}>
-            <h3 className="text-[14px] font-bold mb-4" style={{ color: '#1c1917' }}>נתוני הנכס</h3>
-            <div className="flex flex-col gap-3">
-              <InputField label="מחיר הנכס" value={propertyPrice} onChange={v => setPropertyPrice(Number(v) || 0)} prefix="₪" />
-              <InputField label="הון עצמי" value={ownCapital} onChange={v => setOwnCapital(Number(v) || 0)} prefix="₪" />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 20 }}>
+          {/* ── LEFT COLUMN ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Property inputs */}
+            <div style={{ ...card, padding: '22px 24px', animation: 'fadeUp 0.4s ease 0.05s backwards' }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16 }}>נתוני הנכס</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <Field t={t} label="מחיר הנכס" value={propertyPrice} onChange={v => setPropertyPrice(Number(v) || 0)} type="number" prefix="₪" />
+                <Field t={t} label="הון עצמי" value={ownCapital} onChange={v => setOwnCapital(Number(v) || 0)} type="number" prefix="₪" />
 
-              <div className="grid grid-cols-2 gap-3">
-                <InputField label="סכום הלוואה" value={formatCurrency(loanAmount)} readOnly />
-                <div>
-                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e', letterSpacing: '0.03em' }}>LTV</label>
-                  <div
-                    className="flex items-center justify-center"
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: 10,
-                      background: ltvColor + '15',
-                      border: `1.5px solid ${ltvColor}40`,
-                    }}
-                  >
-                    <span className="font-black" style={{ fontSize: 18, color: ltvColor }}>{ltv}%</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <Field t={t} label="סכום הלוואה" value={formatCurrency(loanAmount)} readOnly />
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6, letterSpacing: '0.03em' }}>LTV</label>
+                    <div style={{ padding: '10px 12px', borderRadius: 10, background: ltvColor + '15', border: `1.5px solid ${ltvColor}40`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: 18, fontWeight: 800, color: ltvColor }}>{ltv}%</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e', letterSpacing: '0.03em' }}>סוג נכס</label>
-                  <select
-                    value={propertyType}
-                    onChange={e => setPropertyType(e.target.value as PropertyType)}
-                    className="w-full py-2.5 px-3 text-[14px] outline-none transition-all duration-150"
-                    style={{
-                      border: '1.5px solid #e7e5e4',
-                      borderRadius: 10,
-                      background: '#ffffff',
-                      color: '#1c1917',
-                      fontFamily: 'var(--font-heebo)',
-                    }}
-                  >
-                    {propertyTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6, letterSpacing: '0.03em' }}>סוג נכס</label>
+                    <select
+                      value={propertyType}
+                      onChange={e => setPropertyType(e.target.value as PropertyType)}
+                      style={{ width: '100%', padding: '10px 12px', fontSize: 14, outline: 'none', border: `1.5px solid ${t.border}`, borderRadius: 10, background: t.inputBg, color: t.text, fontFamily: 'Heebo,sans-serif' }}
+                    >
+                      {propertyTypes.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    </select>
+                  </div>
+                  <Field t={t} label="הכנסה חודשית נטו" value={monthlyIncome} onChange={v => setMonthlyIncome(Number(v) || 0)} type="number" prefix="₪" />
                 </div>
-                <InputField label="הכנסה חודשית נטו" value={monthlyIncome} onChange={v => setMonthlyIncome(Number(v) || 0)} prefix="₪" />
               </div>
             </div>
-          </div>
 
-          {/* Summary */}
-          <div style={{ ...cardStyle, padding: '22px 24px' }}>
-            <h3 className="text-[14px] font-bold mb-4" style={{ color: '#1c1917' }}>סיכום</h3>
-            <div className="flex flex-col divide-y" style={{ borderColor: '#f5f4f2' }}>
+            {/* Summary */}
+            <div style={{ ...card, padding: '22px 24px', animation: 'fadeUp 0.4s ease 0.1s backwards' }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 18 }}>סיכום</h3>
               {[
-                { label: 'תשלום חודשי', value: formatCurrency(Math.round(totalMonthlyPayment)), highlight: true },
+                { label: 'תשלום חודשי', value: formatCurrency(Math.round(totalMonthlyPayment)), highlight: true, note: null as string | null },
                 {
                   label: 'סה"כ מסלולים',
                   value: formatCurrency(tracksTotal),
+                  highlight: false,
                   note: tracksTotal !== loanAmount ? `פער: ${formatCurrency(Math.abs(loanAmount - tracksTotal))}` : null,
                 },
-                { label: 'עלות כוללת', value: formatCurrency(Math.round(totalCost)) },
+                { label: 'עלות כוללת', value: formatCurrency(Math.round(totalCost)), highlight: false, note: null as string | null },
               ].map(row => (
-                <div key={row.label} className="flex items-center justify-between py-3">
-                  <span className="text-[13px]" style={{ color: '#a8a29e' }}>{row.label}</span>
-                  <div className="flex items-center gap-2">
-                    {row.note && (
-                      <span className="text-[11px] font-medium" style={{ color: '#d97706' }}>{row.note}</span>
-                    )}
-                    <span
-                      className="font-black tabular-nums"
-                      style={{
-                        fontSize: row.highlight ? 22 : 15,
-                        color: row.highlight ? '#059669' : '#1c1917',
-                        fontFamily: 'var(--font-heebo)',
-                      }}
-                    >
-                      {row.value}
-                    </span>
+                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: `1px solid ${t.borderLight}` }}>
+                  <span style={{ fontSize: 13, color: t.textMuted }}>{row.label}</span>
+                  <div style={{ textAlign: 'left' }}>
+                    {row.note && <span style={{ fontSize: 11, color: t.warning, marginLeft: 6 }}>{row.note}</span>}
+                    <span style={{ fontSize: row.highlight ? 22 : 15, fontWeight: 800, color: row.highlight ? t.primary : t.text }}>{row.value}</span>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* Compliance */}
-          <div style={{ ...cardStyle, padding: '22px 24px' }}>
-            <h3 className="text-[14px] font-bold mb-4 flex items-center gap-2" style={{ color: '#1c1917' }}>
-              {compliance.isValid
-                ? <CheckCircle size={16} style={{ color: '#059669' }} />
-                : <AlertTriangle size={16} style={{ color: '#dc2626' }} />
-              }
-              בדיקת Compliance
-            </h3>
-            <div className="space-y-3">
-              {compliance.checks.map((check, idx) => (
-                <div key={idx}>
-                  <div className="flex items-center justify-between text-[13px] mb-1">
-                    <span style={{ color: '#57534e' }}>{check.name}</span>
-                    <span className="font-semibold" style={{ color: check.isValid ? '#059669' : '#dc2626' }}>{check.value}%</span>
-                  </div>
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#f5f4f2' }}>
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${Math.min((check.value / check.limit) * 100, 100)}%`,
-                        background: check.isValid ? '#059669' : '#dc2626',
-                      }}
-                    />
-                  </div>
-                  <p className="text-[11px] mt-0.5" style={{ color: check.isValid ? '#059669' : '#dc2626' }}>
-                    {check.message}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div style={{ ...cardStyle, padding: '18px 24px' }} className="flex flex-col gap-2">
-            <button
-              onClick={handleAiAdvice}
-              disabled={aiAdvising}
-              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-50"
-              style={{ borderRadius: 12, background: '#fef3c7', color: '#d97706' }}
-            >
-              {aiAdvising ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
-              {aiAdvising ? 'מנתח...' : 'המלצת AI לתמהיל'}
-            </button>
-            <button
-              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97]"
-              style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
-            >
-              <Save size={15} />
-              שמור תמהיל ללקוח
-            </button>
-            <button
-              onClick={handleExportPdf}
-              disabled={generatingPdf}
-              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold transition-all hover:opacity-80 disabled:opacity-50"
-              style={{ borderRadius: 12, background: '#f5f4f2', color: '#57534e' }}
-            >
-              <Download size={15} />
-              {generatingPdf ? 'מכין PDF...' : 'הורד PDF'}
-            </button>
-          </div>
-
-          {/* AI advice */}
-          {aiAdvice && (
-            <div style={{ ...cardStyle, padding: '20px 24px' }}>
-              <h3 className="text-[14px] font-bold mb-2 flex items-center gap-2" style={{ color: '#1c1917' }}>
-                <Sparkles size={15} style={{ color: '#d97706' }} />
-                המלצת AI
+            {/* Compliance */}
+            <div style={{ ...card, padding: '22px 24px', animation: 'fadeUp 0.4s ease 0.15s backwards' }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {compliance.isValid
+                  ? <CheckCircle size={16} style={{ color: t.success }} />
+                  : <AlertTriangle size={16} style={{ color: t.danger }} />}
+                בדיקת Compliance
               </h3>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-[12px]" style={{ color: '#a8a29e' }}>רמת סיכון:</span>
-                <span
-                  className="text-[12px] font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: '#fef3c7', color: '#d97706' }}
-                >
-                  {aiAdvice.risk_level}
-                </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {compliance.checks.map((check, idx) => (
+                  <div key={idx}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, marginBottom: 4 }}>
+                      <span style={{ color: t.textSub }}>{check.name}</span>
+                      <span style={{ fontWeight: 600, color: check.isValid ? t.success : t.danger }}>{check.value}%</span>
+                    </div>
+                    <div style={{ height: 6, borderRadius: 3, overflow: 'hidden', background: t.borderLight }}>
+                      <div style={{
+                        height: '100%', borderRadius: 3, transition: 'width 0.5s',
+                        width: `${Math.min((check.value / check.limit) * 100, 100)}%`,
+                        background: check.isValid ? t.success : t.danger,
+                      }} />
+                    </div>
+                    <p style={{ fontSize: 11, marginTop: 2, color: check.isValid ? t.success : t.danger }}>{check.message}</p>
+                  </div>
+                ))}
               </div>
-              <p className="text-[13px] leading-relaxed" style={{ color: '#57534e' }}>{aiAdvice.rationale}</p>
             </div>
-          )}
 
-          {/* Sensitivity */}
-          <div style={{ ...cardStyle, padding: '22px 24px' }}>
-            <h3 className="text-[14px] font-bold mb-3" style={{ color: '#1c1917' }}>ניתוח רגישות</h3>
-            <div className="space-y-2">
-              {[0, 0.5, 1, 1.5, 2].map(delta => {
-                const adjusted = tracks.reduce((sum, t) =>
-                  sum + calculateMonthlyPayment(t.amount, t.interestRate + delta, t.periodMonths), 0
-                )
-                const isCurrent = delta === 0
-                return (
-                  <div key={delta} className="flex justify-between items-center text-[13px]">
-                    <span style={{ color: '#a8a29e' }}>{isCurrent ? 'נוכחי' : `+${delta}%`}</span>
-                    <span
-                      className="font-bold tabular-nums"
-                      style={{ color: isCurrent ? '#059669' : '#1c1917' }}
-                    >
-                      {formatCurrency(Math.round(adjusted))}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* ── RIGHT COLUMN ── */}
-        <div className="flex flex-col gap-4">
-          {/* Track header */}
-          <div className="flex items-center justify-between">
-            <h3 className="text-[15px] font-bold" style={{ color: '#1c1917' }}>
-              מסלולים ({tracks.length})
-            </h3>
-            <div className="flex gap-2">
+            {/* Actions */}
+            <div style={{ ...card, padding: '18px 24px', display: 'flex', flexDirection: 'column', gap: 8, animation: 'fadeUp 0.4s ease 0.2s backwards' }}>
               <button
-                onClick={() => applyRecommendation(1)}
-                className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold transition-all hover:opacity-80"
-                style={{ borderRadius: 10, background: '#fef3c7', color: '#d97706' }}
+                onClick={handleAiAdvice}
+                disabled={aiAdvising}
+                className="crm-btn"
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', fontSize: 13, fontWeight: 600, borderRadius: 12, border: 'none', cursor: 'pointer', background: t.accentBg, color: t.accent, fontFamily: 'Heebo,sans-serif', opacity: aiAdvising ? 0.5 : 1 }}
               >
-                <Sparkles size={13} />
-                תמהילים מומלצים
+                {aiAdvising ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                {aiAdvising ? 'מנתח...' : 'המלצת AI לתמהיל'}
               </button>
               <button
-                onClick={addTrack}
-                disabled={tracks.length >= 6}
-                className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-40"
-                style={{ borderRadius: 10, background: '#059669', boxShadow: '0 3px 10px rgba(5,150,105,0.35)' }}
+                className="crm-btn-primary"
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', fontSize: 13, fontWeight: 600, borderRadius: 12, border: 'none', cursor: 'pointer', background: t.primary, color: '#fff', fontFamily: 'Heebo,sans-serif', boxShadow: `0 4px 14px ${t.primary}45` }}
               >
-                <Plus size={13} />
-                הוסף מסלול
+                <Save size={15} />
+                שמור תמהיל ללקוח
               </button>
+              <button
+                onClick={handleExportPdf}
+                disabled={generatingPdf}
+                className="crm-btn"
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', fontSize: 13, fontWeight: 600, borderRadius: 12, border: `1px solid ${t.border}`, cursor: 'pointer', background: t.bg, color: t.textSub, fontFamily: 'Heebo,sans-serif', opacity: generatingPdf ? 0.5 : 1 }}
+              >
+                <Download size={15} />
+                {generatingPdf ? 'מכין PDF...' : 'הורד PDF'}
+              </button>
+            </div>
+
+            {/* AI advice */}
+            {aiAdvice && (
+              <div style={{ ...card, padding: '20px 24px', animation: 'fadeUp 0.4s ease backwards' }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Sparkles size={15} style={{ color: t.accent }} />
+                  המלצת AI
+                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: t.textMuted }}>רמת סיכון:</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: t.accentBg, color: t.accent }}>{aiAdvice.risk_level}</span>
+                </div>
+                <p style={{ fontSize: 13, lineHeight: 1.6, color: t.textSub }}>{aiAdvice.rationale}</p>
+              </div>
+            )}
+
+            {/* Sensitivity */}
+            <div style={{ ...card, padding: '22px 24px', animation: 'fadeUp 0.4s ease 0.25s backwards' }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 12 }}>ניתוח רגישות</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[0, 0.5, 1, 1.5, 2].map(delta => {
+                  const adjusted = tracks.reduce((sum, tr) =>
+                    sum + calculateMonthlyPayment(tr.amount, tr.interestRate + delta, tr.periodMonths), 0
+                  )
+                  const isCurrent = delta === 0
+                  return (
+                    <div key={delta} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+                      <span style={{ color: t.textMuted }}>{isCurrent ? 'נוכחי' : `+${delta}%`}</span>
+                      <span style={{ fontWeight: 700, color: isCurrent ? t.primary : t.text }}>{formatCurrency(Math.round(adjusted))}</span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </div>
 
-          {/* Track cards */}
-          {tracks.map((track, idx) => {
-            const col = TRACK_COLORS[idx % TRACK_COLORS.length]
-            const monthly = effectiveMonthlyPayment(track)
-            const pct = tracksTotal > 0 ? Math.round((track.amount / tracksTotal) * 100) : 0
-            const hasGrace = (track.graceMonths ?? 0) > 0
-            const gracePayments = hasGrace
-              ? calculateGracePayments(track.amount, track.interestRate, track.periodMonths, track.graceMonths!, track.graceType || 'חלקי')
-              : null
+          {/* ── RIGHT COLUMN ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Track header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', animation: 'fadeUp 0.4s ease 0.08s backwards' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text }}>מסלולים ({tracks.length})</h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => applyRecommendation(1)}
+                  className="crm-btn"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 13, fontWeight: 600, borderRadius: 10, border: 'none', cursor: 'pointer', background: t.accentBg, color: t.accent, fontFamily: 'Heebo,sans-serif' }}
+                >
+                  <Sparkles size={13} />
+                  תמהילים מומלצים
+                </button>
+                <button
+                  onClick={addTrack}
+                  disabled={tracks.length >= 6}
+                  className="crm-btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontSize: 13, fontWeight: 600, borderRadius: 10, border: 'none', cursor: 'pointer', background: t.primary, color: '#fff', fontFamily: 'Heebo,sans-serif', boxShadow: `0 3px 10px ${t.primary}40`, opacity: tracks.length >= 6 ? 0.4 : 1 }}
+                >
+                  <Plus size={13} strokeWidth={2.5} />
+                  הוסף מסלול
+                </button>
+              </div>
+            </div>
 
-            return (
-              <div
-                key={idx}
-                style={{
-                  ...cardStyle,
-                  padding: '20px 22px',
-                  animationName: 'fadeUp',
-                  animationDuration: '0.4s',
-                  animationDelay: `${idx * 0.08}s`,
-                  animationFillMode: 'backwards',
-                }}
-              >
-                {/* Track header row */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="rounded-full shrink-0" style={{ width: 10, height: 10, background: col }} />
-                    <select
-                      value={track.type}
-                      onChange={e => updateTrack(idx, 'type', e.target.value)}
-                      className="text-[15px] font-bold outline-none bg-transparent cursor-pointer"
-                      style={{ color: '#1c1917', fontFamily: 'var(--font-heebo)', border: 'none' }}
-                    >
-                      {trackTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[12px] px-2.5 py-1 rounded-full" style={{ background: '#f5f4f2', color: '#a8a29e' }}>
-                      {pct}% מהלוואה
-                    </span>
-                    <button
-                      onClick={() => removeTrack(idx)}
-                      className="transition-colors hover:text-red-500"
-                      style={{ color: '#a8a29e' }}
-                    >
-                      <X size={15} />
-                    </button>
-                  </div>
-                </div>
+            {/* Track cards */}
+            {tracks.map((track, idx) => {
+              const col = TRACK_COLORS[idx % TRACK_COLORS.length]
+              const monthly = effectiveMonthlyPayment(track)
+              const pct = tracksTotal > 0 ? Math.round((track.amount / tracksTotal) * 100) : 0
+              const hasGrace = (track.graceMonths ?? 0) > 0
+              const gracePayments = hasGrace
+                ? calculateGracePayments(track.amount, track.interestRate, track.periodMonths, track.graceMonths!, track.graceType || 'חלקי')
+                : null
 
-                {/* Inputs grid */}
-                <div className="grid grid-cols-3 gap-3 mb-4">
-                  <InputField label="סכום" value={track.amount} onChange={v => updateTrack(idx, 'amount', +v || 0)} prefix="₪" />
-                  <InputField label="ריבית שנתית" value={track.interestRate} onChange={v => updateTrack(idx, 'interestRate', +v || 0)} suffix="%" />
-                  <InputField label="תקופה" value={track.periodMonths} onChange={v => updateTrack(idx, 'periodMonths', +v || 0)} suffix="חו'" />
-                </div>
-
-                {/* Grace period */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <InputField
-                    label="גרייס (חודשים)"
-                    value={track.graceMonths ?? 0}
-                    onChange={v => updateTrack(idx, 'graceMonths', +v || 0)}
-                  />
-                  {hasGrace && (
-                    <div>
-                      <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e', letterSpacing: '0.03em' }}>סוג גרייס</label>
+              return (
+                <div key={idx} style={{ ...card, padding: '20px 22px', animation: `fadeUp 0.4s ease ${idx * 0.08 + 0.12}s backwards` }}>
+                  {/* Track header row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: col }} />
                       <select
-                        value={track.graceType ?? 'חלקי'}
-                        onChange={e => updateTrack(idx, 'graceType', e.target.value as GraceType)}
-                        className="w-full py-2.5 px-3 text-[14px] outline-none"
-                        style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, background: '#fff', color: '#1c1917', fontFamily: 'var(--font-heebo)' }}
+                        value={track.type}
+                        onChange={e => updateTrack(idx, 'type', e.target.value)}
+                        style={{ background: 'transparent', border: 'none', fontSize: 15, fontWeight: 700, color: t.text, cursor: 'pointer', fontFamily: 'Heebo,sans-serif', outline: 'none' }}
                       >
-                        <option value="חלקי">חלקי (ריבית בלבד)</option>
-                        <option value="מלא">מלא (קרן + ריבית נדחים)</option>
+                        {trackTypes.map(tt => <option key={tt.value} value={tt.value}>{tt.label}</option>)}
                       </select>
                     </div>
-                  )}
-                </div>
-
-                {hasGrace && gracePayments && (
-                  <div className="mb-4 text-[12px] px-3 py-2 rounded-lg" style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}>
-                    <span className="font-semibold">גרייס {track.graceType} · {track.graceMonths} חודשים: </span>
-                    {track.graceType === 'מלא'
-                      ? `ללא תשלום → ${formatCurrency(gracePayments.afterGrace)}/חודש לאחר מכן`
-                      : `${formatCurrency(gracePayments.duringGrace)}/חודש (ריבית) → ${formatCurrency(gracePayments.afterGrace)}/חודש לאחר מכן`
-                    }
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 12, color: t.textMuted, background: t.bg, padding: '3px 10px', borderRadius: 20 }}>{pct}% מהלוואה</span>
+                      <button
+                        onClick={() => removeTrack(idx)}
+                        className="crm-btn"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textMuted, padding: 4, borderRadius: 6 }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   </div>
-                )}
 
-                {/* Monthly result */}
-                <div
-                  className="flex items-center justify-between px-4 py-2.5 rounded-xl"
-                  style={{ background: col + '12' }}
-                >
-                  <span className="text-[13px]" style={{ color: '#57534e' }}>תשלום חודשי</span>
-                  <span className="font-black tabular-nums" style={{ fontSize: 18, color: col, fontFamily: 'var(--font-heebo)' }}>
-                    {formatCurrency(Math.round(monthly))}
-                  </span>
+                  {/* Inputs grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                    <Field t={t} label="סכום" value={track.amount} onChange={v => updateTrack(idx, 'amount', +v || 0)} type="number" prefix="₪" />
+                    <Field t={t} label="ריבית שנתית" value={track.interestRate} onChange={v => updateTrack(idx, 'interestRate', +v || 0)} type="number" suffix="%" />
+                    <Field t={t} label="תקופה" value={track.periodMonths} onChange={v => updateTrack(idx, 'periodMonths', +v || 0)} type="number" suffix="חו'" />
+                  </div>
+
+                  {/* Grace period */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                    <Field t={t} label="גרייס (חודשים)" value={track.graceMonths ?? 0} onChange={v => updateTrack(idx, 'graceMonths', +v || 0)} type="number" />
+                    {hasGrace && (
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6, letterSpacing: '0.03em' }}>סוג גרייס</label>
+                        <select
+                          value={track.graceType ?? 'חלקי'}
+                          onChange={e => updateTrack(idx, 'graceType', e.target.value as GraceType)}
+                          style={{ width: '100%', padding: '10px 12px', fontSize: 14, outline: 'none', border: `1.5px solid ${t.border}`, borderRadius: 10, background: t.inputBg, color: t.text, fontFamily: 'Heebo,sans-serif' }}
+                        >
+                          <option value="חלקי">חלקי (ריבית בלבד)</option>
+                          <option value="מלא">מלא (קרן + ריבית נדחים)</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {hasGrace && gracePayments && (
+                    <div style={{ marginBottom: 16, fontSize: 12, padding: '8px 12px', borderRadius: 8, background: t.warningBg, color: t.warning, border: `1px solid ${t.warning}40` }}>
+                      <span style={{ fontWeight: 600 }}>גרייס {track.graceType} · {track.graceMonths} חודשים: </span>
+                      {track.graceType === 'מלא'
+                        ? `ללא תשלום → ${formatCurrency(gracePayments.afterGrace)}/חודש לאחר מכן`
+                        : `${formatCurrency(gracePayments.duringGrace)}/חודש (ריבית) → ${formatCurrency(gracePayments.afterGrace)}/חודש לאחר מכן`}
+                    </div>
+                  )}
+
+                  {/* Monthly result */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: col + '12', borderRadius: 10 }}>
+                    <span style={{ fontSize: 13, color: t.textSub }}>תשלום חודשי</span>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: col }}>{formatCurrency(Math.round(monthly))}</span>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
 
-          {/* Recommendations */}
-          <div style={{ ...cardStyle, padding: '22px 24px' }}>
-            <h3 className="text-[14px] font-bold mb-4 flex items-center gap-2" style={{ color: '#1c1917' }}>
-              <Sparkles size={15} style={{ color: '#d97706' }} />
-              תמהילים מומלצים
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              {recommendations.map((rec, idx) => {
-                const monthly = rec.tracks.reduce((s, t) => s + calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths), 0)
-                const active = activeRecommendation === idx
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => applyRecommendation(idx)}
-                    className="text-right p-3 transition-all duration-150"
-                    style={{
-                      borderRadius: 12,
-                      border: `2px solid ${active ? '#059669' : '#e7e5e4'}`,
-                      background: active ? '#d1fae5' : '#faf9f7',
-                    }}
-                  >
-                    <p className="text-[13px] font-semibold" style={{ color: '#1c1917' }}>{rec.name}</p>
-                    <p className="text-[13px] font-black mt-1" style={{ color: '#059669' }}>{formatCurrency(Math.round(monthly))}/חודש</p>
-                    <p className="text-[11px] mt-1" style={{ color: '#a8a29e' }}>{rec.tracks.length} מסלולים</p>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Amortization chart */}
-          <div style={{ ...cardStyle, padding: '22px 24px' }}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[14px] font-bold" style={{ color: '#1c1917' }}>גרף החזרים לאורך זמן</h3>
-              <button
-                onClick={() => setShowAmortization(!showAmortization)}
-                className="text-[13px] font-medium underline transition-colors"
-                style={{ color: '#059669' }}
-              >
-                {showAmortization ? 'הסתר' : 'הצג'} לוח סילוקין
-              </button>
-            </div>
-            {showAmortization && amortizationData.length > 0 && (
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={amortizationData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
-                  <XAxis dataKey="year" label={{ value: 'שנה', position: 'bottom' }} tick={{ fontSize: 11, fill: '#a8a29e' }} />
-                  <YAxis tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 11, fill: '#a8a29e' }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    formatter={(v) => formatCurrency(v as number)}
-                    contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 12 }}
-                  />
-                  <Bar dataKey="principal" name="קרן"   fill="#059669" stackId="a" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="interest"  name="ריבית" fill="#d97706" stackId="a" />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-            {!showAmortization && (
-              <div className="flex items-center justify-center h-16 text-[13px]" style={{ color: '#a8a29e' }}>
-                לחץ "הצג לוח סילוקין" כדי לראות את הגרף
+            {/* Recommendations */}
+            <div style={{ ...card, padding: '22px 24px', animation: 'fadeUp 0.4s ease 0.3s backwards' }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Sparkles size={15} style={{ color: t.accent }} />
+                תמהילים מומלצים
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {recommendations.map((rec, idx) => {
+                  const monthly = rec.tracks.reduce((s, tr) => s + calculateMonthlyPayment(tr.amount, tr.interestRate, tr.periodMonths), 0)
+                  const active = activeRecommendation === idx
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => applyRecommendation(idx)}
+                      className="crm-btn"
+                      style={{ textAlign: 'right', padding: 12, borderRadius: 12, cursor: 'pointer', border: `2px solid ${active ? t.primary : t.border}`, background: active ? t.successBg : t.bg, fontFamily: 'Heebo,sans-serif' }}
+                    >
+                      <p style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{rec.name}</p>
+                      <p style={{ fontSize: 13, fontWeight: 800, marginTop: 4, color: t.primary }}>{formatCurrency(Math.round(monthly))}/חודש</p>
+                      <p style={{ fontSize: 11, marginTop: 4, color: t.textMuted }}>{rec.tracks.length} מסלולים</p>
+                    </button>
+                  )
+                })}
               </div>
-            )}
+            </div>
+
+            {/* Amortization chart */}
+            <div style={{ ...card, padding: '22px 24px', animation: 'fadeUp 0.4s ease 0.35s backwards' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text }}>גרף החזרים לאורך זמן</h3>
+                <button
+                  onClick={() => setShowAmortization(!showAmortization)}
+                  style={{ fontSize: 13, fontWeight: 500, textDecoration: 'underline', color: t.primary, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Heebo,sans-serif' }}
+                >
+                  {showAmortization ? 'הסתר' : 'הצג'} לוח סילוקין
+                </button>
+              </div>
+              {showAmortization && amortizationData.length > 0 && (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={amortizationData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={t.borderLight} />
+                    <XAxis dataKey="year" label={{ value: 'שנה', position: 'bottom' }} tick={{ fontSize: 11, fill: t.textMuted }} />
+                    <YAxis tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 11, fill: t.textMuted }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      formatter={(v) => formatCurrency(v as number)}
+                      contentStyle={{ borderRadius: 10, border: `1px solid ${t.border}`, fontSize: 12, background: t.cardBg }}
+                    />
+                    <Bar dataKey="principal" name="קרן"   fill={t.primary} stackId="a" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="interest"  name="ריבית" fill={t.accent} stackId="a" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+              {!showAmortization && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 64, fontSize: 13, color: t.textMuted }}>
+                  לחץ "הצג לוח סילוקין" כדי לראות את הגרף
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

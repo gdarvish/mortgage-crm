@@ -9,38 +9,26 @@ import { customersToCsv, downloadCsv } from '@/utils/csvExport'
 import { useCreateCustomer } from '@/hooks/queries/useCustomers'
 import { useCustomersInfinite } from '@/hooks/queries/useCustomersInfinite'
 import { toast, ConfirmDialog } from '@/components/ui'
+import { useTheme } from '@/theme/ThemeContext'
 
-const statusColors: Record<string, { bg: string; color: string }> = {
-  'ליד':    { bg: '#ede9fe', color: '#7c3aed' },
-  'פגישה':  { bg: '#fef3c7', color: '#b45309' },
-  'מסמכים': { bg: '#ffedd5', color: '#c2410c' },
-  'הגשה':   { bg: '#f3e8ff', color: '#9333ea' },
-  'אישור':  { bg: '#d1fae5', color: '#065f46' },
-  'סגירה':  { bg: '#a7f3d0', color: '#064e3b' },
+// Design statusColors helper (crm-data.js) — Hebrew customer status → {bg,text}
+function statusColors(status: string): { bg: string; text: string } {
+  return (
+    {
+      'ליד': { bg: '#ede9fe', text: '#7c3aed' },
+      'פגישה': { bg: '#fef3c7', text: '#b45309' },
+      'מסמכים': { bg: '#ffedd5', text: '#c2410c' },
+      'הגשה': { bg: '#f3e8ff', text: '#9333ea' },
+      'אישור': { bg: '#d1fae5', text: '#065f46' },
+      'סגירה': { bg: '#a7f3d0', text: '#064e3b' },
+    }[status] || { bg: '#f1f5f9', text: '#64748b' }
+  )
 }
 
 const statuses = ['הכל', 'ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'סגירה']
 
-const cardStyle = {
-  background: '#ffffff',
-  borderRadius: 20,
-  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-  border: '1px solid #e7e5e4',
-}
-
-const inputStyle = {
-  width: '100%',
-  padding: '10px 12px',
-  border: '1.5px solid #e7e5e4',
-  borderRadius: 10,
-  fontSize: 14,
-  color: '#1c1917',
-  background: '#ffffff',
-  outline: 'none',
-  fontFamily: 'var(--font-heebo)',
-}
-
 export default function CustomersPage() {
+  const t = useTheme()
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('הכל')
@@ -158,245 +146,363 @@ export default function CustomersPage() {
     )
   }
 
-  const statusCounts = statuses.reduce<Record<string, number>>((acc, s) => {
-    acc[s] = s === 'הכל' ? customers.length : customers.filter(c => c.status === s).length
+  // Counts per status across loaded customers
+  const counts = useMemo(() => {
+    const acc: Record<string, number> = {}
+    statuses.slice(1).forEach(s => {
+      acc[s] = customers.filter(c => c.status === s).length
+    })
     return acc
-  }, {})
+  }, [customers])
+
+  const inputSt: React.CSSProperties = {
+    width: '100%', padding: '9px 12px', border: `1.5px solid ${t.border}`,
+    borderRadius: 9, fontSize: 14, color: t.text, background: t.inputBg,
+    outline: 'none', fontFamily: 'Heebo,sans-serif',
+  }
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
-      {/* Bulk actions bar */}
-      {selectedIds.size > 0 && (
+    <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
+      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+        {/* Page header */}
         <div
-          className="sticky top-2 z-20 flex items-center gap-2 px-4 py-2.5 text-white"
-          style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
+          style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+            marginBottom: 28, animation: 'fadeUp 0.4s ease backwards',
+          }}
         >
-          <span className="text-[13px] font-bold">{selectedIds.size} נבחרו</span>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, marginBottom: 4 }}>לקוחות</h1>
+            <p style={{ fontSize: 13, color: t.textMuted }}>{customers.length} לקוחות במערכת</p>
+          </div>
           <button
-            onClick={handleBulkExport}
-            className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 transition-all hover:opacity-90"
-            style={{ borderRadius: 8, background: 'rgba(255,255,255,0.18)' }}
+            onClick={() => setShowNewModal(true)}
+            className="crm-btn-primary"
+            style={{
+              background: t.primary, color: '#fff', border: 'none', borderRadius: 12,
+              padding: '10px 22px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              fontFamily: 'Heebo,sans-serif', display: 'flex', alignItems: 'center', gap: 8,
+              boxShadow: `0 4px 14px ${t.primary}45`, flexShrink: 0,
+            }}
           >
-            <Download size={13} /> ייצא ל-CSV
-          </button>
-          <button
-            onClick={() => setShowBulkDelete(true)}
-            className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 transition-all hover:opacity-90"
-            style={{ borderRadius: 8, background: 'rgba(255,255,255,0.18)' }}
-          >
-            <Trash2 size={13} /> מחק
-          </button>
-          <button
-            onClick={() => setSelectedIds(new Set())}
-            className="text-[12px] font-semibold px-3 py-1.5 mr-auto transition-all hover:opacity-80"
-          >
-            ביטול
+            <Plus size={15} strokeWidth={2.5} />
+            לקוח חדש
           </button>
         </div>
-      )}
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>לקוחות</h1>
-          <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>{customers.length} לקוחות</p>
+        {/* Status pills row */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+          {statuses.slice(1).map((s, i) => {
+            const sc = statusColors(s)
+            const active = statusFilter === s
+            return (
+              <div
+                key={s}
+                onClick={() => setStatusFilter(active ? 'הכל' : s)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 16px', borderRadius: 12,
+                  background: active ? sc.bg : t.cardBg,
+                  border: `1px solid ${active ? sc.text + '50' : t.border}`,
+                  cursor: 'pointer', boxShadow: t.shadow,
+                  transform: active ? 'translateY(-2px)' : 'translateY(0)',
+                  transition: 'all 0.18s cubic-bezier(0.34,1.56,0.64,1)',
+                  animation: `fadeUp 0.4s ease ${i * 0.05 + 0.1}s backwards`,
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 600, color: active ? sc.text : t.textSub }}>{s}</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: active ? sc.text : t.textMuted }}>{counts[s]}</span>
+              </div>
+            )
+          })}
         </div>
-        <button
-          onClick={() => setShowNewModal(true)}
-          className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.96] shrink-0"
-          style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
-        >
-          <Plus size={15} />
-          לקוח חדש
-        </button>
-      </div>
 
-      {/* Status pills + search */}
-      <div style={{ ...cardStyle, padding: 16 }}>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search size={16} className="absolute" style={{ right: 12, top: '50%', transform: 'translateY(-50%)', color: '#a8a29e' }} />
+        {/* Search card */}
+        <div
+          style={{
+            background: t.cardBg, borderRadius: 14, border: `1px solid ${t.border}`,
+            boxShadow: t.shadow, padding: '14px 18px', marginBottom: 18,
+            display: 'flex', gap: 14, alignItems: 'center',
+            animation: 'fadeUp 0.4s ease 0.2s backwards',
+          }}
+        >
+          <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
+            <span style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)', display: 'flex' }}>
+              <Search size={15} color={t.textMuted} />
+            </span>
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="חפש לקוח..."
-              className="w-full pr-10 pl-4 py-2 outline-none text-[13px]"
-              style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, color: '#1c1917' }}
+              style={{
+                width: '100%', paddingRight: 38, paddingLeft: 14,
+                height: 38, borderRadius: 9, border: `1px solid ${t.border}`,
+                background: t.inputBg, color: t.text, fontSize: 14,
+                outline: 'none', fontFamily: 'Heebo,sans-serif',
+                transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+              }}
+              onFocus={e => { e.target.style.borderColor = t.primary; e.target.style.boxShadow = `0 0 0 3px ${t.primary}20` }}
+              onBlur={e => { e.target.style.borderColor = t.border; e.target.style.boxShadow = 'none' }}
             />
           </div>
-          <div className="flex gap-1.5 flex-wrap">
-            {statuses.map(s => {
-              const sc = statusColors[s]
-              const active = statusFilter === s
-              return (
-                <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
-                  className="px-3 py-1.5 text-[12px] font-semibold transition-all"
-                  style={{
-                    borderRadius: 20,
-                    background: active ? (sc?.bg ?? '#d1fae5') : '#f5f4f2',
-                    color: active ? (sc?.color ?? '#065f46') : '#57534e',
-                    transform: active ? 'translateY(-2px)' : 'none',
-                    boxShadow: active ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
-                  }}
-                >
-                  {s} <span className="opacity-60 ml-1">{statusCounts[s]}</span>
-                </button>
-              )
-            })}
-          </div>
+          <span style={{ fontSize: 13, color: t.textMuted, marginRight: 'auto' }}>{customers.length} תוצאות</span>
         </div>
-      </div>
 
-      {/* Table */}
-      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-        {loading ? (
-          <div className="flex items-center justify-center h-48">
-            <Loader2 size={28} style={{ color: '#059669' }} className="animate-spin" />
+        {/* Bulk actions bar */}
+        {selectedIds.size > 0 && (
+          <div
+            style={{
+              position: 'sticky', top: 58, zIndex: 20,
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: t.primary, borderRadius: 12, padding: '10px 18px', marginBottom: 14,
+              boxShadow: `0 4px 14px ${t.primary}45`, animation: 'scaleIn 0.2s ease',
+            }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{selectedIds.size} נבחרו</span>
+            <button
+              onClick={handleBulkExport}
+              className="crm-btn"
+              style={{
+                background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', borderRadius: 8,
+                padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                fontFamily: 'Heebo,sans-serif', display: 'flex', alignItems: 'center', gap: 5,
+              }}
+            >
+              <Download size={13} /> ייצא CSV
+            </button>
+            <button
+              onClick={() => setShowBulkDelete(true)}
+              className="crm-btn"
+              style={{
+                background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', borderRadius: 8,
+                padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                fontFamily: 'Heebo,sans-serif', display: 'flex', alignItems: 'center', gap: 5,
+              }}
+            >
+              <Trash2 size={13} /> מחק
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              style={{
+                marginRight: 'auto', background: 'none', border: 'none', cursor: 'pointer',
+                color: 'rgba(255,255,255,0.7)', fontSize: 12, fontFamily: 'Heebo,sans-serif',
+              }}
+            >
+              ביטול
+            </button>
           </div>
-        ) : customers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <Users size={40} style={{ color: '#d6d3d1' }} className="mb-3" />
-            <p className="text-[15px] font-semibold" style={{ color: '#57534e' }}>אין לקוחות עדיין</p>
-            <p className="text-[13px] mt-1" style={{ color: '#a8a29e' }}>הוסף את הלקוח הראשון שלך</p>
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr style={{ background: '#faf9f7', borderBottom: '1px solid #f5f4f2' }}>
-                <th className="p-3 w-10">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 cursor-pointer accent-[#059669] align-middle"
-                    aria-label="בחר הכל"
-                  />
-                </th>
-                {['שם', 'ת.ז', 'טלפון', 'סטטוס', 'מקור', 'הכנסה', 'תאריך'].map(h => (
-                  <th key={h} className="text-right p-3 text-[11px] font-bold uppercase" style={{ color: '#a8a29e' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {customers.map((c, i) => {
-                const sc = statusColors[c.status] ?? { bg: '#f5f4f2', color: '#57534e' }
-                return (
-                  <tr
-                    key={c.id}
-                    onClick={() => navigate(`/customers/${c.id}`)}
-                    className="border-b cursor-pointer group"
-                    style={{
-                      borderColor: '#f5f4f2',
-                      animationName: 'fadeUp',
-                      animationDuration: '0.35s',
-                      animationDelay: `${i * 40}ms`,
-                      animationFillMode: 'backwards',
-                      transition: 'background 120ms',
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#faf9f7')}
-                    onMouseLeave={e => (e.currentTarget.style.background = '')}
-                  >
-                    <td className="p-3 w-10" onClick={e => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(c.id)}
-                        onChange={() => toggleSelect(c.id)}
-                        className="w-4 h-4 cursor-pointer accent-[#059669] align-middle"
-                        aria-label={`בחר ${c.first_name} ${c.last_name}`}
-                      />
-                    </td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className="flex items-center justify-center text-[13px] font-bold text-white shrink-0"
-                          style={{ width: 34, height: 34, borderRadius: 10, background: '#059669', transition: 'transform 120ms' }}
-                        >
-                          {c.first_name.charAt(0)}
+        )}
+
+        {/* Table */}
+        <div
+          style={{
+            background: t.cardBg, borderRadius: 18, border: `1px solid ${t.border}`,
+            boxShadow: t.shadow, overflow: 'hidden',
+            animation: 'fadeUp 0.4s ease 0.25s backwards',
+          }}
+        >
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 192 }}>
+              <Loader2 size={28} style={{ color: t.primary }} className="animate-spin" />
+            </div>
+          ) : customers.length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0' }}>
+              <Users size={40} style={{ color: t.border, marginBottom: 12 }} />
+              <p style={{ fontSize: 15, fontWeight: 600, color: t.textSub }}>אין לקוחות עדיין</p>
+              <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>הוסף את הלקוח הראשון שלך</p>
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
+                  <th style={{ padding: '13px 14px', width: 40 }}>
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      style={{ width: 15, height: 15, cursor: 'pointer', accentColor: t.primary }}
+                      aria-label="בחר הכל"
+                    />
+                  </th>
+                  {['לקוח', 'ת.ז', 'טלפון', 'סטטוס', 'מקור', 'הכנסה', 'תאריך'].map(h => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: '13px 16px', textAlign: 'right', fontSize: 11, fontWeight: 700,
+                        color: t.textMuted, letterSpacing: '0.04em', textTransform: 'uppercase',
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {customers.map((c, i) => {
+                  const sc = statusColors(c.status)
+                  return (
+                    <tr
+                      key={c.id}
+                      onClick={() => navigate(`/customers/${c.id}`)}
+                      style={{
+                        borderBottom: i < customers.length - 1 ? `1px solid ${t.borderLight}` : 'none',
+                        cursor: 'pointer',
+                        transition: 'background 0.12s ease',
+                        animation: `fadeUp 0.35s ease ${i * 0.04 + 0.3}s backwards`,
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = t.bg)}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <td style={{ padding: '12px 14px', width: 40 }} onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(c.id)}
+                          onChange={() => toggleSelect(c.id)}
+                          style={{ width: 15, height: 15, cursor: 'pointer', accentColor: t.primary }}
+                          aria-label={`בחר ${c.first_name} ${c.last_name}`}
+                        />
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div
+                            style={{
+                              width: 36, height: 36, borderRadius: 10,
+                              background: t.primary + '20', display: 'flex',
+                              alignItems: 'center', justifyContent: 'center',
+                              fontSize: 14, fontWeight: 800, color: t.primary, flexShrink: 0,
+                            }}
+                          >
+                            {c.first_name.charAt(0)}
+                          </div>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>
+                            {c.first_name} {c.last_name}
+                          </span>
                         </div>
-                        <span className="text-[13px] font-semibold" style={{ color: '#1c1917' }}>{c.first_name} {c.last_name}</span>
-                      </div>
-                    </td>
-                    <td className="p-3 text-[13px]" style={{ color: '#a8a29e' }} dir="ltr">{c.id_number || '—'}</td>
-                    <td className="p-3 text-[13px]" style={{ color: '#57534e' }} dir="ltr">{c.phone || '—'}</td>
-                    <td className="p-3">
-                      <span className="inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full" style={{ background: sc.bg, color: sc.color }}>
-                        {c.status}
-                      </span>
-                    </td>
-                    <td className="p-3 text-[13px]" style={{ color: '#a8a29e' }}>{c.lead_source || '—'}</td>
-                    <td className="p-3 text-[13px] font-semibold" style={{ color: '#059669' }}>{c.monthly_income ? formatCurrency(c.monthly_income) : '—'}</td>
-                    <td className="p-3 text-[12px]" style={{ color: '#a8a29e' }}>{formatDate(c.created_at)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: t.textMuted }} dir="ltr">{c.id_number || '—'}</td>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: t.textSub }} dir="ltr">{c.phone || '—'}</td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{ padding: '4px 12px', borderRadius: 20, background: sc.bg, color: sc.text, fontSize: 12, fontWeight: 600 }}>
+                          {c.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: t.textSub }}>{c.lead_source || '—'}</td>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: t.primary, fontWeight: 700 }}>
+                        {c.monthly_income ? formatCurrency(c.monthly_income) : '—'}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: 12, color: t.textMuted }}>{formatDate(c.created_at)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Infinite-scroll sentinel */}
+        {hasNextPage && (
+          <div ref={sentinelRef} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            {isFetchingNextPage && <Loader2 size={20} style={{ color: t.primary }} className="animate-spin" />}
+          </div>
         )}
       </div>
-
-      {/* Infinite-scroll sentinel */}
-      {hasNextPage && (
-        <div ref={sentinelRef} className="flex items-center justify-center py-4">
-          {isFetchingNextPage && <Loader2 size={20} style={{ color: '#059669' }} className="animate-spin" />}
-        </div>
-      )}
 
       {/* New customer modal */}
       {showNewModal && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-50 p-4"
-          style={{ background: 'rgba(28,25,23,0.5)' }}
           onClick={() => setShowNewModal(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(28,25,23,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16,
+          }}
         >
           <div
-            className="w-full max-w-lg animate-fade-in"
-            style={{ ...cardStyle, padding: 28 }}
             onClick={e => e.stopPropagation()}
+            style={{
+              background: t.cardBg, borderRadius: 20, padding: 28, width: '100%', maxWidth: 480,
+              boxShadow: t.shadowHover, animation: 'scaleIn 0.25s ease', border: `1px solid ${t.border}`,
+            }}
           >
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[17px] font-bold" style={{ color: '#1c1917' }}>לקוח חדש</h2>
-              <button onClick={() => setShowNewModal(false)} style={{ color: '#a8a29e' }}><X size={18} /></button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 800, color: t.text }}>לקוח חדש</h2>
+              <button onClick={() => setShowNewModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <X size={18} color={t.textMuted} />
+              </button>
             </div>
-            <form onSubmit={handleCreate} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>שם פרטי *</label>
-                  <input required value={newCustomer.first_name} onChange={e => setNewCustomer(p => ({ ...p, first_name: e.target.value }))} style={inputStyle} />
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 5 }}>שם פרטי *</label>
+                  <input
+                    required
+                    value={newCustomer.first_name}
+                    onChange={e => setNewCustomer(p => ({ ...p, first_name: e.target.value }))}
+                    style={inputSt}
+                  />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>שם משפחה *</label>
-                  <input required value={newCustomer.last_name} onChange={e => setNewCustomer(p => ({ ...p, last_name: e.target.value }))} style={inputStyle} />
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 5 }}>שם משפחה *</label>
+                  <input
+                    required
+                    value={newCustomer.last_name}
+                    onChange={e => setNewCustomer(p => ({ ...p, last_name: e.target.value }))}
+                    style={inputSt}
+                  />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>ת.ז</label>
-                  <input value={newCustomer.id_number} onChange={e => setNewCustomer(p => ({ ...p, id_number: e.target.value }))} style={inputStyle} dir="ltr" />
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 5 }}>ת.ז</label>
+                  <input
+                    value={newCustomer.id_number}
+                    onChange={e => setNewCustomer(p => ({ ...p, id_number: e.target.value }))}
+                    style={inputSt}
+                    dir="ltr"
+                  />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>טלפון</label>
-                  <input value={newCustomer.phone} onChange={e => setNewCustomer(p => ({ ...p, phone: e.target.value }))} style={inputStyle} dir="ltr" />
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 5 }}>טלפון</label>
+                  <input
+                    value={newCustomer.phone}
+                    onChange={e => setNewCustomer(p => ({ ...p, phone: e.target.value }))}
+                    style={inputSt}
+                    dir="ltr"
+                  />
                 </div>
               </div>
               <div>
-                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>אימייל</label>
-                <input type="email" value={newCustomer.email} onChange={e => setNewCustomer(p => ({ ...p, email: e.target.value }))} style={inputStyle} dir="ltr" />
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 5 }}>אימייל</label>
+                <input
+                  type="email"
+                  value={newCustomer.email}
+                  onChange={e => setNewCustomer(p => ({ ...p, email: e.target.value }))}
+                  style={inputSt}
+                  dir="ltr"
+                />
               </div>
               <div>
-                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>מקור הגעה</label>
-                <select value={newCustomer.lead_source} onChange={e => setNewCustomer(p => ({ ...p, lead_source: e.target.value }))} style={{ ...inputStyle }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 5 }}>מקור הגעה</label>
+                <select
+                  value={newCustomer.lead_source}
+                  onChange={e => setNewCustomer(p => ({ ...p, lead_source: e.target.value }))}
+                  style={inputSt}
+                >
                   <option value="">בחר...</option>
                   {['הפניה', 'פייסבוק', 'אינסטגרם', 'אתר', 'וואטסאפ', 'טלפון'].map(s => <option key={s}>{s}</option>)}
                 </select>
               </div>
-              <div className="flex gap-3 pt-2">
+              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
                 <button
                   type="submit"
                   disabled={createCustomer.isPending}
-                  className="flex-1 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
-                  style={{ borderRadius: 12, background: '#059669' }}
+                  className="crm-btn-primary"
+                  style={{
+                    flex: 1, background: t.primary, color: '#fff', border: 'none', borderRadius: 12,
+                    padding: '11px 0', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                    fontFamily: 'Heebo,sans-serif', boxShadow: `0 4px 14px ${t.primary}45`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    opacity: createCustomer.isPending ? 0.5 : 1,
+                  }}
                 >
                   {createCustomer.isPending && <Loader2 size={15} className="animate-spin" />}
                   שמור
@@ -404,8 +510,12 @@ export default function CustomersPage() {
                 <button
                   type="button"
                   onClick={() => setShowNewModal(false)}
-                  className="flex-1 py-2.5 text-[13px] font-semibold transition-all hover:opacity-80"
-                  style={{ borderRadius: 12, background: '#f5f4f2', color: '#57534e' }}
+                  className="crm-btn"
+                  style={{
+                    flex: 1, background: t.bg, color: t.textSub, border: `1px solid ${t.border}`,
+                    borderRadius: 12, padding: '11px 0', fontSize: 14, cursor: 'pointer',
+                    fontFamily: 'Heebo,sans-serif',
+                  }}
                 >
                   ביטול
                 </button>

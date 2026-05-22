@@ -145,6 +145,49 @@ h1, h2, h3, h4, h5, h6 {
   50% { opacity: 0.7; }
 }
 
+@keyframes navUnderlineSlide {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* ── Design-system interaction utilities ───────────────────── */
+.crm-btn {
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.crm-btn:active { transform: scale(0.95) !important; }
+
+.crm-btn-primary {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+.crm-btn-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.28) 50%, transparent 100%);
+  transform: translateX(150%);
+  pointer-events: none;
+}
+.crm-btn-primary:hover::after { animation: shimmerSlide 0.55s ease; }
+.crm-btn-primary:active { transform: scale(0.96) !important; }
+
+.crm-card-lift {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+}
+.crm-card-lift:hover { transform: translateY(-4px); }
+
+.crm-urgent { animation: urgentPulse 2s ease-in-out infinite; }
+
+.crm-row-hover { transition: background 0.12s ease; }
+
+.crm-check-bounce { animation: checkBounce 0.38s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+.crm-trend-pop { animation: trendPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.6s backwards; }
+
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
 }

@@ -3,17 +3,12 @@ import { Share2, Plus, Phone, TrendingUp, Loader2, X } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useReferrals, useCreateReferral } from '@/hooks/queries/useReferrals'
 import { toast } from '@/components/ui'
+import { useTheme } from '@/theme/ThemeContext'
 
 const partnerTypes = ['סוכן נדל"ן', 'עו"ד', 'רו"ח', 'לקוח קיים', 'אחר']
 
-const cardStyle = {
-  background: '#ffffff',
-  borderRadius: 20,
-  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-  border: '1px solid #e7e5e4',
-}
-
 export default function ReferralsPage() {
+  const t = useTheme()
   const [showNewModal, setShowNewModal] = useState(false)
   const [newPartner, setNewPartner] = useState({
     name: '', type: 'סוכן נדל"ן', phone: '', email: '', company: '',
@@ -48,173 +43,210 @@ export default function ReferralsPage() {
     )
   }
 
-  const inputStyle = {
-    width: '100%',
-    padding: '10px 12px',
-    border: '1.5px solid #e7e5e4',
-    borderRadius: 10,
-    fontSize: 14,
-    color: '#1c1917',
-    background: '#ffffff',
-    outline: 'none',
-    fontFamily: 'var(--font-heebo)',
-  }
+  const totalRefs = partners.reduce((s, p) => s + p.total_referrals, 0)
+  const totalConv = partners.reduce((s, p) => s + p.converted_referrals, 0)
+  const globalRate = totalRefs ? Math.round((totalConv / totalRefs) * 100) : 0
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} style={{ color: '#059669' }} className="animate-spin" />
-      </div>
-    )
+  const inputSt: React.CSSProperties = {
+    width: '100%', padding: '10px 12px', border: `1.5px solid ${t.border}`,
+    borderRadius: 10, fontSize: 14, color: t.text, background: t.inputBg,
+    outline: 'none', fontFamily: 'Heebo,sans-serif',
   }
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>שותפי הפניה</h1>
-          <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>{partners.length} שותפים</p>
+    <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
+      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Share2 size={22} style={{ color: t.primary }} />
+              שותפי הפניה
+            </h1>
+            <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>
+              {partners.length} שותפים · {totalRefs} הפניות · {globalRate}% המרה
+            </p>
+          </div>
+          <button
+            onClick={() => setShowNewModal(true)}
+            className="crm-btn-primary"
+            style={{
+              background: t.primary, color: '#fff', border: 'none', borderRadius: 12,
+              padding: '10px 22px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              fontFamily: 'Heebo,sans-serif', display: 'flex', alignItems: 'center', gap: 8,
+              boxShadow: `0 4px 14px ${t.primary}45`,
+            }}
+          >
+            <Plus size={15} strokeWidth={2.5} />
+            מפנה חדש
+          </button>
         </div>
-        <button
-          onClick={() => setShowNewModal(true)}
-          className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.96] shrink-0"
-          style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
-        >
-          <Plus size={15} />
-          מפנה חדש
-        </button>
-      </div>
 
-      {partners.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center" style={{ ...cardStyle, padding: 48 }}>
-          <Share2 size={40} style={{ color: '#d6d3d1' }} className="mb-3" />
-          <p className="text-[15px] font-semibold" style={{ color: '#57534e' }}>אין שותפי הפניה עדיין</p>
-          <p className="text-[13px] mt-1" style={{ color: '#a8a29e' }}>הוסף את שותף ההפניה הראשון שלך</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {partners.map((partner, i) => {
-            const rate = partner.total_referrals > 0
-              ? Math.round((partner.converted_referrals / partner.total_referrals) * 100)
-              : 0
-            return (
-              <div
-                key={partner.id}
-                style={{ ...cardStyle, padding: '20px 22px', animationName: 'fadeUp', animationDuration: '0.4s', animationDelay: `${i * 60}ms`, animationFillMode: 'backwards' }}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="text-[14px] font-bold" style={{ color: '#1c1917' }}>{partner.name}</h3>
-                    <span
-                      className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full mt-1"
-                      style={{ background: '#d1fae5', color: '#065f46' }}
-                    >{partner.type}</span>
-                  </div>
-                  <div className="text-left">
-                    <div className="flex items-center gap-1" style={{ color: '#059669' }}>
-                      <TrendingUp size={13} />
-                      <span className="font-black text-[16px]">{rate}%</span>
-                    </div>
-                    <span className="text-[11px]" style={{ color: '#a8a29e' }}>המרה</span>
-                  </div>
-                </div>
+        {loading ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 256 }}>
+            <Loader2 size={32} style={{ color: t.primary }} className="animate-spin" />
+          </div>
+        ) : partners.length === 0 ? (
+          <div style={{
+            background: t.cardBg, borderRadius: 20, boxShadow: t.shadow, border: `1px solid ${t.border}`,
+            padding: 48, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
+          }}>
+            <Share2 size={40} style={{ color: t.textMuted, marginBottom: 12 }} />
+            <p style={{ fontSize: 15, fontWeight: 600, color: t.textSub }}>אין שותפי הפניה עדיין</p>
+            <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>הוסף את שותף ההפניה הראשון שלך</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 18 }}>
+            {partners.map((partner, i) => {
+              const rate = partner.total_referrals > 0
+                ? Math.round((partner.converted_referrals / partner.total_referrals) * 100)
+                : 0
+              return (
+                <PartnerCard key={partner.id} partner={partner} rate={rate} index={i} t={t} />
+              )
+            })}
+          </div>
+        )}
 
-                {partner.company && (
-                  <p className="text-[13px] mb-2" style={{ color: '#57534e' }}>{partner.company}</p>
-                )}
-                {partner.phone && (
-                  <div className="flex items-center gap-1.5 text-[13px] mb-3" style={{ color: '#57534e' }} dir="ltr">
-                    <Phone size={12} style={{ color: '#a8a29e' }} />
-                    {partner.phone}
-                  </div>
-                )}
-
-                <div
-                  className="flex justify-between text-[13px] pt-3"
-                  style={{ borderTop: '1px solid #f5f4f2' }}
-                >
-                  <span style={{ color: '#a8a29e' }}>הפניות: <strong style={{ color: '#1c1917' }}>{partner.total_referrals}</strong></span>
-                  <span style={{ color: '#059669' }}>נסגרו: <strong>{partner.converted_referrals}</strong></span>
-                </div>
-                {partner.last_contact && (
-                  <p className="text-[11px] mt-2" style={{ color: '#a8a29e' }}>קשר אחרון: {formatDate(partner.last_contact)}</p>
-                )}
+        {showNewModal && (
+          <div
+            onClick={() => setShowNewModal(false)}
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(28,25,23,0.5)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16,
+            }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: t.cardBg, borderRadius: 20, padding: 28, width: '100%', maxWidth: 420,
+                boxShadow: t.shadowHover, animation: 'scaleIn 0.25s ease', border: `1px solid ${t.border}`,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <h2 style={{ fontSize: 17, fontWeight: 800, color: t.text }}>מפנה חדש</h2>
+                <button onClick={() => setShowNewModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                  <X size={18} style={{ color: t.textMuted }} />
+                </button>
               </div>
-            )
-          })}
+
+              <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {([
+                  { label: 'שם', field: 'name' as const, required: true },
+                  { label: 'טלפון', field: 'phone' as const, dir: 'ltr' as const },
+                  { label: 'אימייל', field: 'email' as const, dir: 'ltr' as const },
+                  { label: 'חברה', field: 'company' as const },
+                ]).map(({ label, field, required, dir }) => (
+                  <div key={field}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 5 }}>{label}</label>
+                    <input
+                      required={required}
+                      value={newPartner[field]}
+                      onChange={e => setNewPartner(p => ({ ...p, [field]: e.target.value }))}
+                      style={inputSt}
+                      dir={dir}
+                    />
+                  </div>
+                ))}
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 5 }}>סוג</label>
+                  <select
+                    value={newPartner.type}
+                    onChange={e => setNewPartner(p => ({ ...p, type: e.target.value }))}
+                    style={inputSt}
+                  >
+                    {partnerTypes.map(pt => <option key={pt}>{pt}</option>)}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                  <button
+                    type="submit"
+                    disabled={createReferral.isPending}
+                    className="crm-btn-primary"
+                    style={{
+                      flex: 1, background: t.primary, color: '#fff', border: 'none', borderRadius: 12,
+                      padding: '11px 0', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                      fontFamily: 'Heebo,sans-serif', boxShadow: `0 4px 14px ${t.primary}45`,
+                      opacity: createReferral.isPending ? 0.5 : 1,
+                    }}
+                  >
+                    {createReferral.isPending ? 'שומר...' : 'שמור'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewModal(false)}
+                    className="crm-btn"
+                    style={{
+                      flex: 1, background: t.bg, color: t.textSub, border: `1px solid ${t.border}`,
+                      borderRadius: 12, padding: '11px 0', fontSize: 14, fontWeight: 600,
+                      cursor: 'pointer', fontFamily: 'Heebo,sans-serif',
+                    }}
+                  >
+                    ביטול
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+interface PartnerCardProps {
+  partner: import('@/types/database').ReferralPartner
+  rate: number
+  index: number
+  t: import('@/theme/themes').Theme
+}
+
+function PartnerCard({ partner, rate, index, t }: PartnerCardProps) {
+  const [hov, setHov] = useState(false)
+  return (
+    <div
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        background: t.cardBg, borderRadius: 20, padding: '20px 22px',
+        boxShadow: hov ? t.shadowHover : t.shadow, border: `1px solid ${t.border}`,
+        transform: hov ? 'translateY(-4px)' : 'translateY(0)',
+        transition: 'all 0.22s cubic-bezier(0.34,1.56,0.64,1)',
+        animation: `fadeUp 0.4s ease ${index * 0.06 + 0.05}s backwards`, cursor: 'default',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+        <div>
+          <h3 style={{ fontSize: 14, fontWeight: 800, color: t.text, marginBottom: 5 }}>{partner.name}</h3>
+          <span style={{
+            fontSize: 11, fontWeight: 600, padding: '2px 10px', borderRadius: 20,
+            background: t.successBg, color: t.success,
+          }}>{partner.type}</span>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <TrendingUp size={13} style={{ color: t.primary }} />
+            <span style={{ fontSize: 18, fontWeight: 800, color: t.primary }}>{rate}%</span>
+          </div>
+          <span style={{ fontSize: 11, color: t.textMuted }}>המרה</span>
+        </div>
+      </div>
+      {partner.company && <p style={{ fontSize: 13, color: t.textSub, marginBottom: 8 }}>{partner.company}</p>}
+      {partner.phone && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: t.textSub, marginBottom: 12 }} dir="ltr">
+          <Phone size={12} style={{ color: t.textMuted }} />{partner.phone}
         </div>
       )}
-
-      {/* New partner modal */}
-      {showNewModal && (
-        <div
-          className="fixed inset-0 flex items-center justify-center z-50 p-4"
-          style={{ background: 'rgba(28,25,23,0.5)' }}
-          onClick={() => setShowNewModal(false)}
-        >
-          <div
-            className="w-full max-w-md animate-fade-in"
-            style={{ ...cardStyle, padding: 28 }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[17px] font-bold" style={{ color: '#1c1917' }}>מפנה חדש</h2>
-              <button onClick={() => setShowNewModal(false)} style={{ color: '#a8a29e' }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreate} className="space-y-3">
-              {[
-                { label: 'שם', field: 'name' as const, required: true },
-                { label: 'טלפון', field: 'phone' as const, dir: 'ltr' },
-                { label: 'אימייל', field: 'email' as const, dir: 'ltr' },
-                { label: 'חברה', field: 'company' as const },
-              ].map(({ label, field, required, dir }) => (
-                <div key={field}>
-                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>{label}</label>
-                  <input
-                    required={required}
-                    value={newPartner[field]}
-                    onChange={e => setNewPartner(p => ({ ...p, [field]: e.target.value }))}
-                    style={inputStyle}
-                    dir={dir as 'ltr' | undefined}
-                  />
-                </div>
-              ))}
-
-              <div>
-                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>סוג</label>
-                <select
-                  value={newPartner.type}
-                  onChange={e => setNewPartner(p => ({ ...p, type: e.target.value }))}
-                  style={{ ...inputStyle }}
-                >
-                  {partnerTypes.map(t => <option key={t}>{t}</option>)}
-                </select>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="submit"
-                  disabled={createReferral.isPending}
-                  className="flex-1 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
-                  style={{ borderRadius: 12, background: '#059669' }}
-                >
-                  {createReferral.isPending ? 'שומר...' : 'שמור'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowNewModal(false)}
-                  className="flex-1 py-2.5 text-[13px] font-semibold transition-all hover:opacity-80"
-                  style={{ borderRadius: 12, background: '#f5f4f2', color: '#57534e' }}
-                >
-                  ביטול
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', paddingTop: 12,
+        borderTop: `1px solid ${t.borderLight}`, fontSize: 13,
+      }}>
+        <span style={{ color: t.textMuted }}>הפניות: <strong style={{ color: t.text }}>{partner.total_referrals}</strong></span>
+        <span style={{ color: t.primary }}>נסגרו: <strong>{partner.converted_referrals}</strong></span>
+      </div>
+      {partner.last_contact && (
+        <p style={{ fontSize: 11, color: t.textMuted, marginTop: 8 }}>קשר אחרון: {formatDate(partner.last_contact)}</p>
       )}
     </div>
   )
