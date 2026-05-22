@@ -6,10 +6,11 @@ import { getStorage } from 'firebase-admin/storage'
 import { randomUUID } from 'node:crypto'
 import { db, REGION } from './common'
 
-// Activity feed, audit log and OCR functions live in separate modules.
+// Activity feed, audit log, OCR and AI-assistant functions live in separate modules.
 export * from './activity'
 export * from './audit'
 export * from './ocr'
+export * from './ai'
 
 async function findCustomerByToken(token: string) {
   const snap = await db

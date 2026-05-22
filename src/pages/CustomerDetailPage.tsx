@@ -4,7 +4,7 @@ import {
   ArrowRight, MessageSquare, ClipboardList, Calculator, Upload,
   Send, Plus, Check, Mail, Phone, MapPin, User, CreditCard,
   FileText, Home, MessagesSquare, ListTodo, Banknote, ExternalLink,
-  Trash2, Loader2, Save, PenTool, Sparkles,
+  Trash2, Loader2, Save, PenTool, Sparkles, ShieldCheck,
 } from 'lucide-react'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
@@ -127,6 +127,9 @@ export default function CustomerDetailPage() {
   const [uploadingDoc, setUploadingDoc] = useState(false)
   const [docUploadType, setDocUploadType] = useState('תעודת זהות + ספח')
   const [ocrDocId, setOcrDocId] = useState<string | null>(null)
+  const [validateDocId, setValidateDocId] = useState<string | null>(null)
+  const [composing, setComposing] = useState(false)
+  const [aiPurpose, setAiPurpose] = useState('עדכון ללקוח')
 
   // -------------------------------------------------------------------------
   // Sync server data into local state
@@ -288,6 +291,40 @@ export default function CustomerDetailPage() {
       toast.error('שגיאה בחילוץ נתונים', e instanceof Error ? e.message : undefined)
     } finally {
       setOcrDocId(null)
+    }
+  }
+
+  const handleValidateDoc = async (docId: string) => {
+    setValidateDocId(docId)
+    try {
+      const validateFn = httpsCallable(functions, 'validateDocument')
+      const res = await validateFn({ document_id: docId })
+      const r = res.data as { status: string; findings: string; document_type: string }
+      if (r.status === 'valid') {
+        toast.success('המסמך תקין', r.findings)
+      } else {
+        toast.error(r.status === 'issue' ? 'נמצאה בעיה במסמך' : 'המסמך אינו ברור', r.findings)
+      }
+    } catch (e) {
+      toast.error('שגיאה בבדיקת המסמך', e instanceof Error ? e.message : undefined)
+    } finally {
+      setValidateDocId(null)
+    }
+  }
+
+  const handleCompose = async () => {
+    if (!id) return
+    setComposing(true)
+    try {
+      const composeFn = httpsCallable(functions, 'composeMessage')
+      const res = await composeFn({ customer_id: id, purpose: aiPurpose, tone: 'מקצועי וידידותי' })
+      const { message } = res.data as { message: string }
+      setMessageText(message)
+      toast.success('ההודעה נוסחה', 'ניתן לערוך לפני השליחה')
+    } catch (e) {
+      toast.error('שגיאה בניסוח ההודעה', e instanceof Error ? e.message : undefined)
+    } finally {
+      setComposing(false)
     }
   }
 
@@ -602,6 +639,16 @@ export default function CustomerDetailPage() {
                 : <Sparkles size={12} />}
               חלץ נתונים
             </button>
+            <button
+              onClick={() => handleValidateDoc(doc.id)}
+              disabled={validateDocId === doc.id}
+              className="inline-flex items-center gap-1 text-xs text-[#059669] hover:underline disabled:opacity-50"
+            >
+              {validateDocId === doc.id
+                ? <Loader2 size={12} className="animate-spin" />
+                : <ShieldCheck size={12} />}
+              בדוק תקינות
+            </button>
           </div>
         </div>
       ))}
@@ -692,6 +739,20 @@ export default function CustomerDetailPage() {
               <option key={i} value={t}>{t.slice(0, 45)}...</option>
             ))}
           </select>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={aiPurpose} onChange={e => setAiPurpose(e.target.value)}
+            className={`${inputClass} bg-white max-w-[170px]`}>
+            {['עדכון ללקוח', 'תזכורת לפגישה', 'בקשת מסמכים', 'מעקב סטטוס', 'ברכה'].map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <button onClick={handleCompose} disabled={composing}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            style={{ background: '#fef3c7', color: '#d97706' }}>
+            {composing ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+            נסח עם AI
+          </button>
         </div>
         <textarea className={`${inputClass} min-h-[80px]`} placeholder="הקלד הודעה..."
           value={messageText} onChange={e => setMessageText(e.target.value)} />
