@@ -1,6 +1,15 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UserPlus, Search, Phone, Mail, ArrowLeftRight, Loader2, X } from 'lucide-react'
+import {
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+} from '@dnd-kit/core'
 import { formatDate } from '@/lib/utils'
 import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
 import { toast, ConfirmDialog } from '@/components/ui'
@@ -36,6 +45,129 @@ const inputStyle = {
   fontFamily: 'var(--font-heebo)',
 }
 
+type ColumnMeta = { key: LeadStatus; label: string; color: string; bg: string }
+
+function KanbanColumn({ col, count, children }: { col: ColumnMeta; count: number; children: ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: col.key })
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <span
+          className="inline-block text-[12px] font-bold px-3 py-1 rounded-full"
+          style={{ background: col.bg, color: col.color }}
+        >{col.label}</span>
+        <span className="text-[12px] font-semibold" style={{ color: '#a8a29e' }}>{count}</span>
+      </div>
+      <div
+        ref={setNodeRef}
+        className="space-y-3 transition-colors"
+        style={{
+          minHeight: 140,
+          borderRadius: 14,
+          background: isOver ? col.bg : 'transparent',
+          outline: isOver ? `1.5px dashed ${col.color}` : 'none',
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function KanbanCard({ lead, col, index, onUpdateStatus, onConvert }: {
+  lead: Lead
+  col: ColumnMeta
+  index: number
+  onUpdateStatus: (id: string, status: LeadStatus) => void
+  onConvert: (lead: Lead) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: lead.id })
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className="group"
+      style={{
+        ...cardStyle,
+        padding: '14px 16px',
+        cursor: 'grab',
+        touchAction: 'none',
+        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 50 : 'auto',
+        boxShadow: isDragging ? '0 8px 28px rgba(28,25,23,0.18)' : cardStyle.boxShadow,
+        animationName: isDragging ? undefined : 'fadeUp',
+        animationDuration: '0.35s',
+        animationDelay: `${index * 50}ms`,
+        animationFillMode: 'backwards',
+      }}
+    >
+      <div className="flex items-start justify-between mb-2">
+        <h3 className="text-[13px] font-bold" style={{ color: '#1c1917' }}>{lead.name || '—'}</h3>
+        <div className="flex items-center gap-0.5">
+          {Array.from({ length: 10 }).map((_, idx) => (
+            <div
+              key={idx}
+              style={{
+                width: 5,
+                height: 5,
+                borderRadius: '50%',
+                background: idx < (lead.score ?? 0) ? col.color : 'transparent',
+                border: `1.5px solid ${idx < (lead.score ?? 0) ? col.color : '#d6d3d1'}`,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {lead.phone && (
+        <div className="flex items-center gap-1.5 text-[12px] mb-1" style={{ color: '#57534e' }} dir="ltr">
+          <Phone size={11} style={{ color: '#a8a29e' }} />
+          {lead.phone}
+        </div>
+      )}
+      {lead.email && (
+        <div className="flex items-center gap-1.5 text-[12px] mb-1" style={{ color: '#57534e' }} dir="ltr">
+          <Mail size={11} style={{ color: '#a8a29e' }} />
+          {lead.email}
+        </div>
+      )}
+      {lead.source && (
+        <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full mt-1" style={{ background: '#f5f4f2', color: '#a8a29e' }}>
+          {lead.source}
+        </span>
+      )}
+
+      <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid #f5f4f2' }}>
+        <p className="text-[11px]" style={{ color: '#a8a29e' }}>{formatDate(lead.created_at)}</p>
+        <div className="flex items-center gap-1">
+          <select
+            value={lead.status}
+            onChange={e => onUpdateStatus(lead.id, e.target.value as LeadStatus)}
+            onPointerDown={e => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
+            className="text-[11px] font-semibold outline-none cursor-pointer"
+            style={{ background: 'transparent', color: col.color, border: 'none', padding: 0 }}
+          >
+            {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          {lead.status !== 'הפך ללקוח' && lead.status !== 'נסגר' && (
+            <button
+              onClick={() => onConvert(lead)}
+              onPointerDown={e => e.stopPropagation()}
+              className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ background: '#d1fae5', color: '#065f46' }}
+            >
+              <ArrowLeftRight size={10} /> המר
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function LeadsPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
@@ -57,6 +189,23 @@ export default function LeadsPage() {
 
   const updateStatus = (id: string, status: LeadStatus) => {
     updateLead.mutate({ id, updates: { status } })
+  }
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over) return
+    const leadId = String(active.id)
+    const newStatus = over.id as LeadStatus
+    const lead = leads.find(l => l.id === leadId)
+    if (!lead || lead.status === newStatus) return
+    // Dropping onto "converted" runs the real conversion flow, not just a status change.
+    if (newStatus === 'הפך ללקוח') {
+      setLeadToConvert(lead)
+      return
+    }
+    updateStatus(leadId, newStatus)
   }
 
   const handleConvert = () => {
@@ -162,22 +311,12 @@ export default function LeadsPage() {
           <Loader2 size={28} style={{ color: '#059669' }} className="animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {columns.map(col => {
-            const colLeads = filtered.filter(l => l.status === col.key)
-            return (
-              <div key={col.key}>
-                {/* Column header */}
-                <div className="flex items-center gap-2 mb-3">
-                  <span
-                    className="inline-block text-[12px] font-bold px-3 py-1 rounded-full"
-                    style={{ background: col.bg, color: col.color }}
-                  >{col.label}</span>
-                  <span className="text-[12px] font-semibold" style={{ color: '#a8a29e' }}>{colLeads.length}</span>
-                </div>
-
-                {/* Cards */}
-                <div className="space-y-3">
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {columns.map(col => {
+              const colLeads = filtered.filter(l => l.status === col.key)
+              return (
+                <KanbanColumn key={col.key} col={col} count={colLeads.length}>
                   {colLeads.length === 0 ? (
                     <div
                       className="py-8 text-center text-[13px]"
@@ -186,99 +325,20 @@ export default function LeadsPage() {
                       אין לידים
                     </div>
                   ) : colLeads.map((lead, i) => (
-                    <div
+                    <KanbanCard
                       key={lead.id}
-                      className="group"
-                      style={{
-                        ...cardStyle,
-                        padding: '14px 16px',
-                        transition: 'transform 160ms, box-shadow 160ms, border-color 160ms',
-                        animationName: 'fadeUp',
-                        animationDuration: '0.35s',
-                        animationDelay: `${i * 50}ms`,
-                        animationFillMode: 'backwards',
-                        cursor: 'default',
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.transform = 'translateY(-3px)'
-                        e.currentTarget.style.boxShadow = '0 4px 20px rgba(28,25,23,0.12)'
-                        e.currentTarget.style.borderColor = col.color + '40'
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.transform = ''
-                        e.currentTarget.style.boxShadow = cardStyle.boxShadow
-                        e.currentTarget.style.borderColor = '#e7e5e4'
-                      }}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <h3 className="text-[13px] font-bold" style={{ color: '#1c1917' }}>{lead.name || '—'}</h3>
-                        <div className="flex items-center gap-0.5">
-                          {Array.from({ length: 10 }).map((_, idx) => (
-                            <div
-                              key={idx}
-                              style={{
-                                width: 5,
-                                height: 5,
-                                borderRadius: '50%',
-                                background: idx < (lead.score ?? 0) ? col.color : 'transparent',
-                                border: `1.5px solid ${idx < (lead.score ?? 0) ? col.color : '#d6d3d1'}`,
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-
-                      {lead.phone && (
-                        <div className="flex items-center gap-1.5 text-[12px] mb-1" style={{ color: '#57534e' }} dir="ltr">
-                          <Phone size={11} style={{ color: '#a8a29e' }} />
-                          {lead.phone}
-                        </div>
-                      )}
-                      {lead.email && (
-                        <div className="flex items-center gap-1.5 text-[12px] mb-1" style={{ color: '#57534e' }} dir="ltr">
-                          <Mail size={11} style={{ color: '#a8a29e' }} />
-                          {lead.email}
-                        </div>
-                      )}
-                      {lead.source && (
-                        <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full mt-1" style={{ background: '#f5f4f2', color: '#a8a29e' }}>
-                          {lead.source}
-                        </span>
-                      )}
-
-                      <div
-                        className="flex items-center justify-between mt-3 pt-3"
-                        style={{ borderTop: '1px solid #f5f4f2' }}
-                      >
-                        <p className="text-[11px]" style={{ color: '#a8a29e' }}>{formatDate(lead.created_at)}</p>
-                        <div className="flex items-center gap-1">
-                          <select
-                            value={lead.status}
-                            onChange={e => updateStatus(lead.id, e.target.value as LeadStatus)}
-                            className="text-[11px] font-semibold outline-none cursor-pointer"
-                            style={{ background: 'transparent', color: col.color, border: 'none', padding: 0 }}
-                            onClick={e => e.stopPropagation()}
-                          >
-                            {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                          {lead.status !== 'הפך ללקוח' && lead.status !== 'נסגר' && (
-                            <button
-                              onClick={() => setLeadToConvert(lead)}
-                              className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                              style={{ background: '#d1fae5', color: '#065f46' }}
-                            >
-                              <ArrowLeftRight size={10} /> המר
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                      lead={lead}
+                      col={col}
+                      index={i}
+                      onUpdateStatus={updateStatus}
+                      onConvert={setLeadToConvert}
+                    />
                   ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+                </KanbanColumn>
+              )
+            })}
+          </div>
+        </DndContext>
       )}
 
       {/* New Lead Modal */}

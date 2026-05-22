@@ -39,7 +39,21 @@ export function useUpdateLead() {
       if (error) throw new Error(error.message)
       return data
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['leads'] }),
+    // Optimistic update so kanban drags move instantly.
+    onMutate: async ({ id, updates }) => {
+      await qc.cancelQueries({ queryKey: ['leads'] })
+      const snapshots = qc.getQueriesData<Lead[]>({ queryKey: ['leads'] })
+      snapshots.forEach(([key, leads]) => {
+        if (leads) {
+          qc.setQueryData<Lead[]>(key, leads.map((l) => (l.id === id ? { ...l, ...updates } : l)))
+        }
+      })
+      return { snapshots }
+    },
+    onError: (_err, _vars, ctx) => {
+      ctx?.snapshots.forEach(([key, leads]) => qc.setQueryData(key, leads))
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['leads'] }),
   })
 }
 
