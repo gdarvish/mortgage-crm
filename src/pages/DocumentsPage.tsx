@@ -1,9 +1,14 @@
-import { useState, useRef } from 'react'
-import { FileText, Upload, Download, Search, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Trash2 } from 'lucide-react'
+import { useState, useRef, lazy, Suspense } from 'react'
+import { FileText, Upload, Download, Search, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Trash2, Eye } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useDocuments, useUploadDocument, useDeleteDocument, type DocumentWithCustomer } from '@/hooks/queries/useDocuments'
 import { useCustomers } from '@/hooks/queries/useCustomers'
 import { toast, ConfirmDialog } from '@/components/ui'
+
+// react-pdf pulls in pdf.js (~370KB) — load it only when a preview opens.
+const DocumentPreview = lazy(() =>
+  import('@/components/DocumentPreview').then((m) => ({ default: m.DocumentPreview }))
+)
 
 const statusIcons: Record<string, { icon: typeof CheckCircle; color: string }> = {
   'תקין':    { icon: CheckCircle,  color: '#059669' },
@@ -31,6 +36,7 @@ export default function DocumentsPage() {
   const [uploadType, setUploadType] = useState(docTypes[0])
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [docToDelete, setDocToDelete] = useState<DocRow | null>(null)
+  const [previewDoc, setPreviewDoc] = useState<DocRow | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: docs = [], isLoading: loading } = useDocuments()
@@ -217,6 +223,15 @@ export default function DocumentsPage() {
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         {d.file_url && (
+                          <button
+                            onClick={() => setPreviewDoc(d)}
+                            className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-lg"
+                            style={{ background: '#f5f4f2', color: '#57534e' }}
+                          >
+                            <Eye size={12} /> תצוגה
+                          </button>
+                        )}
+                        {d.file_url && (
                           <a
                             href={d.file_url}
                             target="_blank"
@@ -255,6 +270,16 @@ export default function DocumentsPage() {
         onConfirm={handleDeleteDoc}
         onCancel={() => setDocToDelete(null)}
       />
+
+      {previewDoc?.file_url && (
+        <Suspense fallback={null}>
+          <DocumentPreview
+            url={previewDoc.file_url}
+            filename={previewDoc.file_name ?? 'מסמך'}
+            onClose={() => setPreviewDoc(null)}
+          />
+        </Suspense>
+      )}
     </div>
   )
 }
