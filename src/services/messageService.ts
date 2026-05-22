@@ -18,8 +18,9 @@ const COL = 'messages'
 export const messageService = {
   async getByCustomer(customerId: string): Promise<{ data: Message[] | null; error: FirestoreError | null }> {
     try {
+      const uid = await awaitUserId()
       const snap = await getDocs(
-        query(collection(db, COL), where('customer_id', '==', customerId))
+        query(collection(db, COL), where('user_id', '==', uid), where('customer_id', '==', customerId))
       )
       const data = fromDocs<Message>(snap.docs)
         .sort((a, b) => new Date(a.sent_at || 0).getTime() - new Date(b.sent_at || 0).getTime())

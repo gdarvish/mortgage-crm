@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, UserPlus, FileText, Calculator,
-  Bell, DollarSign, Settings, Menu, Search, X, Share2,
-  RefreshCw, Layers, TrendingUp, Heart, MessageSquare,
+  Bell, DollarSign, Settings, Menu, X, Share2,
+  RefreshCw, Layers, TrendingUp, Heart, MessageSquare, History,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { GlobalSearch } from '@/components/GlobalSearch'
 
 interface HeaderProps {
   sidebarCollapsed?: boolean
@@ -23,6 +24,7 @@ const navItems = [
 ]
 
 const mobileExtraItems = [
+  { label: 'יומן שינויים', path: '/audit-log',     icon: History },
   { label: 'תקשורת',       path: '/communication', icon: MessageSquare },
   { label: 'שותפי הפניה', path: '/referrals',     icon: Share2 },
   { label: 'ריביות',       path: '/rates',          icon: TrendingUp },
@@ -34,8 +36,6 @@ const mobileExtraItems = [
 export default function Header(_props: HeaderProps) {
   const location = useLocation()
   const navigate = useNavigate()
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
 
   const notificationCount = 0
@@ -119,47 +119,8 @@ export default function Header(_props: HeaderProps) {
 
         {/* Right side actions */}
         <div className="flex items-center gap-1 px-3 shrink-0">
-          {/* Search */}
-          {searchOpen ? (
-            <div
-              className="flex items-center gap-2 px-3"
-              style={{
-                height: 36,
-                borderRadius: 10,
-                border: '1px solid #292524',
-                background: '#292524',
-                width: 220,
-              }}
-            >
-              <Search size={14} className="shrink-0" style={{ color: '#a8a29e' }} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="חיפוש לקוחות, לידים..."
-                className="w-full bg-transparent text-[13px] outline-none placeholder:text-[#a8a29e]"
-                style={{ color: '#fafaf9' }}
-                autoFocus
-              />
-              <button
-                onClick={() => { setSearchOpen(false); setSearchQuery('') }}
-                className="shrink-0 transition-colors hover:text-[#fafaf9]"
-                style={{ color: '#a8a29e' }}
-                aria-label="סגור חיפוש"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="flex items-center justify-center transition-colors hover:text-[#fafaf9]"
-              style={{ width: 36, height: 36, borderRadius: 10, color: '#a8a29e' }}
-              aria-label="חיפוש"
-            >
-              <Search size={16} />
-            </button>
-          )}
+          {/* Global search */}
+          <GlobalSearch />
 
           {/* Bell */}
           <button

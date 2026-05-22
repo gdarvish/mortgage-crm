@@ -1,15 +1,18 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowRight, MessageSquare, ClipboardList, Calculator, Upload,
   Send, Plus, Check, Mail, Phone, MapPin, User, CreditCard,
   FileText, Home, MessagesSquare, ListTodo, Banknote, ExternalLink,
-  Trash2, Loader2, Save, PenTool,
+  Trash2, Loader2, Save, PenTool, Sparkles,
 } from 'lucide-react'
+import { httpsCallable } from 'firebase/functions'
+import { functions } from '@/lib/firebase'
 import { formatCurrency, formatDate, generateToken, tokenExpiration } from '@/lib/utils'
 import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
 import { toast, ConfirmDialog } from '@/components/ui'
-import { useAuthStore } from '@/stores/authStore'
+import { useQueryClient } from '@tanstack/react-query'
+import { useCustomer } from '@/hooks/queries/useCustomers'
 import { customerService } from '@/services/customerService'
 import { taskService } from '@/services/taskService'
 import { messageService } from '@/services/messageService'
@@ -84,11 +87,13 @@ const inputClass =
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const qc = useQueryClient()
   const [activeTab, setActiveTab] = useState<TabKey>('personal')
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [fetchError, setFetchError] = useState<string | null>(null)
+
+  const { data: full, isLoading, error: queryError } = useCustomer(id)
+  const fetchError = queryError ? queryError.message : null
+  const syncedFormsRef = useRef<string | null>(null)
 
   // Real data state
   const [customer, setCustomer] = useState<Customer | null>(null)
@@ -121,54 +126,51 @@ export default function CustomerDetailPage() {
   const docFileInputRef = useRef<HTMLInputElement>(null)
   const [uploadingDoc, setUploadingDoc] = useState(false)
   const [docUploadType, setDocUploadType] = useState('תעודת זהות + ספח')
+  const [ocrDocId, setOcrDocId] = useState<string | null>(null)
 
   // -------------------------------------------------------------------------
-  // Fetch all customer data
+  // Sync server data into local state
   // -------------------------------------------------------------------------
-  const fetchAll = useCallback(async (isMounted: () => boolean) => {
-    if (!id) return
-    setLoading(true)
+  const refreshCustomer = () => {
+    if (id) qc.invalidateQueries({ queryKey: ['customer', id] })
+  }
 
-    const { data: full, error: fetchErr } = await customerService.getById(id)
-    if (!isMounted()) return
-    if (fetchErr) setFetchError(fetchErr.message)
-    if (full) {
-      setCustomer(full)
-      setStatusValue(full.status)
-      setPersonal({
-        first_name: full.first_name || '',
-        last_name: full.last_name || '',
-        id_number: full.id_number || '',
-        phone: full.phone || '',
-        email: full.email || '',
-        address: full.address || '',
-        marital_status: full.marital_status || 'רווק',
-        children: full.children || 0,
-      })
-      setFinancial({
-        monthly_income: full.monthly_income || 0,
-        partner_income: full.partner_income || 0,
-        own_capital: full.own_capital || 0,
-        existing_obligations: full.existing_obligations || 0,
-        lead_source: full.lead_source || '',
-        notes: full.notes || '',
-      })
-      setDocuments(full.documents || [])
-      setMortgages((full.mortgages || []) as MortgageWithTracks[])
-      setMessages(full.messages || [])
-      setTasks(full.tasks || [])
-      setCommission((full.commissions && full.commissions[0]) || null)
-    }
-
-    setLoading(false)
-  }, [id, user])
-
+  // Display fields and lists always track the latest server data.
   useEffect(() => {
-    if (!user) return
-    let mounted = true
-    fetchAll(() => mounted)
-    return () => { mounted = false }
-  }, [fetchAll, user])
+    if (!full) return
+    setCustomer(full)
+    setDocuments(full.documents || [])
+    setMortgages((full.mortgages || []) as MortgageWithTracks[])
+    setMessages(full.messages || [])
+    setTasks(full.tasks || [])
+    setCommission((full.commissions && full.commissions[0]) || null)
+  }, [full])
+
+  // Edit forms are populated once per customer so a background refetch
+  // does not discard in-progress edits.
+  useEffect(() => {
+    if (!full || syncedFormsRef.current === full.id) return
+    syncedFormsRef.current = full.id
+    setStatusValue(full.status)
+    setPersonal({
+      first_name: full.first_name || '',
+      last_name: full.last_name || '',
+      id_number: full.id_number || '',
+      phone: full.phone || '',
+      email: full.email || '',
+      address: full.address || '',
+      marital_status: full.marital_status || 'רווק',
+      children: full.children || 0,
+    })
+    setFinancial({
+      monthly_income: full.monthly_income || 0,
+      partner_income: full.partner_income || 0,
+      own_capital: full.own_capital || 0,
+      existing_obligations: full.existing_obligations || 0,
+      lead_source: full.lead_source || '',
+      notes: full.notes || '',
+    })
+  }, [full])
 
   // -------------------------------------------------------------------------
   // Save handlers
@@ -185,6 +187,7 @@ export default function CustomerDetailPage() {
     const { error } = await customerService.update(id, { ...personal, status: statusValue })
     if (!error) {
       setCustomer(prev => prev ? { ...prev, ...personal, status: statusValue } : prev)
+      refreshCustomer()
       toast.success('הפרטים נשמרו בהצלחה')
     } else {
       toast.error('שגיאה בשמירה', error.message)
@@ -198,6 +201,7 @@ export default function CustomerDetailPage() {
     const { error } = await customerService.update(id, financial)
     if (!error) {
       setCustomer(prev => prev ? { ...prev, ...financial } : prev)
+      refreshCustomer()
       toast.success('הפרטים הפיננסיים נשמרו')
     } else {
       toast.error('שגיאה בשמירה', error.message)
@@ -216,6 +220,7 @@ export default function CustomerDetailPage() {
       return
     }
     toast.success('הלקוח נמחק')
+    qc.invalidateQueries({ queryKey: ['customers'] })
     navigate('/customers')
   }
 
@@ -232,18 +237,25 @@ export default function CustomerDetailPage() {
     if (data && !error) {
       setTasks(prev => [data, ...prev])
       setNewTask({ title: '', due_date: '', priority: 'בינונית' })
+      refreshCustomer()
     }
   }
 
   const toggleTask = async (task: Task) => {
     const newStatus = task.status === 'הושלמה' ? 'פתוחה' : 'הושלמה'
     const { error } = await taskService.update(task.id, { status: newStatus })
-    if (!error) setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t))
+    if (!error) {
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t))
+      refreshCustomer()
+    }
   }
 
   const deleteTask = async (taskId: string) => {
     const { error } = await taskService.delete(taskId)
-    if (!error) setTasks(prev => prev.filter(t => t.id !== taskId))
+    if (!error) {
+      setTasks(prev => prev.filter(t => t.id !== taskId))
+      refreshCustomer()
+    }
   }
 
   const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -251,9 +263,32 @@ export default function CustomerDetailPage() {
     if (!file || !id) return
     setUploadingDoc(true)
     const { data } = await documentService.upload(id, file, docUploadType, 'required')
-    if (data) setDocuments(prev => [data, ...prev])
+    if (data) {
+      setDocuments(prev => [data, ...prev])
+      refreshCustomer()
+    }
     setUploadingDoc(false)
     e.target.value = ''
+  }
+
+  const handleOcr = async (docId: string) => {
+    setOcrDocId(docId)
+    try {
+      const ocrFn = httpsCallable(functions, 'ocrPayslip')
+      const res = await ocrFn({ document_id: docId })
+      const data = res.data as { gross_salary?: number | null; net_salary?: number | null }
+      toast.success(
+        'הנתונים חולצו מהמסמך',
+        `ברוטו: ${data.gross_salary ?? '—'} · נטו: ${data.net_salary ?? '—'}`
+      )
+      if (typeof data.net_salary === 'number') {
+        setFinancial(prev => ({ ...prev, monthly_income: data.net_salary as number }))
+      }
+    } catch (e) {
+      toast.error('שגיאה בחילוץ נתונים', e instanceof Error ? e.message : undefined)
+    } finally {
+      setOcrDocId(null)
+    }
   }
 
   const sendMessage = async (channel: Message['channel']) => {
@@ -268,6 +303,7 @@ export default function CustomerDetailPage() {
     if (data && !error) {
       setMessages(prev => [...prev, data])
       setMessageText('')
+      refreshCustomer()
     }
     setSendingMsg(false)
   }
@@ -286,6 +322,7 @@ export default function CustomerDetailPage() {
     const url = `${window.location.origin}/questionnaire/${token}`
     setMessageText(`שלום ${customer?.first_name}, אנא מלא את שאלון הפרטים בקישור הבא: ${url}`)
     setActiveTab('communication')
+    refreshCustomer()
     toast.success('קישור השאלון נוצר', 'הקישור בתוקף ל-30 יום')
   }
 
@@ -326,13 +363,14 @@ export default function CustomerDetailPage() {
       })
       if (data) setCommission(data)
     }
+    refreshCustomer()
     setSaving(false)
   }
 
   // -------------------------------------------------------------------------
   // Loading / not found
   // -------------------------------------------------------------------------
-  if (loading) {
+  if (isLoading || (full && !customer)) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 size={32} className="text-[#059669] animate-spin" />
@@ -554,6 +592,16 @@ export default function CustomerDetailPage() {
               <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
                 className="text-xs text-[#059669] hover:underline">צפה</a>
             )}
+            <button
+              onClick={() => handleOcr(doc.id)}
+              disabled={ocrDocId === doc.id}
+              className="inline-flex items-center gap-1 text-xs text-[#059669] hover:underline disabled:opacity-50"
+            >
+              {ocrDocId === doc.id
+                ? <Loader2 size={12} className="animate-spin" />
+                : <Sparkles size={12} />}
+              חלץ נתונים
+            </button>
           </div>
         </div>
       ))}

@@ -1,10 +1,14 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Loader2, X, Users } from 'lucide-react'
+import { Plus, Search, Loader2, X, Users, Download, Trash2 } from 'lucide-react'
+import { writeBatch, doc } from 'firebase/firestore'
+import { useQueryClient } from '@tanstack/react-query'
+import { db } from '@/lib/firebase'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { customerService } from '@/services/customerService'
-import { toast } from '@/components/ui'
-import type { Customer } from '@/types/database'
+import { customersToCsv, downloadCsv } from '@/utils/csvExport'
+import { useCreateCustomer } from '@/hooks/queries/useCustomers'
+import { useCustomersInfinite } from '@/hooks/queries/useCustomersInfinite'
+import { toast, ConfirmDialog } from '@/components/ui'
 
 const statusColors: Record<string, { bg: string; color: string }> = {
   'ליד':    { bg: '#ede9fe', color: '#7c3aed' },
@@ -38,65 +42,120 @@ const inputStyle = {
 
 export default function CustomersPage() {
   const navigate = useNavigate()
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('הכל')
   const [showNewModal, setShowNewModal] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [newCustomer, setNewCustomer] = useState({
     first_name: '', last_name: '', id_number: '', phone: '', email: '', lead_source: '',
   })
 
-  const fetchCustomers = useCallback(async (isMounted: () => boolean) => {
-    setLoading(true)
-    const { data, error } = await customerService.getAll({
-      status: statusFilter !== 'הכל' ? statusFilter : undefined,
-      search: search || undefined,
-    })
-    if (!isMounted()) return
-    if (!error) setCustomers(data || [])
-    setLoading(false)
-  }, [statusFilter, search])
+  const {
+    data,
+    isLoading: loading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useCustomersInfinite({ statusFilter: statusFilter !== 'הכל' ? statusFilter : undefined })
+  const createCustomer = useCreateCustomer()
+  const qc = useQueryClient()
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [showBulkDelete, setShowBulkDelete] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
+  const allCustomers = useMemo(() => data?.pages.flatMap(p => p.items) ?? [], [data])
+  // Search filters the pages loaded so far (Firestore has no substring search).
+  const customers = useMemo(() => {
+    if (!search) return allCustomers
+    const needle = search.toLowerCase()
+    return allCustomers.filter(c =>
+      c.first_name.toLowerCase().includes(needle) ||
+      c.last_name.toLowerCase().includes(needle) ||
+      (c.phone?.toLowerCase().includes(needle) ?? false) ||
+      (c.id_number?.toLowerCase().includes(needle) ?? false)
+    )
+  }, [allCustomers, search])
+
+  const sentinelRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    let mounted = true
-    fetchCustomers(() => mounted)
-    return () => { mounted = false }
-  }, [fetchCustomers])
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage()
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const allSelected = customers.length > 0 && customers.every(c => selectedIds.has(c.id))
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(customers.map(c => c.id)))
+  }
+
+  const handleBulkExport = () => {
+    const selected = customers.filter(c => selectedIds.has(c.id))
+    downloadCsv(customersToCsv(selected), `customers-${new Date().toISOString().slice(0, 10)}.csv`)
+  }
+
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true)
+    try {
+      const batch = writeBatch(db)
+      selectedIds.forEach(id => batch.delete(doc(db, 'customers', id)))
+      await batch.commit()
+      toast.success(`${selectedIds.size} לקוחות נמחקו`)
+      setSelectedIds(new Set())
+      qc.invalidateQueries({ queryKey: ['customers'] })
+    } catch (e) {
+      toast.error('שגיאה במחיקה', e instanceof Error ? e.message : undefined)
+    } finally {
+      setBulkDeleting(false)
+      setShowBulkDelete(false)
+    }
+  }
+
+  const handleCreate = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newCustomer.first_name || !newCustomer.last_name) return
-    setSaving(true)
-    const { error } = await customerService.create({
-      ...newCustomer,
-      status: 'ליד',
-      children: 0,
-      existing_obligations: 0,
-      questionnaire_completed: false,
-      id_number: newCustomer.id_number || null,
-      phone: newCustomer.phone || null,
-      email: newCustomer.email || null,
-      address: null,
-      marital_status: null,
-      monthly_income: null,
-      partner_income: null,
-      own_capital: null,
-      lead_source: newCustomer.lead_source || null,
-      notes: null,
-      referral_partner_id: null,
-      questionnaire_token: null,
-    })
-    if (error) {
-      toast.error('שגיאה ביצירת לקוח', error.message)
-    } else {
-      setShowNewModal(false)
-      setNewCustomer({ first_name: '', last_name: '', id_number: '', phone: '', email: '', lead_source: '' })
-      toast.success('הלקוח נוצר בהצלחה')
-      fetchCustomers(() => true)
-    }
-    setSaving(false)
+    createCustomer.mutate(
+      {
+        ...newCustomer,
+        status: 'ליד',
+        children: 0,
+        existing_obligations: 0,
+        questionnaire_completed: false,
+        id_number: newCustomer.id_number || null,
+        phone: newCustomer.phone || null,
+        email: newCustomer.email || null,
+        address: null,
+        marital_status: null,
+        monthly_income: null,
+        partner_income: null,
+        own_capital: null,
+        lead_source: newCustomer.lead_source || null,
+        notes: null,
+        referral_partner_id: null,
+        questionnaire_token: null,
+      },
+      {
+        onSuccess: () => {
+          setShowNewModal(false)
+          setNewCustomer({ first_name: '', last_name: '', id_number: '', phone: '', email: '', lead_source: '' })
+          toast.success('הלקוח נוצר בהצלחה')
+        },
+        onError: (err) => toast.error('שגיאה ביצירת לקוח', err.message),
+      }
+    )
   }
 
   const statusCounts = statuses.reduce<Record<string, number>>((acc, s) => {
@@ -106,6 +165,36 @@ export default function CustomersPage() {
 
   return (
     <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
+      {/* Bulk actions bar */}
+      {selectedIds.size > 0 && (
+        <div
+          className="sticky top-2 z-20 flex items-center gap-2 px-4 py-2.5 text-white"
+          style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
+        >
+          <span className="text-[13px] font-bold">{selectedIds.size} נבחרו</span>
+          <button
+            onClick={handleBulkExport}
+            className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 transition-all hover:opacity-90"
+            style={{ borderRadius: 8, background: 'rgba(255,255,255,0.18)' }}
+          >
+            <Download size={13} /> ייצא ל-CSV
+          </button>
+          <button
+            onClick={() => setShowBulkDelete(true)}
+            className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 transition-all hover:opacity-90"
+            style={{ borderRadius: 8, background: 'rgba(255,255,255,0.18)' }}
+          >
+            <Trash2 size={13} /> מחק
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-[12px] font-semibold px-3 py-1.5 mr-auto transition-all hover:opacity-80"
+          >
+            ביטול
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -176,6 +265,15 @@ export default function CustomersPage() {
           <table className="w-full">
             <thead>
               <tr style={{ background: '#faf9f7', borderBottom: '1px solid #f5f4f2' }}>
+                <th className="p-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 cursor-pointer accent-[#059669] align-middle"
+                    aria-label="בחר הכל"
+                  />
+                </th>
                 {['שם', 'ת.ז', 'טלפון', 'סטטוס', 'מקור', 'הכנסה', 'תאריך'].map(h => (
                   <th key={h} className="text-right p-3 text-[11px] font-bold uppercase" style={{ color: '#a8a29e' }}>{h}</th>
                 ))}
@@ -200,6 +298,15 @@ export default function CustomersPage() {
                     onMouseEnter={e => (e.currentTarget.style.background = '#faf9f7')}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                   >
+                    <td className="p-3 w-10" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(c.id)}
+                        onChange={() => toggleSelect(c.id)}
+                        className="w-4 h-4 cursor-pointer accent-[#059669] align-middle"
+                        aria-label={`בחר ${c.first_name} ${c.last_name}`}
+                      />
+                    </td>
                     <td className="p-3">
                       <div className="flex items-center gap-2.5">
                         <div
@@ -228,6 +335,13 @@ export default function CustomersPage() {
           </table>
         )}
       </div>
+
+      {/* Infinite-scroll sentinel */}
+      {hasNextPage && (
+        <div ref={sentinelRef} className="flex items-center justify-center py-4">
+          {isFetchingNextPage && <Loader2 size={20} style={{ color: '#059669' }} className="animate-spin" />}
+        </div>
+      )}
 
       {/* New customer modal */}
       {showNewModal && (
@@ -280,11 +394,11 @@ export default function CustomersPage() {
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={createCustomer.isPending}
                   className="flex-1 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
                   style={{ borderRadius: 12, background: '#059669' }}
                 >
-                  {saving && <Loader2 size={15} className="animate-spin" />}
+                  {createCustomer.isPending && <Loader2 size={15} className="animate-spin" />}
                   שמור
                 </button>
                 <button
@@ -300,6 +414,17 @@ export default function CustomersPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={showBulkDelete}
+        variant="danger"
+        title="מחיקת לקוחות"
+        message={`למחוק ${selectedIds.size} לקוחות? פעולה זו תמחק גם את כל הנתונים הקשורים אליהם ואינה הפיכה.`}
+        confirmText="מחק"
+        loading={bulkDeleting}
+        onConfirm={handleBulkDelete}
+        onCancel={() => setShowBulkDelete(false)}
+      />
     </div>
   )
 }

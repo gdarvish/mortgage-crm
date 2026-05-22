@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, CheckCircle, RefreshCw, User, Loader2 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
-import { alertService } from '@/services/alertService'
+import { useAlerts, useMarkAlertHandled } from '@/hooks/queries/useAlerts'
 import { toast } from '@/components/ui'
 
 interface AlertItem {
@@ -30,20 +30,13 @@ function getUrgency(days: number) {
 
 export default function AlertsPage() {
   const navigate = useNavigate()
-  const [alerts, setAlerts] = useState<AlertItem[]>([])
-  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'urgent' | 'warning' | 'normal'>('all')
-  const [handling, setHandling] = useState<string | null>(null)
 
-  const fetchAlerts = useCallback(async () => {
-    setLoading(true)
-    const { data, error } = await alertService.getAll({ status: 'פתוח' })
-    if (error) {
-      toast.error('שגיאה בטעינת התראות', error.message)
-      setLoading(false)
-      return
-    }
-    const items: AlertItem[] = (data || []).map((a) => ({
+  const { data: rawAlerts = [], isLoading: loading } = useAlerts({ status: 'פתוח' })
+  const markHandled = useMarkAlertHandled()
+
+  const alerts: AlertItem[] = rawAlerts
+    .map((a) => ({
       id: a.id,
       customerName: a.customer ? `${a.customer.first_name} ${a.customer.last_name}` : 'לקוח לא ידוע',
       customerId: a.customer_id,
@@ -52,23 +45,13 @@ export default function AlertsPage() {
       amount: a.track_amount ?? a.loan_track?.amount ?? 0,
       interestRate: a.loan_track?.interest_rate ?? 0,
     }))
-    items.sort((x, y) => x.daysLeft - y.daysLeft)
-    setAlerts(items)
-    setLoading(false)
-  }, [])
+    .sort((x, y) => x.daysLeft - y.daysLeft)
 
-  useEffect(() => { fetchAlerts() }, [fetchAlerts])
-
-  const handleMarkHandled = async (id: string) => {
-    setHandling(id)
-    const { error } = await alertService.markHandled(id)
-    setHandling(null)
-    if (error) {
-      toast.error('שגיאה בעדכון התראה', error.message)
-      return
-    }
-    setAlerts(prev => prev.filter(a => a.id !== id))
-    toast.success('ההתראה סומנה כטופלה')
+  const handleMarkHandled = (id: string) => {
+    markHandled.mutate(id, {
+      onSuccess: () => toast.success('ההתראה סומנה כטופלה'),
+      onError: (err) => toast.error('שגיאה בעדכון התראה', err.message),
+    })
   }
 
   const filtered = alerts.filter(a => {
@@ -186,11 +169,11 @@ export default function AlertsPage() {
                     </button>
                     <button
                       onClick={() => handleMarkHandled(alert.id)}
-                      disabled={handling === alert.id}
+                      disabled={markHandled.isPending && markHandled.variables === alert.id}
                       className="flex items-center gap-1 text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-all hover:opacity-80 disabled:opacity-50"
                       style={{ background: '#d1fae5', color: '#065f46' }}
                     >
-                      {handling === alert.id
+                      {markHandled.isPending && markHandled.variables === alert.id
                         ? <Loader2 size={12} className="animate-spin" />
                         : <CheckCircle size={12} />}
                       טופל

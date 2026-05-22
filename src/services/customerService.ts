@@ -5,6 +5,8 @@ import {
   getDocs,
   query,
   where,
+  orderBy,
+  startAfter,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -12,6 +14,7 @@ import {
   limit,
   getCountFromServer,
   type QueryConstraint,
+  type QueryDocumentSnapshot,
   Timestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -59,18 +62,55 @@ export const customerService = {
     }
   },
 
+  async getPaginated(opts: {
+    pageSize?: number
+    cursor?: QueryDocumentSnapshot | null
+    statusFilter?: string
+  }): Promise<{
+    data: { items: Customer[]; nextCursor: QueryDocumentSnapshot | null; hasMore: boolean } | null
+    error: FirestoreError | null
+  }> {
+    try {
+      const uid = await awaitUserId()
+      const pageSize = opts.pageSize ?? 25
+      const constraints: QueryConstraint[] = [where('user_id', '==', uid)]
+      if (opts.statusFilter) constraints.push(where('status', '==', opts.statusFilter))
+      constraints.push(orderBy('created_at', 'desc'))
+      if (opts.cursor) constraints.push(startAfter(opts.cursor))
+      // Fetch one extra row to detect whether another page exists.
+      constraints.push(limit(pageSize + 1))
+
+      const snap = await getDocs(query(collection(db, COL), ...constraints))
+      const docs = snap.docs.slice(0, pageSize)
+      const hasMore = snap.docs.length > pageSize
+      return {
+        data: {
+          items: fromDocs<Customer>(docs),
+          nextCursor: docs.length > 0 ? docs[docs.length - 1] : null,
+          hasMore,
+        },
+        error: null,
+      }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
+  },
+
   async getById(id: string): Promise<{ data: CustomerWithRelations | null; error: FirestoreError | null }> {
     try {
+      const uid = await awaitUserId()
       const customerSnap = await getDoc(doc(db, COL, id))
       if (!customerSnap.exists()) return { data: null, error: null }
       const customer = fromDoc<Customer>(customerSnap)
 
+      // Firestore rules are not filters — every collection query must constrain
+      // user_id, otherwise the whole query is rejected with permission-denied.
       const [docsSnap, mortgagesSnap, tasksSnap, messagesSnap, commissionsSnap] = await Promise.all([
-        getDocs(query(collection(db, 'documents'), where('customer_id', '==', id))),
-        getDocs(query(collection(db, 'mortgages'), where('customer_id', '==', id))),
-        getDocs(query(collection(db, 'tasks'), where('customer_id', '==', id))),
-        getDocs(query(collection(db, 'messages'), where('customer_id', '==', id))),
-        getDocs(query(collection(db, 'commissions'), where('customer_id', '==', id))),
+        getDocs(query(collection(db, 'documents'), where('user_id', '==', uid), where('customer_id', '==', id))),
+        getDocs(query(collection(db, 'mortgages'), where('user_id', '==', uid), where('customer_id', '==', id))),
+        getDocs(query(collection(db, 'tasks'), where('user_id', '==', uid), where('customer_id', '==', id))),
+        getDocs(query(collection(db, 'messages'), where('user_id', '==', uid), where('customer_id', '==', id))),
+        getDocs(query(collection(db, 'commissions'), where('user_id', '==', uid), where('customer_id', '==', id))),
       ])
 
       const mortgages = fromDocs<Mortgage>(mortgagesSnap.docs)
@@ -81,14 +121,14 @@ export const customerService = {
         mortgageIds.length
           ? Promise.all(
               mortgageIds.map((mid) =>
-                getDocs(query(collection(db, 'loan_tracks'), where('mortgage_id', '==', mid)))
+                getDocs(query(collection(db, 'loan_tracks'), where('user_id', '==', uid), where('mortgage_id', '==', mid)))
               )
             )
           : Promise.resolve([]),
         mortgageIds.length
           ? Promise.all(
               mortgageIds.map((mid) =>
-                getDocs(query(collection(db, 'bank_responses'), where('mortgage_id', '==', mid)))
+                getDocs(query(collection(db, 'bank_responses'), where('user_id', '==', uid), where('mortgage_id', '==', mid)))
               )
             )
           : Promise.resolve([]),

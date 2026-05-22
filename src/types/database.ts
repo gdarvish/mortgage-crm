@@ -173,6 +173,7 @@ export interface Document {
   file_size: number | null
   status: DocumentStatus
   ocr_data: Json | null
+  ocr_completed_at?: string | null
   expires_at: string | null
   uploaded_at: string
   category: DocumentCategory | null
@@ -332,4 +333,34 @@ export interface MortgageWithTracks extends Mortgage {
 export interface AlertWithCustomer extends Alert {
   customer?: Customer
   loan_track?: LoanTrack
+}
+
+export type ActivityEventType =
+  | 'customer_created'
+  | 'status_changed'
+  | 'document_uploaded'
+  | 'mortgage_created'
+  | 'signature_received'
+  | 'commission_paid'
+
+export interface ActivityEvent {
+  id: string
+  user_id: string
+  event_type: ActivityEventType
+  entity_type: 'customer' | 'lead' | 'document' | 'mortgage' | 'signature' | 'commission'
+  entity_id: string
+  entity_name: string
+  description: string
+  metadata?: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface AuditLogEntry {
+  id: string
+  user_id: string | null
+  entity_type: 'customer' | 'lead' | 'mortgage' | 'document'
+  entity_id: string
+  changes: Record<string, { from: unknown; to: unknown }>
+  changed_fields: string[]
+  changed_at: string
 }
