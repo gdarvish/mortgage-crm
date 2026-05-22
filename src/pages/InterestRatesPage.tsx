@@ -128,8 +128,8 @@ export default function InterestRatesPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+      <div className="crm-page">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 28 }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
               <TrendingUp size={22} style={{ color: t.primary }} />
@@ -145,7 +145,7 @@ export default function InterestRatesPage() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 18, marginBottom: 22 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: 18, marginBottom: 22 }}>
           {kpis.map((k, i) => (
             <div key={k.label} style={{
               background: t.cardBg, borderRadius: 20, padding: '22px 26px',

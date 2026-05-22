@@ -74,14 +74,14 @@ export default function AlertsPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+      <div className="crm-page">
         <div style={{ marginBottom: 28, animation: 'fadeUp 0.4s ease backwards' }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, marginBottom: 4 }}>התראות מסלולים</h1>
           <p style={{ fontSize: 13, color: t.textMuted }}>מסלולים המתקרבים לסיום תקופה</p>
         </div>
 
         {/* Summary */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 24 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: 16, marginBottom: 24 }}>
           {[
             { label: 'דחוף', count: urgent, col: '#dc2626', bg: '#fee2e2', icon: AlertTriangle, sub: 'פחות מ-60 יום' },
             { label: 'בקרוב', count: warning, col: '#d97706', bg: '#fef3c7', icon: Bell, sub: '60–120 יום' },

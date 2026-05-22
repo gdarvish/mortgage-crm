@@ -221,14 +221,14 @@ export default function MortgageCalculatorPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+      <div className="crm-page">
         {/* Header */}
         <div style={{ marginBottom: 28, animation: 'fadeUp 0.4s ease backwards' }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, marginBottom: 4 }}>מחשבון משכנתא</h1>
           <p style={{ fontSize: 13, color: t.textMuted }}>חשב תשלום חודשי לפי מסלולים</p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 20 }}>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr]" style={{ gap: 20 }}>
           {/* ── LEFT COLUMN ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Property inputs */}
@@ -238,7 +238,7 @@ export default function MortgageCalculatorPage() {
                 <Field t={t} label="מחיר הנכס" value={propertyPrice} onChange={v => setPropertyPrice(Number(v) || 0)} type="number" prefix="₪" />
                 <Field t={t} label="הון עצמי" value={ownCapital} onChange={v => setOwnCapital(Number(v) || 0)} type="number" prefix="₪" />
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12 }}>
                   <Field t={t} label="סכום הלוואה" value={formatCurrency(loanAmount)} readOnly />
                   <div>
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6, letterSpacing: '0.03em' }}>LTV</label>
@@ -248,7 +248,7 @@ export default function MortgageCalculatorPage() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6, letterSpacing: '0.03em' }}>סוג נכס</label>
                     <select
@@ -382,7 +382,7 @@ export default function MortgageCalculatorPage() {
           {/* ── RIGHT COLUMN ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {/* Track header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', animation: 'fadeUp 0.4s ease 0.08s backwards' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, animation: 'fadeUp 0.4s ease 0.08s backwards' }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text }}>מסלולים ({tracks.length})</h3>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
@@ -442,14 +442,14 @@ export default function MortgageCalculatorPage() {
                   </div>
 
                   {/* Inputs grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                  <div className="grid grid-cols-1 sm:grid-cols-3" style={{ gap: 12, marginBottom: 16 }}>
                     <Field t={t} label="סכום" value={track.amount} onChange={v => updateTrack(idx, 'amount', +v || 0)} type="number" prefix="₪" />
                     <Field t={t} label="ריבית שנתית" value={track.interestRate} onChange={v => updateTrack(idx, 'interestRate', +v || 0)} type="number" suffix="%" />
                     <Field t={t} label="תקופה" value={track.periodMonths} onChange={v => updateTrack(idx, 'periodMonths', +v || 0)} type="number" suffix="חו'" />
                   </div>
 
                   {/* Grace period */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12, marginBottom: 16 }}>
                     <Field t={t} label="גרייס (חודשים)" value={track.graceMonths ?? 0} onChange={v => updateTrack(idx, 'graceMonths', +v || 0)} type="number" />
                     {hasGrace && (
                       <div>
@@ -490,7 +490,7 @@ export default function MortgageCalculatorPage() {
                 <Sparkles size={15} style={{ color: t.accent }} />
                 תמהילים מומלצים
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12 }}>
                 {recommendations.map((rec, idx) => {
                   const monthly = rec.tracks.reduce((s, tr) => s + calculateMonthlyPayment(tr.amount, tr.interestRate, tr.periodMonths), 0)
                   const active = activeRecommendation === idx

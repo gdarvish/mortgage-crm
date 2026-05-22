@@ -119,7 +119,7 @@ export default function SettingsPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1100, margin: '0 auto' }}>
+      <div className="crm-page-narrow">
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Settings size={22} style={{ color: t.primary }} />
@@ -128,7 +128,7 @@ export default function SettingsPage() {
           <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>פרטי היועץ, ברנד והגדרות מערכת</p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 18 }}>
 
           {/* Logo Upload */}
           <div style={cardSt}>
@@ -163,7 +163,7 @@ export default function SettingsPage() {
               </p>
               <p style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>PNG, JPG, SVG עד 5MB</p>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12, marginTop: 14 }}>
               <div>
                 <label style={labelSt}>גודל</label>
                 <select value={settings.logoSize} onChange={e => updateField('logoSize', e.target.value)} style={inputSt}>
@@ -190,12 +190,12 @@ export default function SettingsPage() {
               <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text }}>פרטי עסק</h3>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12 }}>
                 <Field t={t} label="שם מלא" value={settings.name} onChange={v => updateField('name', v)} />
                 <Field t={t} label="תואר" value={settings.title} onChange={v => updateField('title', v)} />
               </div>
               <Field t={t} label="מספר רישיון" value={settings.licenseNumber} onChange={v => updateField('licenseNumber', v)} dir="ltr" />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12 }}>
                 <Field t={t} label="טלפון" value={settings.phone} onChange={v => updateField('phone', v)} dir="ltr" />
                 <Field t={t} label="אימייל" value={settings.email} onChange={v => updateField('email', v)} type="email" dir="ltr" />
               </div>

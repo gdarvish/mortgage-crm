@@ -92,7 +92,7 @@ export default function AuditLogPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+      <div className="crm-page">
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
             <History size={22} style={{ color: t.primary }} />

@@ -68,14 +68,14 @@ export default function CommissionsPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+      <div className="crm-page">
         <div style={{ marginBottom: 28, animation: 'fadeUp 0.4s ease backwards' }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, marginBottom: 4 }}>עמלות</h1>
           <p style={{ fontSize: 13, color: t.textMuted }}>מעקב עמלות ותשלומים</p>
         </div>
 
         {/* KPIs */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 18, marginBottom: 24 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: 18, marginBottom: 24 }}>
           {[
             { label: 'שולם סה"כ', value: formatCurrency(paid), col: '#059669', bg: '#d1fae5', icon: CheckSquare },
             { label: 'ממתין לתשלום', value: formatCurrency(pending), col: '#d97706', bg: '#fef3c7', icon: AlertTriangle },
@@ -159,6 +159,7 @@ export default function CommissionsPage() {
           {filtered.length === 0 ? (
             <div style={{ padding: '48px 0', textAlign: 'center', fontSize: 13, color: t.textMuted }}>אין עמלות</div>
           ) : (
+            <div className="overflow-x-auto">
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
@@ -186,6 +187,7 @@ export default function CommissionsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

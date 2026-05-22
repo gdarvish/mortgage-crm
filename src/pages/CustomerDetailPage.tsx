@@ -444,9 +444,13 @@ export default function CustomerDetailPage() {
     fontFamily: 'Heebo,sans-serif', display: 'inline-flex', alignItems: 'center',
     justifyContent: 'center', gap: 8, boxShadow: `0 4px 14px ${t.primary}45`,
   }
-  const fieldRow = (cells: number): React.CSSProperties => ({
-    display: 'grid', gridTemplateColumns: `repeat(${cells},1fr)`, gap: 14,
-  })
+  const fieldRowClass: Record<number, string> = {
+    2: 'grid grid-cols-1 sm:grid-cols-2',
+    3: 'grid grid-cols-1 sm:grid-cols-3',
+    4: 'grid grid-cols-1 sm:grid-cols-4',
+  }
+  const fieldRow = (cells: number): string => fieldRowClass[cells] ?? 'grid grid-cols-1'
+  const fieldRowStyle: React.CSSProperties = { gap: 14 }
 
   // -------------------------------------------------------------------------
   // Loading / not found
@@ -520,7 +524,7 @@ export default function CustomerDetailPage() {
       <div style={card}>
         <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16 }}>פרטים אישיים</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={fieldRow(2)}>
+          <div className={fieldRow(2)} style={fieldRowStyle}>
             <div>
               <label style={label}>שם פרטי</label>
               <input
@@ -540,7 +544,7 @@ export default function CustomerDetailPage() {
               {formErrors.last_name && <p style={{ fontSize: 11, color: t.danger, marginTop: 4 }}>{formErrors.last_name}</p>}
             </div>
           </div>
-          <div style={fieldRow(2)}>
+          <div className={fieldRow(2)} style={fieldRowStyle}>
             <div>
               <label style={label}>ת.ז</label>
               <input
@@ -567,7 +571,7 @@ export default function CustomerDetailPage() {
               {formErrors.phone && <p style={{ fontSize: 11, color: t.danger, marginTop: 4 }}>{formErrors.phone}</p>}
             </div>
           </div>
-          <div style={fieldRow(2)}>
+          <div className={fieldRow(2)} style={fieldRowStyle}>
             <div>
               <label style={label}>אימייל</label>
               <div style={{ position: 'relative' }}>
@@ -598,7 +602,7 @@ export default function CustomerDetailPage() {
               </div>
             </div>
           </div>
-          <div style={fieldRow(2)}>
+          <div className={fieldRow(2)} style={fieldRowStyle}>
             <div>
               <label style={label}>מצב משפחתי</label>
               <select
@@ -639,7 +643,7 @@ export default function CustomerDetailPage() {
     <div style={card}>
       <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16 }}>מידע פיננסי</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={fieldRow(2)}>
+        <div className={fieldRow(2)} style={fieldRowStyle}>
           <div>
             <label style={label}>הכנסה חודשית</label>
             <input style={inputSt} type="number" dir="ltr" value={financial.monthly_income}
@@ -653,7 +657,7 @@ export default function CustomerDetailPage() {
             <p style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>{formatCurrency(financial.partner_income)}</p>
           </div>
         </div>
-        <div style={fieldRow(2)}>
+        <div className={fieldRow(2)} style={fieldRowStyle}>
           <div>
             <label style={label}>הון עצמי</label>
             <input style={inputSt} type="number" dir="ltr" value={financial.own_capital}
@@ -667,7 +671,7 @@ export default function CustomerDetailPage() {
             <p style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>{formatCurrency(financial.existing_obligations)}</p>
           </div>
         </div>
-        <div style={fieldRow(2)}>
+        <div className={fieldRow(2)} style={fieldRowStyle}>
           <div>
             <label style={label}>מקור הגעה</label>
             <select style={inputSt} value={financial.lead_source}
@@ -840,6 +844,7 @@ export default function CustomerDetailPage() {
               </button>
             </div>
             {tracks.length > 0 && (
+              <div className="overflow-x-auto">
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${t.border}` }}>
@@ -868,6 +873,7 @@ export default function CustomerDetailPage() {
                   </tr>
                 </tfoot>
               </table>
+              </div>
             )}
           </div>
         )
@@ -999,7 +1005,7 @@ export default function CustomerDetailPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={card}>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 14 }}>משימה חדשה</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 10 }}>
+          <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_auto]" style={{ gap: 10 }}>
             <input
               style={inputSt}
               placeholder="תיאור המשימה..."
@@ -1164,7 +1170,7 @@ export default function CustomerDetailPage() {
   // -------------------------------------------------------------------------
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+      <div className="crm-page">
         {/* Back */}
         <button
           onClick={() => navigate('/customers')}
@@ -1187,7 +1193,8 @@ export default function CustomerDetailPage() {
           style={{
             background: t.cardBg, borderRadius: 20, padding: '24px 28px',
             boxShadow: t.shadow, border: `1px solid ${t.border}`,
-            display: 'flex', alignItems: 'center', gap: 20, marginBottom: 22, flexWrap: 'wrap',
+            display: 'flex', alignItems: 'center', gap: 20, marginBottom: 22,
+            flexWrap: 'wrap',
             animation: 'fadeUp 0.4s ease 0.05s backwards',
           }}
         >

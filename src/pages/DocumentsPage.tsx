@@ -115,7 +115,7 @@ export default function DocumentsPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+      <div className="crm-page">
         {/* Header */}
         <div
           style={{
@@ -197,9 +197,8 @@ export default function DocumentsPage() {
 
         {/* Summary cards */}
         <div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4,1fr)',
             gap: 16,
             marginBottom: 22,
           }}
@@ -366,6 +365,7 @@ export default function DocumentsPage() {
               </p>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
@@ -533,6 +533,7 @@ export default function DocumentsPage() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

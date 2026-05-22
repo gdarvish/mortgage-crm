@@ -92,7 +92,7 @@ export default function FamilyEconomicsPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+      <div className="crm-page">
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
             <PieChartIcon size={22} style={{ color: t.primary }} />
@@ -101,7 +101,7 @@ export default function FamilyEconomicsPage() {
           <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>ניתוח הכנסות, הוצאות ויכולת עמידה במשכנתא</p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 20 }}>
+        <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr]" style={{ gap: 20 }}>
           {/* Inputs */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{
@@ -109,7 +109,7 @@ export default function FamilyEconomicsPage() {
               boxShadow: t.shadow, border: `1px solid ${t.border}`,
             }}>
               <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16 }}>הכנסות</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12, marginBottom: 12 }}>
                 <div>
                   <label style={labelSt}>הכנסה לווה 1</label>
                   <input type="number" value={income1} onChange={e => setIncome1(+e.target.value || 0)} style={inputSt} dir="ltr" />

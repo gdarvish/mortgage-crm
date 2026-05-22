@@ -165,7 +165,7 @@ export default function RefinanceCalculatorPage() {
           const monthly = calculateMonthlyPayment(track.amount, track.interestRate, track.periodMonths)
           const col = TRACK_COLORS_RF[idx % TRACK_COLORS_RF.length]
           return (
-            <div key={idx} style={{ background: t.bg, borderRadius: 12, padding: '12px 14px', display: 'grid', gap: 8, gridTemplateColumns: '1.6fr 1fr 1fr 1fr auto', alignItems: 'end' }}>
+            <div key={idx} className="grid grid-cols-1 sm:grid-cols-[1.6fr_1fr_1fr_1fr_auto]" style={{ background: t.bg, borderRadius: 12, padding: '12px 14px', gap: 8, alignItems: 'end' }}>
               <div>
                 <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>סוג</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -205,7 +205,7 @@ export default function RefinanceCalculatorPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+      <div className="crm-page">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, flexWrap: 'wrap', gap: 12, animation: 'fadeUp 0.4s ease backwards' }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -223,7 +223,7 @@ export default function RefinanceCalculatorPage() {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 18 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 18, marginBottom: 18 }}>
           {renderTrackEditor(existingTracks, setExistingTracks, 'תמהיל קיים', 0.05)}
           {renderTrackEditor(newTracks, setNewTracks, 'תמהיל מוצע', 0.1)}
         </div>
@@ -247,7 +247,7 @@ export default function RefinanceCalculatorPage() {
             <BarChart3 size={16} style={{ color: t.primary }} />
             השוואה
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 14 }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ gap: 12, marginBottom: 14 }}>
             {[
               { label: 'החזר נוכחי',   value: formatCurrency(savings.existingMonthly), color: t.textSub, bg: t.bg },
               { label: 'החזר חדש',     value: formatCurrency(savings.newMonthly),      color: t.success, bg: t.successBg },

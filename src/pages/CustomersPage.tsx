@@ -163,12 +163,12 @@ export default function CustomersPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+      <div className="crm-page">
         {/* Page header */}
         <div
           style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-            marginBottom: 28, animation: 'fadeUp 0.4s ease backwards',
+            marginBottom: 28, animation: 'fadeUp 0.4s ease backwards', flexWrap: 'wrap',
           }}
         >
           <div>
@@ -312,6 +312,7 @@ export default function CustomersPage() {
               <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>הוסף את הלקוח הראשון שלך</p>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
@@ -396,6 +397,7 @@ export default function CustomersPage() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 
@@ -430,7 +432,7 @@ export default function CustomersPage() {
               </button>
             </div>
             <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 5 }}>שם פרטי *</label>
                   <input
@@ -450,7 +452,7 @@ export default function CustomersPage() {
                   />
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 5 }}>ת.ז</label>
                   <input

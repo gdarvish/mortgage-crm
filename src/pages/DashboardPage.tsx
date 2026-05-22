@@ -670,7 +670,7 @@ export default function DashboardPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+      <div className="crm-page">
         {/* Greeting */}
         <div
           style={{
@@ -679,6 +679,7 @@ export default function DashboardPage() {
             alignItems: 'flex-start',
             marginBottom: 28,
             animation: 'fadeUp 0.4s ease backwards',
+            flexWrap: 'wrap',
           }}
         >
           <div>
@@ -716,7 +717,7 @@ export default function DashboardPage() {
         </div>
 
         {/* KPI Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 18, marginBottom: 22 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ gap: 18, marginBottom: 22 }}>
           {kpis.map((k, i) => (
             <KPICard key={k.label} {...k} index={i} />
           ))}
@@ -728,13 +729,13 @@ export default function DashboardPage() {
         </div>
 
         {/* Alerts + Tasks */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 22 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 18, marginBottom: 22 }}>
           <AlertsPanel alerts={alerts} />
           <TasksPanel tasks={tasks} checkedTasks={checkedTasks} justChecked={justChecked} onToggle={toggleTask} />
         </div>
 
         {/* Charts */}
-        <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 18, marginBottom: 22 }}>
+        <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr]" style={{ gap: 18, marginBottom: 22 }}>
           <MiniBarChart data={monthlyData} />
           <SourceChart sources={sources} />
         </div>

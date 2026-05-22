@@ -111,7 +111,7 @@ export default function CommunicationPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+      <div className="crm-page">
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
             <MessageSquare size={22} color={t.primary} />
@@ -122,7 +122,7 @@ export default function CommunicationPage() {
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20 }}>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr]" style={{ gap: 20 }}>
           {/* Send panel */}
           <div
             style={{

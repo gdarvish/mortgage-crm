@@ -112,7 +112,7 @@ export default function ConsolidationCalculatorPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+      <div className="crm-page">
         <div style={{ marginBottom: 28, animation: 'fadeUp 0.4s ease backwards' }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Layers size={22} style={{ color: t.primary }} />
@@ -133,7 +133,7 @@ export default function ConsolidationCalculatorPage() {
               <Plus size={12} strokeWidth={2.5} /> הוסף הלוואה
             </button>
           </div>
-          <div style={{ overflowX: 'auto' }}>
+          <div className="overflow-x-auto">
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: t.bg }}>
@@ -162,7 +162,7 @@ export default function ConsolidationCalculatorPage() {
         {/* Consolidation Parameters */}
         <div style={{ ...card, padding: '20px 22px', marginBottom: 18, animation: 'fadeUp 0.4s ease 0.1s backwards' }}>
           <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 16 }}>פרמטרי איחוד</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 14 }}>
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6 }}>ריבית איחוד %</label>
               <input
@@ -185,7 +185,7 @@ export default function ConsolidationCalculatorPage() {
         </div>
 
         {/* Results */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 18 }}>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr]" style={{ gap: 18 }}>
           <div style={{ ...card, padding: '20px 22px', animation: 'fadeUp 0.4s ease 0.15s backwards' }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 16 }}>סיכום</h3>
             {[

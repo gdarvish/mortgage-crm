@@ -55,8 +55,8 @@ export default function ReferralsPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
+      <div className="crm-page">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, color: t.text, display: 'flex', alignItems: 'center', gap: 10 }}>
               <Share2 size={22} style={{ color: t.primary }} />
@@ -95,7 +95,7 @@ export default function ReferralsPage() {
             <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>הוסף את שותף ההפניה הראשון שלך</p>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 18 }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: 18 }}>
             {partners.map((partner, i) => {
               const rate = partner.total_referrals > 0
                 ? Math.round((partner.converted_referrals / partner.total_referrals) * 100)

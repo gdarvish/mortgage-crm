@@ -344,7 +344,7 @@ export default function LeadsPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.38s cubic-bezier(0.25,1,0.5,1) backwards' }}>
-      <div style={{ padding: '28px 32px', maxWidth: 1360, margin: '0 auto' }}>
+      <div className="crm-page">
         {/* Header */}
         <div
           style={{
@@ -353,6 +353,7 @@ export default function LeadsPage() {
             alignItems: 'flex-start',
             marginBottom: 28,
             animation: 'fadeUp 0.4s ease backwards',
+            flexWrap: 'wrap',
           }}
         >
           <div>
@@ -470,7 +471,7 @@ export default function LeadsPage() {
           </div>
         ) : (
           <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ gap: 16 }}>
               {kanbanCols.map((col, colIdx) => {
                 const colLeads = filtered.filter((l) => l.status === col)
                 return (

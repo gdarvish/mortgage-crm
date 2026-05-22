@@ -188,6 +188,31 @@ h1, h2, h3, h4, h5, h6 {
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
+/* ── Responsive page container ─────────────────────────────── */
+.crm-page {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+.crm-page-narrow {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+@media (min-width: 640px) {
+  .crm-page, .crm-page-narrow { padding: 28px 24px; }
+}
+@media (min-width: 1024px) {
+  .crm-page, .crm-page-narrow { padding: 28px 32px; }
+}
+
+/* Slim, visible horizontal scrollbar for the top-nav links strip */
+.crm-nav-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.25) transparent; }
+.crm-nav-scroll::-webkit-scrollbar { height: 5px; }
+.crm-nav-scroll::-webkit-scrollbar-track { background: transparent; }
+.crm-nav-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.22); border-radius: 3px; }
+.crm-nav-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
 }
