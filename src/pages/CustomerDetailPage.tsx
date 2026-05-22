@@ -28,6 +28,13 @@ import type {
 // ---------------------------------------------------------------------------
 type TabKey = 'personal' | 'financial' | 'documents' | 'mortgages' | 'communication' | 'tasks' | 'commission'
 
+const DELIVERY_LABELS: Record<string, string> = {
+  sent: '✓ נשלח',
+  delivered: '✓✓ נמסר',
+  read: '✓✓ נקרא',
+  failed: '✗ נכשל',
+}
+
 interface Tab { key: TabKey; label: string; icon: React.ElementType }
 
 interface MortgageWithTracks extends Mortgage {
@@ -343,6 +350,24 @@ export default function CustomerDetailPage() {
       refreshCustomer()
     }
     setSendingMsg(false)
+  }
+
+  const sendViaWhatsApp = async () => {
+    if (!messageText.trim() || !id) return
+    setSendingMsg(true)
+    try {
+      const waFn = httpsCallable(functions, 'sendWhatsAppMessage')
+      await waFn({ customer_id: id, text: messageText })
+      const { data } = await messageService.getByCustomer(id)
+      if (data) setMessages(data)
+      setMessageText('')
+      refreshCustomer()
+      toast.success('ההודעה נשלחה בוואטסאפ')
+    } catch (e) {
+      toast.error('שגיאה בשליחת WhatsApp', e instanceof Error ? e.message : undefined)
+    } finally {
+      setSendingMsg(false)
+    }
   }
 
   const sendQuestionnaire = async () => {
@@ -757,7 +782,7 @@ export default function CustomerDetailPage() {
         <textarea className={`${inputClass} min-h-[80px]`} placeholder="הקלד הודעה..."
           value={messageText} onChange={e => setMessageText(e.target.value)} />
         <div className="flex gap-2">
-          <button onClick={() => sendMessage('וואטסאפ')} disabled={sendingMsg || !messageText.trim()}
+          <button onClick={sendViaWhatsApp} disabled={sendingMsg || !messageText.trim()}
             className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm disabled:opacity-50">
             <MessageSquare size={16} />WhatsApp
           </button>
@@ -783,6 +808,9 @@ export default function CustomerDetailPage() {
               <p className="text-sm mt-1">{msg.content}</p>
               <p className={`text-xs mt-1 ${msg.direction === 'נשלח' ? 'text-blue-200' : 'text-gray-400'}`}>
                 {formatDate(msg.sent_at)}
+                {msg.direction === 'נשלח' && msg.delivery_status && msg.delivery_status !== 'received' && (
+                  <> · {DELIVERY_LABELS[msg.delivery_status] ?? msg.delivery_status}</>
+                )}
               </p>
             </div>
           </div>
