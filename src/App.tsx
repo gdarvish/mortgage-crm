@@ -5,6 +5,7 @@ import AppLayout from '@/components/layout/AppLayout'
 import LoginPage from '@/pages/LoginPage'
 import VerifyEmailPage from '@/pages/VerifyEmailPage'
 import { Toaster } from '@/components/ui/Toast'
+import { InstallPrompt } from '@/components/InstallPrompt'
 
 // Route pages are code-split — each loads as a separate chunk on demand.
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
@@ -107,6 +108,7 @@ export default function App() {
         </Routes>
       </Suspense>
       <Toaster />
+      <InstallPrompt />
     </BrowserRouter>
   )
 }
