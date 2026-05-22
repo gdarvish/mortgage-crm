@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Plus, Sparkles, AlertTriangle, CheckCircle, Download, Save, X, Loader2 } from 'lucide-react'
 import { httpsCallable } from 'firebase/functions'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -16,6 +17,7 @@ import {
 import type { LoanTrackType, PropertyType } from '@/types/database'
 import { functions } from '@/lib/firebase'
 import { toast } from '@/components/ui'
+import { SaveMixModal } from '@/components/SaveMixModal'
 
 const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
 
@@ -103,6 +105,10 @@ export default function MortgageCalculatorPage() {
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [aiAdvising, setAiAdvising] = useState(false)
   const [aiAdvice, setAiAdvice] = useState<{ rationale: string; risk_level: string } | null>(null)
+  const [showSaveModal, setShowSaveModal] = useState(false)
+
+  const [searchParams] = useSearchParams()
+  const presetCustomerId = searchParams.get('customerId') || undefined
 
   const loanAmount  = Math.max(0, propertyPrice - ownCapital)
   const ltv         = propertyPrice > 0 ? Math.round((loanAmount / propertyPrice) * 100) : 0
@@ -366,6 +372,7 @@ export default function MortgageCalculatorPage() {
               {aiAdvising ? 'מנתח...' : 'המלצת AI לתמהיל'}
             </button>
             <button
+              onClick={() => setShowSaveModal(true)}
               className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97]"
               style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
             >
@@ -624,6 +631,26 @@ export default function MortgageCalculatorPage() {
           </div>
         </div>
       </div>
+
+      <SaveMixModal
+        open={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        presetCustomerId={presetCustomerId}
+        defaultName={activeRecommendation !== null ? recommendations[activeRecommendation].name : 'תמהיל'}
+        mix={{
+          property_price: propertyPrice,
+          own_capital: ownCapital,
+          property_type: propertyType,
+          loan_amount: loanAmount,
+          tracks: tracks.map((t) => ({
+            type: t.type,
+            amount: t.amount,
+            interest_rate: t.interestRate,
+            period_months: t.periodMonths,
+            monthly_payment: Math.round(effectiveMonthlyPayment(t)),
+          })),
+        }}
+      />
     </div>
   )
 }

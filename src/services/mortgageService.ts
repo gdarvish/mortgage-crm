@@ -9,6 +9,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  writeBatch,
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -93,6 +94,58 @@ export const mortgageService = {
   async delete(id: string): Promise<{ error: FirestoreError | null }> {
     try {
       await deleteDoc(doc(db, 'mortgages', id))
+      return { error: null }
+    } catch (e) {
+      return { error: toError(e) }
+    }
+  },
+
+  /** Atomically create a mortgage ("mix") together with all of its loan tracks. */
+  async createWithTracks(
+    mortgage: Omit<Mortgage, 'id' | 'created_at'>,
+    tracks: Omit<LoanTrack, 'id' | 'created_at' | 'user_id' | 'mortgage_id'>[]
+  ): Promise<{ data: Mortgage | null; error: FirestoreError | null }> {
+    try {
+      const uid = await awaitUserId()
+      const batch = writeBatch(db)
+      const mortgageRef = doc(collection(db, 'mortgages'))
+      batch.set(mortgageRef, {
+        ...mortgage,
+        user_id: uid,
+        type: mortgage.type ?? 'חדשה',
+        status: mortgage.status ?? 'טיוטה',
+        created_at: serverTimestamp(),
+      })
+      for (const track of tracks) {
+        const trackRef = doc(collection(db, 'loan_tracks'))
+        batch.set(trackRef, {
+          ...track,
+          mortgage_id: mortgageRef.id,
+          user_id: uid,
+          is_existing: track.is_existing ?? false,
+          created_at: serverTimestamp(),
+        })
+      }
+      await batch.commit()
+      const snap = await getDoc(mortgageRef)
+      return { data: fromDoc<Mortgage>(snap), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
+  },
+
+  /** Atomically delete a mortgage ("mix") together with its loan tracks. */
+  async deleteWithTracks(
+    mortgageId: string,
+    trackIds: string[]
+  ): Promise<{ error: FirestoreError | null }> {
+    try {
+      const batch = writeBatch(db)
+      batch.delete(doc(db, 'mortgages', mortgageId))
+      for (const trackId of trackIds) {
+        batch.delete(doc(db, 'loan_tracks', trackId))
+      }
+      await batch.commit()
       return { error: null }
     } catch (e) {
       return { error: toError(e) }

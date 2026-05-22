@@ -203,6 +203,7 @@ export interface Signature {
 export interface Mortgage {
   id: string
   customer_id: string
+  name?: string | null
   type: MortgageType
   property_price: number | null
   property_type: PropertyType | null
