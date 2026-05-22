@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { Plus, Sparkles, AlertTriangle, CheckCircle, Download, Save, X } from 'lucide-react'
+import { Plus, Sparkles, AlertTriangle, CheckCircle, Download, Save, X, Loader2 } from 'lucide-react'
+import { httpsCallable } from 'firebase/functions'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -13,6 +14,8 @@ import {
   type GraceType,
 } from '@/utils/mortgageCalculations'
 import type { LoanTrackType, PropertyType } from '@/types/database'
+import { functions } from '@/lib/firebase'
+import { toast } from '@/components/ui'
 
 const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
 
@@ -98,6 +101,8 @@ export default function MortgageCalculatorPage() {
   const [showAmortization, setShowAmortization] = useState(false)
   const [activeRecommendation, setActiveRecommendation] = useState<number | null>(null)
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [aiAdvising, setAiAdvising] = useState(false)
+  const [aiAdvice, setAiAdvice] = useState<{ rationale: string; risk_level: string } | null>(null)
 
   const loanAmount  = Math.max(0, propertyPrice - ownCapital)
   const ltv         = propertyPrice > 0 ? Math.round((loanAmount / propertyPrice) * 100) : 0
@@ -176,6 +181,40 @@ export default function MortgageCalculatorPage() {
       console.error('PDF export failed', e)
     } finally {
       setGeneratingPdf(false)
+    }
+  }
+
+  const handleAiAdvice = async () => {
+    setAiAdvising(true)
+    try {
+      const adviseFn = httpsCallable(functions, 'adviseMortgageMix')
+      const res = await adviseFn({
+        loan_amount: loanAmount,
+        monthly_income: monthlyIncome,
+        property_type: propertyType,
+        property_price: propertyPrice,
+      })
+      const data = res.data as {
+        rationale: string
+        risk_level: string
+        tracks: { type: LoanTrackType; amount: number; interest_rate: number; period_months: number }[]
+      }
+      if (Array.isArray(data.tracks) && data.tracks.length > 0) {
+        setTracks(
+          data.tracks.map(t => ({
+            type: t.type,
+            amount: t.amount,
+            interestRate: t.interest_rate,
+            periodMonths: t.period_months,
+          }))
+        )
+      }
+      setAiAdvice({ rationale: data.rationale, risk_level: data.risk_level })
+      toast.success('המלצת AI מוכנה', 'התמהיל המוצע הוחל על המחשבון')
+    } catch (e) {
+      toast.error('שגיאה בהפקת ההמלצה', e instanceof Error ? e.message : undefined)
+    } finally {
+      setAiAdvising(false)
     }
   }
 
@@ -318,6 +357,15 @@ export default function MortgageCalculatorPage() {
           {/* Actions */}
           <div style={{ ...cardStyle, padding: '18px 24px' }} className="flex flex-col gap-2">
             <button
+              onClick={handleAiAdvice}
+              disabled={aiAdvising}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-50"
+              style={{ borderRadius: 12, background: '#fef3c7', color: '#d97706' }}
+            >
+              {aiAdvising ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+              {aiAdvising ? 'מנתח...' : 'המלצת AI לתמהיל'}
+            </button>
+            <button
               className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97]"
               style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
             >
@@ -334,6 +382,26 @@ export default function MortgageCalculatorPage() {
               {generatingPdf ? 'מכין PDF...' : 'הורד PDF'}
             </button>
           </div>
+
+          {/* AI advice */}
+          {aiAdvice && (
+            <div style={{ ...cardStyle, padding: '20px 24px' }}>
+              <h3 className="text-[14px] font-bold mb-2 flex items-center gap-2" style={{ color: '#1c1917' }}>
+                <Sparkles size={15} style={{ color: '#d97706' }} />
+                המלצת AI
+              </h3>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[12px]" style={{ color: '#a8a29e' }}>רמת סיכון:</span>
+                <span
+                  className="text-[12px] font-bold px-2 py-0.5 rounded-full"
+                  style={{ background: '#fef3c7', color: '#d97706' }}
+                >
+                  {aiAdvice.risk_level}
+                </span>
+              </div>
+              <p className="text-[13px] leading-relaxed" style={{ color: '#57534e' }}>{aiAdvice.rationale}</p>
+            </div>
+          )}
 
           {/* Sensitivity */}
           <div style={{ ...cardStyle, padding: '22px 24px' }}>

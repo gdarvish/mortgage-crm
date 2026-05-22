@@ -111,6 +111,7 @@ export interface Customer {
   last_name: string
   id_number: string | null
   phone: string | null
+  whatsapp_phone?: string | null
   email: string | null
   address: string | null
   marital_status: string | null
@@ -299,6 +300,8 @@ export interface InterestRate {
   created_at: string
 }
 
+export type MessageDeliveryStatus = 'sent' | 'delivered' | 'read' | 'failed' | 'received'
+
 export interface Message {
   id: string
   customer_id: string
@@ -306,6 +309,10 @@ export interface Message {
   direction: 'נשלח' | 'התקבל'
   content: string | null
   sent_at: string
+  provider_message_id?: string | null
+  delivery_status?: MessageDeliveryStatus | null
+  read_at?: string | null
+  template_id?: string | null
 }
 
 export interface CpiIndex {

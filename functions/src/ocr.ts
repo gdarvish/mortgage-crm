@@ -3,25 +3,9 @@ import { defineSecret } from 'firebase-functions/params'
 import { FieldValue } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import Anthropic from '@anthropic-ai/sdk'
-import { db, REGION } from './common'
+import { db, REGION, imageMediaType } from './common'
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
-
-type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
-
-function imageMediaType(ext: string | undefined): ImageMediaType {
-  switch (ext) {
-    case 'jpg':
-    case 'jpeg':
-      return 'image/jpeg'
-    case 'gif':
-      return 'image/gif'
-    case 'webp':
-      return 'image/webp'
-    default:
-      return 'image/png'
-  }
-}
 
 const OCR_PROMPT = `זהו תלוש שכר ישראלי. חלץ ממנו את הנתונים הבאים:
 - employer_name: שם המעסיק
