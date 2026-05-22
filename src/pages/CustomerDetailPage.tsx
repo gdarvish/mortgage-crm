@@ -4,7 +4,7 @@ import {
   ArrowRight, MessageSquare, ClipboardList, Calculator, Upload,
   Send, Plus, Check, Mail, Phone, MapPin, User, CreditCard,
   FileText, Home, MessagesSquare, ListTodo, Banknote, ExternalLink,
-  Trash2, Loader2, Save, PenTool, Sparkles, ShieldCheck,
+  Trash2, Loader2, Save, PenTool, Sparkles, ShieldCheck, Download, Pencil, X,
 } from 'lucide-react'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
@@ -19,6 +19,8 @@ import { messageService } from '@/services/messageService'
 import { commissionService } from '@/services/commissionService'
 import { documentService } from '@/services/documentService'
 import { signatureService } from '@/services/signatureService'
+import { mortgageService } from '@/services/mortgageService'
+import { checkCompliance } from '@/utils/mortgageCalculations'
 import type {
   Customer, Document, Mortgage, LoanTrack, Message, Task, Commission, CustomerStatus
 } from '@/types/database'
@@ -121,6 +123,15 @@ export default function CustomerDetailPage() {
   const [formErrors, setFormErrors] = useState<FormErrors>({})
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  // Mortgage (mix) management
+  const [renamingMortgageId, setRenamingMortgageId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [deleteMortgage, setDeleteMortgage] = useState<MortgageWithTracks | null>(null)
+  const [deletingMortgage, setDeletingMortgage] = useState(false)
+  const [exportingMixId, setExportingMixId] = useState<string | null>(null)
+  const [exportingComparison, setExportingComparison] = useState(false)
+  const [exportingDocs, setExportingDocs] = useState(false)
 
   // Task form
   const [newTask, setNewTask] = useState({ title: '', due_date: '', priority: 'בינונית' })
@@ -232,6 +243,157 @@ export default function CustomerDetailPage() {
     toast.success('הלקוח נמחק')
     qc.invalidateQueries({ queryKey: ['customers'] })
     navigate('/customers')
+  }
+
+  // -------------------------------------------------------------------------
+  // Mortgage (mix) handlers
+  // -------------------------------------------------------------------------
+  const startRename = (m: MortgageWithTracks) => {
+    setRenamingMortgageId(m.id)
+    setRenameValue(m.name || `משכנתא ${m.type}`)
+  }
+
+  const cancelRename = () => {
+    setRenamingMortgageId(null)
+    setRenameValue('')
+  }
+
+  const saveRename = async () => {
+    if (!renamingMortgageId) return
+    const newName = renameValue.trim()
+    if (!newName) {
+      toast.error('יש להזין שם לתמהיל')
+      return
+    }
+    const { error } = await mortgageService.update(renamingMortgageId, { name: newName })
+    if (error) {
+      toast.error('שגיאה בשינוי השם', error.message)
+      return
+    }
+    setMortgages(prev => prev.map(m => (m.id === renamingMortgageId ? { ...m, name: newName } : m)))
+    cancelRename()
+    refreshCustomer()
+    toast.success('שם התמהיל עודכן')
+  }
+
+  const confirmDeleteMortgage = async () => {
+    if (!deleteMortgage) return
+    setDeletingMortgage(true)
+    const trackIds = (deleteMortgage.loan_tracks || []).map(t => t.id)
+    const { error } = await mortgageService.deleteWithTracks(deleteMortgage.id, trackIds)
+    setDeletingMortgage(false)
+    if (error) {
+      toast.error('שגיאה במחיקת התמהיל', error.message)
+      return
+    }
+    setMortgages(prev => prev.filter(m => m.id !== deleteMortgage.id))
+    setDeleteMortgage(null)
+    refreshCustomer()
+    toast.success('התמהיל נמחק')
+  }
+
+  const exportMixPdf = async (m: MortgageWithTracks) => {
+    if (!customer) return
+    setExportingMixId(m.id)
+    try {
+      const tracks = m.loan_tracks || []
+      const propertyPrice = m.property_price || 0
+      const loanAmount = m.loan_amount || tracks.reduce((s, t) => s + (t.amount || 0), 0)
+      const ltv = propertyPrice > 0 ? Math.round((loanAmount / propertyPrice) * 100) : 0
+      const monthlyIncome = (customer.monthly_income || 0) + (customer.partner_income || 0)
+      const pdfTracks = tracks.map(t => ({
+        type: t.type,
+        amount: t.amount || 0,
+        interestRate: t.interest_rate || 0,
+        periodMonths: t.period_months || 0,
+        monthlyPayment: t.monthly_payment || 0,
+      }))
+      const compliance = checkCompliance(
+        tracks.map(t => ({
+          type: t.type,
+          amount: t.amount || 0,
+          interestRate: t.interest_rate || 0,
+          periodMonths: t.period_months || 0,
+        })),
+        propertyPrice || 1,
+        m.property_type || 'דירה_ראשונה',
+        monthlyIncome
+      )
+      const { exportMortgagePdf } = await import('@/utils/pdfExport')
+      await exportMortgagePdf({
+        customerName: `${customer.first_name} ${customer.last_name}`,
+        propertyPrice,
+        ownCapital: m.own_capital || 0,
+        loanAmount,
+        ltv,
+        monthlyIncome,
+        tracks: pdfTracks,
+        totalMonthlyPayment: Math.round(pdfTracks.reduce((s, t) => s + t.monthlyPayment, 0)),
+        totalCost: Math.round(pdfTracks.reduce((s, t) => s + t.monthlyPayment * t.periodMonths, 0)),
+        compliance: compliance.checks.map(c => ({
+          name: c.name,
+          value: c.value,
+          limit: c.limit,
+          isValid: c.isValid,
+        })),
+      })
+    } catch (e) {
+      toast.error('שגיאה בייצוא PDF', e instanceof Error ? e.message : undefined)
+    } finally {
+      setExportingMixId(null)
+    }
+  }
+
+  const exportComparison = async () => {
+    if (!customer) return
+    setExportingComparison(true)
+    try {
+      const { exportMixComparisonPdf } = await import('@/utils/pdfExport')
+      await exportMixComparisonPdf(
+        `${customer.first_name} ${customer.last_name}`,
+        mortgages.map(m => {
+          const tracks = m.loan_tracks || []
+          return {
+            name: m.name || `משכנתא ${m.type}`,
+            loanAmount: m.loan_amount || tracks.reduce((s, t) => s + (t.amount || 0), 0),
+            tracks: tracks.map(t => ({
+              type: t.type,
+              amount: t.amount || 0,
+              periodMonths: t.period_months || 0,
+              monthlyPayment: t.monthly_payment || 0,
+            })),
+          }
+        })
+      )
+    } catch (e) {
+      toast.error('שגיאה בייצוא PDF', e instanceof Error ? e.message : undefined)
+    } finally {
+      setExportingComparison(false)
+    }
+  }
+
+  const handleExportDocs = async () => {
+    if (!customer || documents.length === 0) return
+    setExportingDocs(true)
+    try {
+      const { exportCustomerDocumentsPdf } = await import('@/utils/documentMerge')
+      const result = await exportCustomerDocumentsPdf(
+        `${customer.first_name} ${customer.last_name}`,
+        documents
+      )
+      if (result.merged === 0) {
+        toast.error('לא נמצאו מסמכים שניתן לאחד', 'נתמכים קבצי PDF, JPG ו-PNG בלבד')
+      } else {
+        toast.success('המסמכים אוחדו ל-PDF', `${result.merged} מסמכים אוחדו לקובץ אחד`)
+        if (result.skipped.length > 0) {
+          toast.error('חלק מהקבצים לא אוחדו', `${result.skipped.length} קבצים דולגו (נתמך: PDF, JPG, PNG)`)
+        }
+      }
+    } catch (e) {
+      toast.error('שגיאה באיחוד המסמכים', e instanceof Error ? e.message : undefined)
+    } finally {
+      setExportingDocs(false)
+    }
   }
 
   const addTask = async () => {
@@ -627,6 +789,14 @@ export default function CustomerDetailPage() {
             {uploadingDoc ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
             העלאה
           </button>
+          <button
+            onClick={handleExportDocs}
+            disabled={exportingDocs || documents.length === 0}
+            className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+          >
+            {exportingDocs ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            ייצא הכל ל-PDF
+          </button>
         </div>
       </div>
       {documents.length === 0 && (
@@ -682,6 +852,18 @@ export default function CustomerDetailPage() {
 
   const renderMortgagesTab = () => (
     <div className="space-y-4">
+      {mortgages.length >= 2 && (
+        <div className="flex justify-end">
+          <button
+            onClick={exportComparison}
+            disabled={exportingComparison}
+            className="inline-flex items-center gap-2 text-sm bg-[#059669] text-white px-3 py-2 rounded-lg hover:bg-[#047857] transition-colors disabled:opacity-50"
+          >
+            {exportingComparison ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+            השוואת תמהילים PDF
+          </button>
+        </div>
+      )}
       {mortgages.length === 0 && (
         <div className="text-center py-12 text-gray-400 text-sm">
           <Home size={36} className="mx-auto mb-3 text-gray-300" />
@@ -692,12 +874,46 @@ export default function CustomerDetailPage() {
         const tracks = mortgage.loan_tracks || []
         const totalAmount = tracks.reduce((s, t) => s + (t.amount || 0), 0)
         const totalPayment = tracks.reduce((s, t) => s + (t.monthly_payment || 0), 0)
+        const isRenaming = renamingMortgageId === mortgage.id
         return (
           <div key={mortgage.id} className="border border-gray-200 rounded-xl overflow-hidden">
-            <div className="bg-gray-50 p-4 flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h4 className="font-medium text-gray-900">משכנתא {mortgage.type}</h4>
+            <div className="bg-gray-50 p-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {isRenaming ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        onChange={e => setRenameValue(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') saveRename()
+                          if (e.key === 'Escape') cancelRename()
+                        }}
+                        maxLength={60}
+                        className="px-2 py-1 border border-gray-300 rounded-lg text-sm outline-none focus:border-[#059669] max-w-[200px]"
+                      />
+                      <button onClick={saveRename} className="text-green-600 hover:text-green-700 p-1" title="שמור">
+                        <Check size={16} />
+                      </button>
+                      <button onClick={cancelRename} className="text-gray-400 hover:text-gray-600 p-1" title="ביטול">
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <h4 className="font-medium text-gray-900 truncate">
+                        {mortgage.name || `משכנתא ${mortgage.type}`}
+                      </h4>
+                      <button
+                        onClick={() => startRename(mortgage)}
+                        className="text-gray-300 hover:text-[#059669] transition-colors shrink-0"
+                        title="שנה שם"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    </>
+                  )}
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
                     mortgage.status === 'אושר' ? 'bg-green-100 text-green-700' :
                     mortgage.status === 'הוגש' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
@@ -708,10 +924,29 @@ export default function CustomerDetailPage() {
                   {mortgage.loan_amount ? `סכום הלוואה: ${formatCurrency(mortgage.loan_amount)}` : ''}
                 </p>
               </div>
-              <button onClick={() => navigate('/calculator')}
-                className="inline-flex items-center gap-1 text-sm text-[#059669] hover:text-[#047857] transition-colors">
-                <ExternalLink size={14} />מחשבון
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => exportMixPdf(mortgage)}
+                  disabled={exportingMixId === mortgage.id}
+                  className="inline-flex items-center gap-1 text-sm text-[#059669] hover:text-[#047857] transition-colors disabled:opacity-50"
+                >
+                  {exportingMixId === mortgage.id
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : <Download size={14} />}
+                  PDF
+                </button>
+                <button
+                  onClick={() => setDeleteMortgage(mortgage)}
+                  className="text-gray-300 hover:text-red-500 transition-colors"
+                  title="מחק תמהיל"
+                >
+                  <Trash2 size={15} />
+                </button>
+                <button onClick={() => navigate(`/calculator?customerId=${id}`)}
+                  className="inline-flex items-center gap-1 text-sm text-[#059669] hover:text-[#047857] transition-colors">
+                  <ExternalLink size={14} />מחשבון
+                </button>
+              </div>
             </div>
             {tracks.length > 0 && (
               <div className="p-4">
@@ -980,7 +1215,7 @@ export default function CustomerDetailPage() {
               className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 border border-amber-200 px-3 py-2 rounded-lg hover:bg-amber-100 transition-colors text-sm">
               <PenTool size={16} />שלח לחתימה
             </button>
-            <button onClick={() => navigate('/calculator')}
+            <button onClick={() => navigate(`/calculator?customerId=${id}`)}
               className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg hover:bg-purple-100 transition-colors text-sm">
               <Calculator size={16} />צור תמהיל
             </button>
@@ -1021,6 +1256,17 @@ export default function CustomerDetailPage() {
         loading={deleting}
         onConfirm={handleDeleteCustomer}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      <ConfirmDialog
+        open={!!deleteMortgage}
+        variant="danger"
+        title="מחיקת תמהיל"
+        message={`פעולה זו תמחק את התמהיל "${deleteMortgage?.name || `משכנתא ${deleteMortgage?.type ?? ''}`}" ואת כל המסלולים שלו. פעולה זו אינה הפיכה.`}
+        confirmText="מחק תמהיל"
+        loading={deletingMortgage}
+        onConfirm={confirmDeleteMortgage}
+        onCancel={() => setDeleteMortgage(null)}
       />
     </div>
   )
