@@ -97,6 +97,7 @@ export default function MortgageCalculatorPage() {
   ])
   const [showAmortization, setShowAmortization] = useState(false)
   const [activeRecommendation, setActiveRecommendation] = useState<number | null>(null)
+  const [generatingPdf, setGeneratingPdf] = useState(false)
 
   const loanAmount  = Math.max(0, propertyPrice - ownCapital)
   const ltv         = propertyPrice > 0 ? Math.round((loanAmount / propertyPrice) * 100) : 0
@@ -143,6 +144,39 @@ export default function MortgageCalculatorPage() {
   const applyRecommendation = (idx: number) => {
     setTracks(recommendations[idx].tracks)
     setActiveRecommendation(idx)
+  }
+
+  const handleExportPdf = async () => {
+    setGeneratingPdf(true)
+    try {
+      const { exportMortgagePdf } = await import('@/utils/pdfExport')
+      await exportMortgagePdf({
+        propertyPrice,
+        ownCapital,
+        loanAmount,
+        ltv,
+        monthlyIncome,
+        tracks: tracks.map(t => ({
+          type: t.type,
+          amount: t.amount,
+          interestRate: t.interestRate,
+          periodMonths: t.periodMonths,
+          monthlyPayment: Math.round(effectiveMonthlyPayment(t)),
+        })),
+        totalMonthlyPayment: Math.round(totalMonthlyPayment),
+        totalCost: Math.round(totalCost),
+        compliance: compliance.checks.map(c => ({
+          name: c.name,
+          value: c.value,
+          limit: c.limit,
+          isValid: c.isValid,
+        })),
+      })
+    } catch (e) {
+      console.error('PDF export failed', e)
+    } finally {
+      setGeneratingPdf(false)
+    }
   }
 
   const cardStyle = {
@@ -291,11 +325,13 @@ export default function MortgageCalculatorPage() {
               שמור תמהיל ללקוח
             </button>
             <button
-              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold transition-all hover:opacity-80"
+              onClick={handleExportPdf}
+              disabled={generatingPdf}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold transition-all hover:opacity-80 disabled:opacity-50"
               style={{ borderRadius: 12, background: '#f5f4f2', color: '#57534e' }}
             >
               <Download size={15} />
-              הורד PDF
+              {generatingPdf ? 'מכין PDF...' : 'הורד PDF'}
             </button>
           </div>
 
