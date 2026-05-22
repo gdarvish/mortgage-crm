@@ -12,6 +12,7 @@
   },
   "main": "lib/index.js",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.98.0",
     "firebase-admin": "^12.7.0",
     "firebase-functions": "^6.1.0"
   },

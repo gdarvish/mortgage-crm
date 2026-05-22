@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, UserPlus, FileText, Calculator,
   Bell, DollarSign, Settings, Menu, X, Share2,
-  RefreshCw, Layers, TrendingUp, Heart, MessageSquare,
+  RefreshCw, Layers, TrendingUp, Heart, MessageSquare, History,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GlobalSearch } from '@/components/GlobalSearch'
@@ -24,6 +24,7 @@ const navItems = [
 ]
 
 const mobileExtraItems = [
+  { label: 'יומן שינויים', path: '/audit-log',     icon: History },
   { label: 'תקשורת',       path: '/communication', icon: MessageSquare },
   { label: 'שותפי הפניה', path: '/referrals',     icon: Share2 },
   { label: 'ריביות',       path: '/rates',          icon: TrendingUp },

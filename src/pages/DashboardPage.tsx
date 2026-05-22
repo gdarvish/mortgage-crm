@@ -10,6 +10,7 @@ import {
 } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
 import { useDashboardData, useCompleteTask } from '@/hooks/queries/useDashboard'
+import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
 
 const statusOrder = ['ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'סגירה']
 const hebrewMonths = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ']
@@ -482,6 +483,9 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Activity feed */}
+      <ActivityFeed />
     </div>
   )
 }

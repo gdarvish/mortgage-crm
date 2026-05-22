@@ -22,6 +22,7 @@ const ReferralsPage = lazy(() => import('@/pages/ReferralsPage'))
 const InterestRatesPage = lazy(() => import('@/pages/InterestRatesPage'))
 const FamilyEconomicsPage = lazy(() => import('@/pages/FamilyEconomicsPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
+const AuditLogPage = lazy(() => import('@/pages/AuditLogPage'))
 const ClientPortalPage = lazy(() => import('@/pages/ClientPortalPage'))
 const QuestionnairePage = lazy(() => import('@/pages/QuestionnairePage'))
 const SignaturePage = lazy(() => import('@/pages/SignaturePage'))
@@ -101,6 +102,7 @@ export default function App() {
             <Route path="interest-rates" element={<InterestRatesPage />} />
             <Route path="family-economics" element={<FamilyEconomicsPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="audit-log" element={<AuditLogPage />} />
           </Route>
         </Routes>
       </Suspense>

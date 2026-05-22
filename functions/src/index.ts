@@ -1,15 +1,15 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { onDocumentDeleted } from 'firebase-functions/v2/firestore'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
-import { initializeApp } from 'firebase-admin/app'
-import { getFirestore, FieldValue } from 'firebase-admin/firestore'
+import { FieldValue } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { randomUUID } from 'node:crypto'
+import { db, REGION } from './common'
 
-initializeApp()
-const db = getFirestore()
-
-const REGION = 'europe-west1'
+// Activity feed, audit log and OCR functions live in separate modules.
+export * from './activity'
+export * from './audit'
+export * from './ocr'
 
 async function findCustomerByToken(token: string) {
   const snap = await db

@@ -4,8 +4,10 @@ import {
   ArrowRight, MessageSquare, ClipboardList, Calculator, Upload,
   Send, Plus, Check, Mail, Phone, MapPin, User, CreditCard,
   FileText, Home, MessagesSquare, ListTodo, Banknote, ExternalLink,
-  Trash2, Loader2, Save, PenTool,
+  Trash2, Loader2, Save, PenTool, Sparkles,
 } from 'lucide-react'
+import { httpsCallable } from 'firebase/functions'
+import { functions } from '@/lib/firebase'
 import { formatCurrency, formatDate, generateToken, tokenExpiration } from '@/lib/utils'
 import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
 import { toast, ConfirmDialog } from '@/components/ui'
@@ -124,6 +126,7 @@ export default function CustomerDetailPage() {
   const docFileInputRef = useRef<HTMLInputElement>(null)
   const [uploadingDoc, setUploadingDoc] = useState(false)
   const [docUploadType, setDocUploadType] = useState('תעודת זהות + ספח')
+  const [ocrDocId, setOcrDocId] = useState<string | null>(null)
 
   // -------------------------------------------------------------------------
   // Sync server data into local state
@@ -266,6 +269,26 @@ export default function CustomerDetailPage() {
     }
     setUploadingDoc(false)
     e.target.value = ''
+  }
+
+  const handleOcr = async (docId: string) => {
+    setOcrDocId(docId)
+    try {
+      const ocrFn = httpsCallable(functions, 'ocrPayslip')
+      const res = await ocrFn({ document_id: docId })
+      const data = res.data as { gross_salary?: number | null; net_salary?: number | null }
+      toast.success(
+        'הנתונים חולצו מהמסמך',
+        `ברוטו: ${data.gross_salary ?? '—'} · נטו: ${data.net_salary ?? '—'}`
+      )
+      if (typeof data.net_salary === 'number') {
+        setFinancial(prev => ({ ...prev, monthly_income: data.net_salary as number }))
+      }
+    } catch (e) {
+      toast.error('שגיאה בחילוץ נתונים', e instanceof Error ? e.message : undefined)
+    } finally {
+      setOcrDocId(null)
+    }
   }
 
   const sendMessage = async (channel: Message['channel']) => {
@@ -569,6 +592,16 @@ export default function CustomerDetailPage() {
               <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
                 className="text-xs text-[#059669] hover:underline">צפה</a>
             )}
+            <button
+              onClick={() => handleOcr(doc.id)}
+              disabled={ocrDocId === doc.id}
+              className="inline-flex items-center gap-1 text-xs text-[#059669] hover:underline disabled:opacity-50"
+            >
+              {ocrDocId === doc.id
+                ? <Loader2 size={12} className="animate-spin" />
+                : <Sparkles size={12} />}
+              חלץ נתונים
+            </button>
           </div>
         </div>
       ))}
