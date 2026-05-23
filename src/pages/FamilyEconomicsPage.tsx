@@ -1,11 +1,41 @@
-import { useState } from 'react'
-import { PieChart as PieChartIcon, Download } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { PieChart as PieChartIcon, Download, Save, Search, X, Loader2 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { formatCurrency } from '@/lib/utils'
 import { useTheme } from '@/theme/ThemeContext'
+import { useCustomers, useCustomer } from '@/hooks/queries/useCustomers'
+import { customerService } from '@/services/customerService'
+import { toast } from '@/components/ui'
+import type { Customer, FinancialData, Json } from '@/types/database'
+
+type ExpenseCategory = NonNullable<FinancialData['expenses']>[number]['category']
 
 interface Expense {
   category: string
   amount: number
+}
+
+// Map free-text categories used in the calculator to the FinancialData category enum.
+const CATEGORY_MAP: Record<string, ExpenseCategory> = {
+  'דיור (ארנונה, ועד בית)': 'דיור',
+  'דיור': 'דיור',
+  'מזון': 'מזון',
+  'רכב': 'רכב',
+  'חינוך': 'חינוך',
+  'בילויים': 'בילויים',
+  'חסכונות': 'חיסכון',
+  'חיסכון': 'חיסכון',
+  'אחר': 'אחר',
+}
+const REVERSE_CATEGORY_MAP: Record<string, string> = {
+  'דיור': 'דיור (ארנונה, ועד בית)',
+  'מזון': 'מזון',
+  'רכב': 'רכב',
+  'חינוך': 'חינוך',
+  'בילויים': 'בילויים',
+  'חיסכון': 'חסכונות',
+  'אחר': 'אחר',
 }
 
 interface DonutDatum { v: number; c: string; l: string }
@@ -39,6 +69,9 @@ function SVGDonut({ data, size = 170 }: { data: DonutDatum[]; size?: number }) {
 
 export default function FamilyEconomicsPage() {
   const t = useTheme()
+  const qc = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const urlCustomerId = searchParams.get('customerId')
   // A5-11: use theme tokens instead of hardcoded hex for expense bar colors
   const EXPENSE_COLORS = [t.textMuted, t.warning, t.accent, t.danger, t.primary, '#f97316', t.success]
   const [income1, setIncome1] = useState(15000)
@@ -53,6 +86,102 @@ export default function FamilyEconomicsPage() {
     { category: 'חסכונות', amount: 2000 },
     { category: 'אחר', amount: 1000 },
   ])
+
+  // ------------- Customer picker state -------------
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(urlCustomerId)
+  const [pickerQuery, setPickerQuery] = useState('')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const hydratedForRef = useRef<string | null>(null)
+  const pickerContainerRef = useRef<HTMLDivElement | null>(null)
+
+  const { data: customers = [] } = useCustomers()
+  const { data: selectedCustomer } = useCustomer(selectedCustomerId ?? undefined)
+
+  // Filter customers by name / phone
+  const filteredCustomers = useMemo<Customer[]>(() => {
+    const q = pickerQuery.trim().toLowerCase()
+    if (!q) return customers.slice(0, 8)
+    return customers
+      .filter(c => {
+        const full = `${c.first_name} ${c.last_name}`.toLowerCase()
+        return full.includes(q) || (c.phone || '').toLowerCase().includes(q)
+      })
+      .slice(0, 8)
+  }, [customers, pickerQuery])
+
+  // Hydrate form when customer is selected and has financial_data
+  useEffect(() => {
+    if (!selectedCustomer) return
+    if (hydratedForRef.current === selectedCustomer.id) return
+    hydratedForRef.current = selectedCustomer.id
+    const fd = (selectedCustomer.financial_data ?? null) as FinancialData | null
+    if (!fd) return
+    if (typeof fd.income1 === 'number') setIncome1(fd.income1)
+    if (typeof fd.income2 === 'number') setIncome2(fd.income2)
+    if (typeof fd.mortgagePayment === 'number') setMortgagePayment(fd.mortgagePayment)
+    if (Array.isArray(fd.expenses) && fd.expenses.length > 0) {
+      setExpenses(fd.expenses.map(e => ({
+        category: REVERSE_CATEGORY_MAP[e.category] ?? e.category,
+        amount: e.amount,
+      })))
+    }
+  }, [selectedCustomer])
+
+  // Close picker on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (!pickerContainerRef.current) return
+      if (!pickerContainerRef.current.contains(e.target as Node)) setPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const selectCustomer = (c: Customer) => {
+    setSelectedCustomerId(c.id)
+    setPickerQuery('')
+    setPickerOpen(false)
+    hydratedForRef.current = null
+    // sync URL
+    const next = new URLSearchParams(searchParams)
+    next.set('customerId', c.id)
+    setSearchParams(next, { replace: true })
+  }
+
+  const clearCustomer = () => {
+    setSelectedCustomerId(null)
+    hydratedForRef.current = null
+    const next = new URLSearchParams(searchParams)
+    next.delete('customerId')
+    setSearchParams(next, { replace: true })
+  }
+
+  const handleSaveToCustomer = async () => {
+    if (!selectedCustomerId) return
+    setSaving(true)
+    const payload: FinancialData = {
+      income1,
+      income2,
+      mortgagePayment,
+      expenses: expenses.map(e => ({
+        category: (CATEGORY_MAP[e.category] ?? 'אחר') as ExpenseCategory,
+        amount: e.amount,
+      })),
+      updated_at: new Date().toISOString(),
+    }
+    const { error } = await customerService.update(selectedCustomerId, {
+      financial_data: payload as unknown as Json,
+    })
+    setSaving(false)
+    if (error) {
+      toast.error('שגיאה בשמירת הנתונים', error.message)
+      return
+    }
+    qc.invalidateQueries({ queryKey: ['customer', selectedCustomerId] })
+    qc.invalidateQueries({ queryKey: ['customers'] })
+    toast.success('הנתונים נשמרו תחת כרטיסיית הלקוח')
+  }
 
   const updateExpense = (idx: number, amount: number) => {
     setExpenses(expenses.map((e, i) => i === idx ? { ...e, amount } : e))
@@ -99,6 +228,107 @@ export default function FamilyEconomicsPage() {
             מחשבון כלכלת משפחה
           </h1>
           <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>ניתוח הכנסות, הוצאות ויכולת עמידה במשכנתא</p>
+        </div>
+
+        {/* Customer picker */}
+        <div
+          style={{
+            background: t.cardBg, borderRadius: 20, padding: '18px 22px',
+            boxShadow: t.shadow, border: `1px solid ${t.border}`, marginBottom: 18,
+          }}
+        >
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6 }}>
+            בחר לקוח (אופציונלי)
+          </label>
+          {selectedCustomer ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: t.primary + '14', color: t.primary,
+                padding: '8px 14px', borderRadius: 12, fontSize: 13, fontWeight: 600,
+              }}>
+                <span>{selectedCustomer.first_name} {selectedCustomer.last_name}</span>
+                {selectedCustomer.phone && (
+                  <span dir="ltr" style={{ color: t.textMuted, fontSize: 12 }}>· {selectedCustomer.phone}</span>
+                )}
+                <button
+                  onClick={clearCustomer}
+                  className="crm-btn"
+                  title="בטל בחירה"
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: t.textMuted, display: 'flex', padding: 0, marginInlineStart: 4,
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <button
+                onClick={handleSaveToCustomer}
+                disabled={saving}
+                className="crm-btn-primary"
+                style={{
+                  background: t.success, color: '#fff', border: 'none', borderRadius: 12,
+                  padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  fontFamily: 'Heebo,sans-serif', display: 'inline-flex', alignItems: 'center',
+                  gap: 7, boxShadow: `0 4px 14px ${t.success}45`, opacity: saving ? 0.5 : 1,
+                }}
+              >
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                שמור ללקוח
+              </button>
+            </div>
+          ) : (
+            <div ref={pickerContainerRef} style={{ position: 'relative', maxWidth: 420 }}>
+              <span style={{
+                position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)',
+                display: 'flex', color: t.textMuted, pointerEvents: 'none',
+              }}>
+                <Search size={15} />
+              </span>
+              <input
+                type="text"
+                value={pickerQuery}
+                onChange={e => { setPickerQuery(e.target.value); setPickerOpen(true) }}
+                onFocus={() => setPickerOpen(true)}
+                placeholder="חיפוש לקוח לפי שם או טלפון..."
+                style={{
+                  width: '100%', padding: '10px 38px 10px 14px',
+                  border: `1.5px solid ${t.border}`, borderRadius: 10,
+                  fontSize: 14, color: t.text, background: t.inputBg, outline: 'none',
+                  fontFamily: 'Heebo,sans-serif', direction: 'rtl', boxSizing: 'border-box',
+                }}
+              />
+              {pickerOpen && filteredCustomers.length > 0 && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                  background: t.cardBg, border: `1.5px solid ${t.border}`, borderRadius: 10,
+                  boxShadow: '0 6px 20px rgba(0,0,0,0.08)', maxHeight: 280, overflowY: 'auto', zIndex: 50,
+                }}>
+                  {filteredCustomers.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => selectCustomer(c)}
+                      style={{
+                        width: '100%', display: 'block', padding: '10px 14px',
+                        background: 'transparent', color: t.text, border: 'none',
+                        borderBottom: `1px solid ${t.border}`, fontSize: 14,
+                        fontFamily: 'Heebo,sans-serif', textAlign: 'right', cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ fontWeight: 600 }}>{c.first_name} {c.last_name}</div>
+                      {c.phone && <div style={{ fontSize: 11, color: t.textMuted }} dir="ltr">{c.phone}</div>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <p style={{ fontSize: 12, color: t.textMuted, marginTop: 8 }}>
+            הנתונים יישמרו תחת כרטיסיית הלקוח · נתונים כלכליים
+          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr]" style={{ gap: 20 }}>

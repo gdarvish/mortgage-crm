@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Plus, Sparkles, AlertTriangle, CheckCircle, Download, Save, X, Loader2 } from 'lucide-react'
 import { httpsCallable } from 'firebase/functions'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -19,6 +20,10 @@ import { mortgageService } from '@/services/mortgageService'
 import { toast } from '@/components/ui'
 import { useTheme } from '@/theme/ThemeContext'
 import type { Theme } from '@/theme/themes'
+import { SaveMortgageDialog } from '@/components/SaveMortgageDialog'
+
+// Local track type with per-track drawdown date
+type CalcTrack = TrackInput & { startDate?: string | null }
 
 const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
 
@@ -37,7 +42,7 @@ const propertyTypes: { value: PropertyType; label: string }[] = [
   { value: 'להשקעה',     label: 'להשקעה' },
 ]
 
-const emptyTrack: TrackInput = { type: 'קל"צ', amount: 0, interestRate: 4.5, periodMonths: 300 }
+const emptyTrack: CalcTrack = { type: 'קל"צ', amount: 0, interestRate: 4.5, periodMonths: 300, startDate: null }
 
 // ─── SHARED: INPUT FIELD ──────────────────────────────────────────────────────
 function Field({
@@ -91,9 +96,9 @@ export default function MortgageCalculatorPage() {
   const [ownCapital, setOwnCapital] = useState(300000)
   const [propertyType, setPropertyType] = useState<PropertyType>('דירה_ראשונה')
   const [monthlyIncome, setMonthlyIncome] = useState(25000)
-  const [tracks, setTracks] = useState<TrackInput[]>([
-    { type: 'פריים', amount: 600000, interestRate: 5.0, periodMonths: 240 },
-    { type: 'קל"צ',  amount: 600000, interestRate: 3.2, periodMonths: 300 },
+  const [tracks, setTracks] = useState<CalcTrack[]>([
+    { type: 'פריים', amount: 600000, interestRate: 5.0, periodMonths: 240, startDate: null },
+    { type: 'קל"צ',  amount: 600000, interestRate: 3.2, periodMonths: 300, startDate: null },
   ])
   const [showAmortization, setShowAmortization] = useState(false)
   const [activeRecommendation, setActiveRecommendation] = useState<number | null>(null)
@@ -164,6 +169,9 @@ export default function MortgageCalculatorPage() {
   const updateTrack = (idx: number, field: keyof TrackInput, value: number | string) => {
     setTracks(tracks.map((tr, i) => i === idx ? { ...tr, [field]: value } : tr))
   }
+  const updateTrackStartDate = (idx: number, value: string) => {
+    setTracks(tracks.map((tr, i) => i === idx ? { ...tr, startDate: value === '' ? null : value } : tr))
+  }
   const applyRecommendation = (idx: number) => {
     setTracks(recommendations[idx].tracks)
     setActiveRecommendation(idx)
@@ -204,14 +212,25 @@ export default function MortgageCalculatorPage() {
     }
   }
 
-  // A3-15: implement save mix handler
+  // A3-15: implement save mix handler — opens dialog and persists to Firestore
+  const [searchParams] = useSearchParams()
+  const urlCustomerId = searchParams.get('customerId') ?? undefined
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [savingMix, setSavingMix] = useState(false)
-  const handleSaveMix = async () => {
+
+  const openSaveDialog = () => setSaveDialogOpen(true)
+
+  const handleSaveSubmit = async (v: {
+    customerId: string
+    name: string
+    propertyAddress: string
+    propertyX: number | null
+    propertyY: number | null
+  }) => {
     setSavingMix(true)
     try {
-      // Try Firestore first; fall back to localStorage
       const { data, error } = await mortgageService.create({
-        customer_id: '',
+        customer_id: v.customerId,
         property_price: propertyPrice,
         loan_amount: loanAmount,
         own_capital: ownCapital,
@@ -220,19 +239,55 @@ export default function MortgageCalculatorPage() {
         property_type: propertyType,
         notes: null,
         compliance_status: null,
+        name: v.name,
+        property_address: v.propertyAddress || null,
+        property_address_x: v.propertyX,
+        property_address_y: v.propertyY,
       })
       if (error || !data) throw new Error(error?.message ?? 'שמירה נכשלה')
+
+      // Persist tracks
+      const trackResults = await Promise.all(
+        tracks.map(tr =>
+          mortgageService.addTrack({
+            mortgage_id: data.id,
+            type: tr.type,
+            amount: tr.amount,
+            interest_rate: tr.interestRate,
+            period_months: tr.periodMonths,
+            monthly_payment: Math.round(effectiveMonthlyPayment(tr)),
+            is_existing: false,
+            start_date: tr.startDate ?? null,
+            end_date: null,
+          }),
+        ),
+      )
+      const trackErr = trackResults.find(r => r.error)
+      if (trackErr?.error) throw new Error(trackErr.error.message)
+
       toast.success('התמהיל נשמר', `נוצר תיק משכנתא (${data.id})`)
+      setSaveDialogOpen(false)
     } catch (e) {
-      // Fallback: save to localStorage
+      // Fallback: save to localStorage with the new metadata
       try {
         const saved = {
           savedAt: new Date().toISOString(),
-          propertyPrice, ownCapital, loanAmount, monthlyIncome, propertyType, tracks,
+          customerId: v.customerId,
+          name: v.name,
+          propertyAddress: v.propertyAddress,
+          propertyX: v.propertyX,
+          propertyY: v.propertyY,
+          propertyPrice,
+          ownCapital,
+          loanAmount,
+          monthlyIncome,
+          propertyType,
+          tracks,
         }
         const key = `mortgage_mix_${Date.now()}`
         localStorage.setItem(key, JSON.stringify(saved))
         toast.success('התמהיל נשמר מקומית', key)
+        setSaveDialogOpen(false)
       } catch {
         toast.error('שגיאה בשמירת התמהיל', e instanceof Error ? e.message : undefined)
       }
@@ -390,7 +445,7 @@ export default function MortgageCalculatorPage() {
                 {aiAdvising ? 'מנתח...' : 'המלצת AI לתמהיל'}
               </button>
               <button
-                onClick={handleSaveMix}
+                onClick={openSaveDialog}
                 disabled={savingMix}
                 className="crm-btn-primary"
                 style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', fontSize: 13, fontWeight: 600, borderRadius: 12, border: 'none', cursor: 'pointer', background: t.primary, color: '#fff', fontFamily: 'Heebo,sans-serif', boxShadow: `0 4px 14px ${t.primary}45`, opacity: savingMix ? 0.5 : 1 }}
@@ -508,10 +563,20 @@ export default function MortgageCalculatorPage() {
 
                   {/* Inputs grid */}
                   {/* A3-17: min attributes to prevent negative values */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3" style={{ gap: 12, marginBottom: 16 }}>
+                  <div className="grid grid-cols-1 sm:grid-cols-4" style={{ gap: 12, marginBottom: 16 }}>
                     <Field t={t} label="סכום" value={track.amount} onChange={v => updateTrack(idx, 'amount', +v || 0)} type="number" prefix="₪" min="0" />
                     <Field t={t} label="ריבית שנתית" value={track.interestRate} onChange={v => updateTrack(idx, 'interestRate', +v || 0)} type="number" suffix="%" min="0" />
                     <Field t={t} label="תקופה" value={track.periodMonths} onChange={v => updateTrack(idx, 'periodMonths', +v || 0)} type="number" suffix="חו'" min="1" />
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6, letterSpacing: '0.03em' }}>תאריך משיכה</label>
+                      <input
+                        type="date"
+                        value={track.startDate ?? ''}
+                        onChange={e => updateTrackStartDate(idx, e.target.value)}
+                        dir="ltr"
+                        style={{ width: '100%', padding: '10px 12px', fontSize: 14, outline: 'none', border: `1.5px solid ${t.border}`, borderRadius: 10, background: t.inputBg, color: t.text, fontFamily: 'Heebo,sans-serif', boxSizing: 'border-box' }}
+                      />
+                    </div>
                   </div>
 
                   {/* Grace period */}
@@ -611,6 +676,14 @@ export default function MortgageCalculatorPage() {
           </div>
         </div>
       </div>
+      <SaveMortgageDialog
+        open={saveDialogOpen}
+        onClose={() => { if (!savingMix) setSaveDialogOpen(false) }}
+        onSubmit={handleSaveSubmit}
+        defaultCustomerId={urlCustomerId}
+        saving={savingMix}
+        title="שמור תמהיל ללקוח"
+      />
     </div>
   )
 }

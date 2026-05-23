@@ -1,12 +1,18 @@
 import { useState, useMemo, useRef } from 'react'
-import { RefreshCw, Plus, Trash2, BarChart3, UploadCloud, Loader2, CheckCircle, X } from 'lucide-react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
+import { RefreshCw, Plus, Trash2, BarChart3, UploadCloud, Loader2, CheckCircle, X, Save } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { calculateMonthlyPayment, calculateRefinanceSavings, type TrackInput } from '@/utils/mortgageCalculations'
 import { customerService } from '@/services/customerService'
 import { documentService } from '@/services/documentService'
+import { mortgageService } from '@/services/mortgageService'
 import { toast } from '@/components/ui'
 import type { LoanTrackType, Customer } from '@/types/database'
 import { useTheme } from '@/theme/ThemeContext'
+import { SaveMortgageDialog } from '@/components/SaveMortgageDialog'
+
+// Local track type for refinance with optional dates
+type RefiTrack = TrackInput & { startDate?: string | null; endDate?: string | null }
 
 const trackTypes: { value: LoanTrackType; label: string }[] = [
   { value: 'פריים',           label: 'פריים' },
@@ -59,16 +65,24 @@ function SVGLineRaw({ data, color = '#059669', h = 200, refY, labelPrefix = '₪
 
 export default function RefinanceCalculatorPage() {
   const t = useTheme()
-  const [existingTracks, setExistingTracks] = useState<TrackInput[]>([
-    { type: 'קל"צ', amount: 400000, interestRate: 5.2, periodMonths: 240 },
-    { type: 'פריים', amount: 300000, interestRate: 6.5, periodMonths: 240 },
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const urlCustomerId = searchParams.get('customerId') ?? undefined
+
+  const [existingTracks, setExistingTracks] = useState<RefiTrack[]>([
+    { type: 'קל"צ', amount: 400000, interestRate: 5.2, periodMonths: 240, startDate: null, endDate: null },
+    { type: 'פריים', amount: 300000, interestRate: 6.5, periodMonths: 240, startDate: null, endDate: null },
   ])
-  const [newTracks, setNewTracks] = useState<TrackInput[]>([
-    { type: 'קל"צ', amount: 350000, interestRate: 4.2, periodMonths: 240 },
-    { type: 'קל"ב', amount: 200000, interestRate: 3.5, periodMonths: 240 },
-    { type: 'פריים', amount: 150000, interestRate: 6.0, periodMonths: 240 },
+  const [newTracks, setNewTracks] = useState<RefiTrack[]>([
+    { type: 'קל"צ', amount: 350000, interestRate: 4.2, periodMonths: 240, startDate: null, endDate: null },
+    { type: 'קל"ב', amount: 200000, interestRate: 3.5, periodMonths: 240, startDate: null, endDate: null },
+    { type: 'פריים', amount: 150000, interestRate: 6.0, periodMonths: 240, startDate: null, endDate: null },
   ])
   const [earlyRepaymentFee, setEarlyRepaymentFee] = useState(15000)
+
+  // Save-to-customer dialog state
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const [savingMortgage, setSavingMortgage] = useState(false)
 
   // Balance report upload state
   const [showUploadModal, setShowUploadModal] = useState(false)
@@ -112,6 +126,65 @@ export default function RefinanceCalculatorPage() {
     }
   }
 
+  const handleSaveMortgage = async (v: {
+    customerId: string
+    name: string
+    propertyAddress: string
+    propertyX: number | null
+    propertyY: number | null
+  }) => {
+    setSavingMortgage(true)
+    try {
+      const totalLoan = newTracks.reduce((s, tr) => s + tr.amount, 0)
+      const { data, error } = await mortgageService.create({
+        customer_id: v.customerId,
+        property_price: null,
+        loan_amount: totalLoan,
+        own_capital: null,
+        type: 'מחזור',
+        status: 'טיוטה',
+        property_type: null,
+        notes: null,
+        compliance_status: null,
+        name: v.name,
+        property_address: v.propertyAddress || null,
+        property_address_x: v.propertyX,
+        property_address_y: v.propertyY,
+      })
+      if (error || !data) throw new Error(error?.message ?? 'שמירה נכשלה')
+
+      const allTracks: { tr: RefiTrack; isExisting: boolean }[] = [
+        ...existingTracks.map(tr => ({ tr, isExisting: true })),
+        ...newTracks.map(tr => ({ tr, isExisting: false })),
+      ]
+      const results = await Promise.all(
+        allTracks.map(({ tr, isExisting }) =>
+          mortgageService.addTrack({
+            mortgage_id: data.id,
+            type: tr.type,
+            amount: tr.amount,
+            interest_rate: tr.interestRate,
+            period_months: tr.periodMonths,
+            monthly_payment: Math.round(calculateMonthlyPayment(tr.amount, tr.interestRate, tr.periodMonths)),
+            is_existing: isExisting,
+            start_date: tr.startDate ?? null,
+            end_date: tr.endDate ?? null,
+          }),
+        ),
+      )
+      const trackErr = results.find(r => r.error)
+      if (trackErr?.error) throw new Error(trackErr.error.message)
+
+      toast.success('נשמר', 'תיק המשכנתא נשמר ללקוח')
+      setSaveDialogOpen(false)
+      navigate(`/customers/${v.customerId}`)
+    } catch (e) {
+      toast.error('שגיאה בשמירה', e instanceof Error ? e.message : undefined)
+    } finally {
+      setSavingMortgage(false)
+    }
+  }
+
   const savings = useMemo(() =>
     calculateRefinanceSavings(existingTracks, newTracks, earlyRepaymentFee),
     [existingTracks, newTracks, earlyRepaymentFee]
@@ -136,13 +209,21 @@ export default function RefinanceCalculatorPage() {
   }, [savings, earlyRepaymentFee, comparisonMonths])
 
   const updateTrack = (
-    tracks: TrackInput[],
-    setTracks: (t: TrackInput[]) => void,
+    tracks: RefiTrack[],
+    setTracks: (t: RefiTrack[]) => void,
     idx: number,
     field: keyof TrackInput,
     value: number | string,
   ) => {
     setTracks(tracks.map((tr, i) => i === idx ? { ...tr, [field]: value } : tr))
+  }
+  const updateTrackEndDate = (
+    tracks: RefiTrack[],
+    setTracks: (t: RefiTrack[]) => void,
+    idx: number,
+    value: string,
+  ) => {
+    setTracks(tracks.map((tr, i) => i === idx ? { ...tr, endDate: value === '' ? null : value } : tr))
   }
 
   const card = {
@@ -156,12 +237,12 @@ export default function RefinanceCalculatorPage() {
     fontSize: 12, color: t.text, background: t.inputBg, outline: 'none', fontFamily: 'Heebo,sans-serif',
   }
 
-  const renderTrackEditor = (tracks: TrackInput[], setTracks: (t: TrackInput[]) => void, title: string, delay: number) => (
+  const renderTrackEditor = (tracks: RefiTrack[], setTracks: (t: RefiTrack[]) => void, title: string, delay: number) => (
     <div style={{ ...card, padding: '20px 22px', animation: `fadeUp 0.4s ease ${delay}s backwards` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text }}>{title}</h3>
         <button
-          onClick={() => setTracks([...tracks, { type: 'קל"צ', amount: 0, interestRate: 4.0, periodMonths: 240 }])}
+          onClick={() => setTracks([...tracks, { type: 'קל"צ', amount: 0, interestRate: 4.0, periodMonths: 240, startDate: null, endDate: null }])}
           className="crm-btn-primary"
           style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 9, border: 'none', cursor: 'pointer', background: t.primary, color: '#fff', fontFamily: 'Heebo,sans-serif' }}
         >
@@ -172,34 +253,54 @@ export default function RefinanceCalculatorPage() {
         {tracks.map((track, idx) => {
           const monthly = calculateMonthlyPayment(track.amount, track.interestRate, track.periodMonths)
           const col = TRACK_COLORS_RF[idx % TRACK_COLORS_RF.length]
+          const showEnd = track.type === 'קל"ב' || track.type === 'משתנה_צמודה'
           return (
-            <div key={idx} className="grid grid-cols-1 sm:grid-cols-[1.6fr_1fr_1fr_1fr_auto]" style={{ background: t.bg, borderRadius: 12, padding: '12px 14px', gap: 8, alignItems: 'end' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>סוג</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: col, flexShrink: 0 }} />
-                  <select value={track.type} onChange={e => updateTrack(tracks, setTracks, idx, 'type', e.target.value)} style={{ ...rowSt, flex: 1 }}>
-                    {trackTypes.map(tt => <option key={tt.value} value={tt.value}>{tt.label}</option>)}
-                  </select>
+            <div key={idx} className="overflow-x-auto" style={{ background: t.bg, borderRadius: 12 }}>
+              <div
+                className={showEnd
+                  ? "grid grid-cols-1 sm:grid-cols-[1.6fr_1fr_1fr_1fr_1fr_auto]"
+                  : "grid grid-cols-1 sm:grid-cols-[1.6fr_1fr_1fr_1fr_auto]"}
+                style={{ padding: '12px 14px', gap: 8, alignItems: 'end', minWidth: showEnd ? 720 : 640 }}
+              >
+                <div>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>סוג</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: col, flexShrink: 0 }} />
+                    <select value={track.type} onChange={e => updateTrack(tracks, setTracks, idx, 'type', e.target.value)} style={{ ...rowSt, flex: 1 }}>
+                      {trackTypes.map(tt => <option key={tt.value} value={tt.value}>{tt.label}</option>)}
+                    </select>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>יתרה (₪)</label>
-                <input type="number" min="0" value={track.amount} onChange={e => updateTrack(tracks, setTracks, idx, 'amount', +e.target.value || 0)} style={rowSt} dir="ltr" />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>ריבית %</label>
-                <input type="number" min="0" step="0.1" value={track.interestRate} onChange={e => updateTrack(tracks, setTracks, idx, 'interestRate', +e.target.value || 0)} style={rowSt} dir="ltr" />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>חודשים</label>
-                <input type="number" min="1" value={track.periodMonths} onChange={e => updateTrack(tracks, setTracks, idx, 'periodMonths', +e.target.value || 1)} style={rowSt} dir="ltr" />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: col, whiteSpace: 'nowrap' }}>{formatCurrency(Math.round(monthly))}</span>
-                <button onClick={() => setTracks(tracks.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.danger }}>
-                  <Trash2 size={13} />
-                </button>
+                <div>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>יתרה (₪)</label>
+                  <input type="number" min="0" value={track.amount} onChange={e => updateTrack(tracks, setTracks, idx, 'amount', +e.target.value || 0)} style={rowSt} dir="ltr" />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>ריבית %</label>
+                  <input type="number" min="0" step="0.1" value={track.interestRate} onChange={e => updateTrack(tracks, setTracks, idx, 'interestRate', +e.target.value || 0)} style={rowSt} dir="ltr" />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>חודשים</label>
+                  <input type="number" min="1" value={track.periodMonths} onChange={e => updateTrack(tracks, setTracks, idx, 'periodMonths', +e.target.value || 1)} style={rowSt} dir="ltr" />
+                </div>
+                {showEnd && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>תאריך סיום</label>
+                    <input
+                      type="date"
+                      value={track.endDate ?? ''}
+                      onChange={e => updateTrackEndDate(tracks, setTracks, idx, e.target.value)}
+                      style={rowSt}
+                      dir="ltr"
+                    />
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: col, whiteSpace: 'nowrap' }}>{formatCurrency(Math.round(monthly))}</span>
+                  <button onClick={() => setTracks(tracks.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.danger }}>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
             </div>
           )
@@ -221,14 +322,24 @@ export default function RefinanceCalculatorPage() {
               מחשבון מחזור משכנתא
             </h1>
           </div>
-          <button
-            onClick={openUploadModal}
-            className="crm-btn"
-            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 12, cursor: 'pointer', background: t.bg, color: t.textSub, border: `1.5px solid ${t.border}`, fontFamily: 'Heebo,sans-serif' }}
-          >
-            <UploadCloud size={14} />
-            העלה PDF דוח יתרות
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setSaveDialogOpen(true)}
+              className="crm-btn-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 12, cursor: 'pointer', background: t.success, color: '#fff', border: 'none', fontFamily: 'Heebo,sans-serif', boxShadow: `0 4px 14px ${t.success}45` }}
+            >
+              <Save size={14} />
+              שמור כתיק לקוח
+            </button>
+            <button
+              onClick={openUploadModal}
+              className="crm-btn"
+              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 12, cursor: 'pointer', background: t.bg, color: t.textSub, border: `1.5px solid ${t.border}`, fontFamily: 'Heebo,sans-serif' }}
+            >
+              <UploadCloud size={14} />
+              העלה PDF דוח יתרות
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 18, marginBottom: 18 }}>
@@ -390,6 +501,14 @@ export default function RefinanceCalculatorPage() {
           </div>
         )}
       </div>
+      <SaveMortgageDialog
+        open={saveDialogOpen}
+        onClose={() => { if (!savingMortgage) setSaveDialogOpen(false) }}
+        onSubmit={handleSaveMortgage}
+        defaultCustomerId={urlCustomerId}
+        saving={savingMortgage}
+        title="שמור משכנתא למחזור ללקוח"
+      />
     </div>
   )
 }

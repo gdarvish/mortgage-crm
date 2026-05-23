@@ -21,8 +21,10 @@ import { documentService } from '@/services/documentService'
 import { signatureService } from '@/services/signatureService'
 import { useTheme } from '@/theme/ThemeContext'
 import type {
-  Customer, Document, Mortgage, LoanTrack, Message, Task, Commission, CustomerStatus
+  Customer, Document, Mortgage, LoanTrack, Message, Task, Commission, CustomerStatus,
+  FinancialData,
 } from '@/types/database'
+import { AddressInput } from '@/components/AddressInput'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -614,17 +616,13 @@ export default function CustomerDetailPage() {
               {formErrors.email && <p style={{ fontSize: 11, color: t.danger, marginTop: 4 }}>{formErrors.email}</p>}
             </div>
             <div>
-              <label style={label}>כתובת</label>
-              <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', display: 'flex' }}>
-                  <MapPin size={15} color={t.textMuted} />
-                </span>
-                <input
-                  style={{ ...inputSt, paddingRight: 34 }}
-                  value={personal.address}
-                  onChange={e => setPersonal({ ...personal, address: e.target.value })}
-                />
-              </div>
+              <AddressInput
+                label="כתובת"
+                value={personal.address ?? ''}
+                onChange={v => setPersonal({ ...personal, address: v })}
+                placeholder="התחל להקליד כתובת..."
+                icon={<MapPin size={16} />}
+              />
             </div>
           </div>
           <div className={fieldRow(2)} style={fieldRowStyle}>
@@ -664,7 +662,13 @@ export default function CustomerDetailPage() {
     </div>
   )
 
-  const renderFinancialTab = () => (
+  const renderFinancialTab = () => {
+    const fd = (customer.financial_data ?? null) as FinancialData | null
+    const fdIncome = (fd?.income1 ?? 0) + (fd?.income2 ?? 0)
+    const fdExpensesTotal = (fd?.expenses ?? []).reduce((s, e) => s + (e.amount || 0), 0)
+    const fdExpensesWithMortgage = fdExpensesTotal + (fd?.mortgagePayment ?? 0)
+    return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
     <div style={card}>
       <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16 }}>מידע פיננסי</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -729,7 +733,60 @@ export default function CustomerDetailPage() {
         </div>
       </div>
     </div>
+    {fd && (
+      <div style={card}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text }}>נתונים מ-כלכלת המשפחה</h3>
+          <button
+            onClick={() => navigate(`/family-economics?customerId=${customer.id}`)}
+            className="crm-btn"
+            style={{
+              background: t.primary + '14', color: t.primary, border: 'none', borderRadius: 10,
+              padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              fontFamily: 'Heebo,sans-serif', display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <ExternalLink size={13} />
+            ערוך בכלכלת המשפחה
+          </button>
+        </div>
+        {fd.updated_at && (
+          <p style={{ fontSize: 11, color: t.textMuted, marginBottom: 12 }}>
+            עודכן לאחרונה: {formatDate(fd.updated_at)}
+          </p>
+        )}
+        <div className={fieldRow(2)} style={{ ...fieldRowStyle, marginBottom: 14 }}>
+          <div style={{ background: t.successBg, borderRadius: 12, padding: '10px 14px' }}>
+            <p style={{ fontSize: 12, color: t.success, fontWeight: 600 }}>סה"כ הכנסה חודשית</p>
+            <p style={{ fontSize: 18, fontWeight: 800, color: t.text }}>{formatCurrency(fdIncome)}</p>
+          </div>
+          <div style={{ background: t.warningBg, borderRadius: 12, padding: '10px 14px' }}>
+            <p style={{ fontSize: 12, color: t.warning, fontWeight: 600 }}>סה"כ הוצאות חודשיות</p>
+            <p style={{ fontSize: 18, fontWeight: 800, color: t.text }}>{formatCurrency(fdExpensesWithMortgage)}</p>
+          </div>
+        </div>
+        {(fd.expenses && fd.expenses.length > 0) || (fd.mortgagePayment ?? 0) > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>פירוט הוצאות</p>
+            {(fd.expenses ?? []).map((e, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: t.textSub, padding: '4px 0', borderBottom: `1px solid ${t.borderLight}` }}>
+                <span>{e.category}</span>
+                <span style={{ fontWeight: 600, color: t.text }}>{formatCurrency(e.amount)}</span>
+              </div>
+            ))}
+            {(fd.mortgagePayment ?? 0) > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: t.textSub, padding: '4px 0' }}>
+                <span>משכנתא</span>
+                <span style={{ fontWeight: 600, color: t.primary }}>{formatCurrency(fd.mortgagePayment ?? 0)}</span>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
+    )}
+    </div>
   )
+  }
 
   const renderDocumentsTab = () => {
     const docStatusColors: Record<string, { bg: string; text: string }> = {
@@ -857,11 +914,17 @@ export default function CustomerDetailPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: t.primary }} />
-                  <span style={{ fontSize: 15, fontWeight: 700, color: t.text }}>משכנתא {mortgage.type}</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: t.text }}>{mortgage.name || `משכנתא ${mortgage.type}`}</span>
                   <span style={{ padding: '3px 10px', borderRadius: 20, background: ms.bg, color: ms.text, fontSize: 11, fontWeight: 600 }}>
                     {mortgage.status}
                   </span>
                 </div>
+                {mortgage.property_address && (
+                  <p style={{ fontSize: 12, color: t.textMuted, marginTop: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <MapPin size={12} />
+                    {mortgage.property_address}
+                  </p>
+                )}
                 <p style={{ fontSize: 13, color: t.textMuted, marginTop: 6 }}>
                   {mortgage.property_price ? `מחיר נכס: ${formatCurrency(mortgage.property_price)}` : ''}
                   {mortgage.property_price && mortgage.loan_amount ? ' · ' : ''}
@@ -881,7 +944,7 @@ export default function CustomerDetailPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${t.border}` }}>
-                    {['מסלול', 'סכום', 'ריבית', 'תקופה', 'החזר חודשי'].map(h => (
+                    {['מסלול', 'סכום', 'ריבית', 'תקופה', 'תאריך משיכה', 'תאריך סיום', 'החזר חודשי'].map(h => (
                       <th key={h} style={{ textAlign: 'right', padding: '8px 6px', fontSize: 11, fontWeight: 700, color: t.textMuted }}>{h}</th>
                     ))}
                   </tr>
@@ -893,6 +956,8 @@ export default function CustomerDetailPage() {
                       <td style={{ padding: '9px 6px', color: t.textSub }}>{track.amount ? formatCurrency(track.amount) : '—'}</td>
                       <td style={{ padding: '9px 6px', color: t.textSub }} dir="ltr">{track.interest_rate ? `${track.interest_rate}%` : '—'}</td>
                       <td style={{ padding: '9px 6px', color: t.textSub }}>{track.period_months ? `${track.period_months} חודשים` : '—'}</td>
+                      <td style={{ padding: '9px 6px', color: t.textSub }}>{track.start_date ? formatDate(track.start_date) : '—'}</td>
+                      <td style={{ padding: '9px 6px', color: t.textSub }}>{track.end_date ? formatDate(track.end_date) : '—'}</td>
                       <td style={{ padding: '9px 6px', color: t.text, fontWeight: 600 }}>{track.monthly_payment ? formatCurrency(track.monthly_payment) : '—'}</td>
                     </tr>
                   ))}
@@ -901,7 +966,7 @@ export default function CustomerDetailPage() {
                   <tr style={{ background: t.primary + '14' }}>
                     <td style={{ padding: '9px 6px', fontWeight: 800, color: t.text }}>סה"כ</td>
                     <td style={{ padding: '9px 6px', fontWeight: 800, color: t.primary }}>{formatCurrency(totalAmount)}</td>
-                    <td /><td />
+                    <td /><td /><td /><td />
                     <td style={{ padding: '9px 6px', fontWeight: 800, color: t.primary }}>{formatCurrency(totalPayment)}</td>
                   </tr>
                 </tfoot>
