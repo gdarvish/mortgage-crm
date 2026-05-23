@@ -3,8 +3,6 @@ import { PieChart as PieChartIcon, Download } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { useTheme } from '@/theme/ThemeContext'
 
-const EXPENSE_COLORS = ['#a8a29e', '#d97706', '#8b5cf6', '#ef4444', '#0ea5e9', '#f97316', '#10b981']
-
 interface Expense {
   category: string
   amount: number
@@ -41,6 +39,8 @@ function SVGDonut({ data, size = 170 }: { data: DonutDatum[]; size?: number }) {
 
 export default function FamilyEconomicsPage() {
   const t = useTheme()
+  // A5-11: use theme tokens instead of hardcoded hex for expense bar colors
+  const EXPENSE_COLORS = [t.textMuted, t.warning, t.accent, t.danger, t.primary, '#f97316', t.success]
   const [income1, setIncome1] = useState(15000)
   const [income2, setIncome2] = useState(12000)
   const [mortgagePayment, setMortgagePayment] = useState(5500)
@@ -191,7 +191,7 @@ export default function FamilyEconomicsPage() {
               }}>
                 <span>הוצאות: {expPct.toFixed(0)}%</span>
                 <span>משכנתא: {dti.toFixed(0)}%</span>
-                <span>מרווח: {totalIncome > 0 ? ((remaining / totalIncome) * 100).toFixed(0) : 0}%</span>
+                <span>מרווח: {totalIncome > 0 ? ((remaining / totalIncome) * 100).toFixed(0) : '0'}%</span>
               </div>
 
               <div style={{

@@ -79,8 +79,11 @@ export default function ConsolidationCalculatorPage() {
 
     const monthlySaving = totalMonthly - newMonthly
     const totalExistingCost = loans.reduce((s, l) => s + l.monthlyPayment * l.remainingMonths, 0)
-    const totalNewCost = newMonthly * consolidatedMonths + totalFees
-    const totalSaving = totalExistingCost - totalNewCost
+    // A3-07: totalNewCost is payments only; fees are added separately when computing net saving
+    const totalNewCost = newMonthly * consolidatedMonths
+    const totalSaving = totalExistingCost - totalNewCost - totalFees
+    // A3-04: guard against Infinity / NaN when saving is non-positive
+    const breakEvenMonths = monthlySaving > 0 ? Math.ceil(totalFees / monthlySaving) : null
 
     return {
       totalBalance, totalMonthly, totalFees, consolidatedBalance,
@@ -88,7 +91,7 @@ export default function ConsolidationCalculatorPage() {
       monthlySaving: Math.round(monthlySaving),
       yearlySaving: Math.round(monthlySaving * 12),
       totalSaving: Math.round(totalSaving),
-      breakEvenMonths: monthlySaving > 0 ? Math.ceil(totalFees / monthlySaving) : Infinity,
+      breakEvenMonths,
     }
   }, [loans, consolidatedRate, consolidatedMonths])
 
@@ -196,7 +199,7 @@ export default function ConsolidationCalculatorPage() {
               { l: 'חיסכון שנתי',      v: formatCurrency(analysis.yearlySaving),  green: true,  bold: false },
               { l: 'חיסכון כולל',      v: formatCurrency(analysis.totalSaving),   green: true,  bold: false },
               { l: 'עמלות פירעון',     v: formatCurrency(analysis.totalFees),     green: false, bold: false },
-              { l: 'Break-Even',       v: analysis.breakEvenMonths === Infinity ? 'N/A' : `${analysis.breakEvenMonths} חודשים`, green: false, bold: false },
+              { l: 'Break-Even',       v: analysis.breakEvenMonths === null ? 'N/A' : `${analysis.breakEvenMonths} חודשים`, green: false, bold: false },
             ].map(row => (
               <div key={row.l} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: `1px solid ${t.borderLight}` }}>
                 <span style={{ fontSize: 13, color: t.textMuted }}>{row.l}</span>

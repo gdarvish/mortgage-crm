@@ -83,6 +83,7 @@ export function calculateMonthlyPayment(
   annualRate: number,
   months: number
 ): number {
+  annualRate = Math.max(0, annualRate) // A3-01: clamp negative rates
   if (months <= 0) return 0
   if (annualRate === 0) return principal / months
   const r = annualRate / 100 / 12
@@ -92,25 +93,58 @@ export function calculateMonthlyPayment(
 export function calculateAmortizationSchedule(
   principal: number,
   annualRate: number,
-  months: number
+  months: number,
+  graceMonths = 0,
+  graceType: GraceType = 'חלקי'
 ): AmortizationRow[] {
+  annualRate = Math.max(0, annualRate) // A3-01: clamp negative rates
   const schedule: AmortizationRow[] = []
   const r = annualRate / 100 / 12
-  const payment = calculateMonthlyPayment(principal, annualRate, months)
   let balance = principal
+
+  // A3-22: handle grace period in amortization schedule
+  const effectiveGrace = (graceMonths > 0 && graceMonths < months) ? graceMonths : 0
 
   for (let month = 1; month <= months; month++) {
     const interest = balance * r
-    const principalPart = payment - interest
-    balance -= principalPart
 
-    schedule.push({
-      month,
-      payment: Math.round(payment),
-      principal: Math.round(principalPart),
-      interest: Math.round(interest),
-      balance: Math.max(0, Math.round(balance)),
-    })
+    if (effectiveGrace > 0 && month <= effectiveGrace) {
+      // During grace period
+      if (graceType === 'חלקי') {
+        // Partial grace: pay interest only
+        schedule.push({
+          month,
+          payment: Math.round(interest),
+          principal: 0,
+          interest: Math.round(interest),
+          balance: Math.round(balance),
+        })
+      } else {
+        // Full grace: nothing paid, interest compounds
+        balance += interest
+        schedule.push({
+          month,
+          payment: 0,
+          principal: 0,
+          interest: Math.round(interest),
+          balance: Math.round(balance),
+        })
+      }
+    } else {
+      // Normal amortization (after grace or no grace)
+      const remainingMonths = months - (effectiveGrace > 0 ? effectiveGrace : 0) - (month - (effectiveGrace > 0 ? effectiveGrace : 0) - 1)
+      const payment = calculateMonthlyPayment(balance, annualRate, remainingMonths)
+      const principalPart = payment - interest
+      balance -= principalPart
+
+      schedule.push({
+        month,
+        payment: Math.round(payment),
+        principal: Math.round(principalPart),
+        interest: Math.round(interest),
+        balance: Math.max(0, Math.round(balance)),
+      })
+    }
   }
 
   return schedule
@@ -121,6 +155,7 @@ export function calculateTotalPayment(
   annualRate: number,
   months: number
 ): number {
+  annualRate = Math.max(0, annualRate) // A3-01: clamp negative rates
   return calculateMonthlyPayment(principal, annualRate, months) * months
 }
 
@@ -129,6 +164,7 @@ export function calculateTotalInterest(
   annualRate: number,
   months: number
 ): number {
+  annualRate = Math.max(0, annualRate) // A3-01: clamp negative rates
   return calculateTotalPayment(principal, annualRate, months) - principal
 }
 
@@ -306,9 +342,10 @@ export function calculateRefinanceSavings(
 
   const monthlySaving = existingMonthly - newMonthly
   const totalSaving = existingTotal - newTotal - earlyRepaymentFee
+  // A3-04: guard against division by zero / Infinity when monthlySavings <= 0
   const breakEvenMonths = monthlySaving > 0
     ? Math.ceil(earlyRepaymentFee / monthlySaving)
-    : Infinity
+    : null
 
   return {
     existingMonthly: Math.round(existingMonthly),
@@ -319,6 +356,6 @@ export function calculateRefinanceSavings(
     totalSaving: Math.round(totalSaving),
     earlyRepaymentFee,
     breakEvenMonths,
-    isWorthIt: totalSaving > 0 && breakEvenMonths < 36,
+    isWorthIt: totalSaving > 0 && breakEvenMonths !== null && breakEvenMonths < 36,
   }
 }

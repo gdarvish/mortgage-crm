@@ -117,15 +117,23 @@ export default function RefinanceCalculatorPage() {
     [existingTracks, newTracks, earlyRepaymentFee]
   )
 
+  // A3-06: use the shared horizon = min(existingMonths, newMonths) for fair comparison
+  const comparisonMonths = useMemo(() => {
+    const existingMax = existingTracks.length > 0 ? Math.max(...existingTracks.map(t => t.periodMonths)) : 240
+    const newMax = newTracks.length > 0 ? Math.max(...newTracks.map(t => t.periodMonths)) : 240
+    return Math.min(existingMax, newMax)
+  }, [existingTracks, newTracks])
+
   const cumulativeSavings = useMemo(() => {
     const data: { l: string; v: number }[] = []
     let cumulative = -earlyRepaymentFee
-    for (let month = 1; month <= 240; month++) {
+    // A3-06 / A3-08: use actual comparison horizon instead of hardcoded 240
+    for (let month = 1; month <= comparisonMonths; month++) {
       cumulative += savings.monthlySaving
       if (month % 6 === 0) data.push({ l: `${month}`, v: Math.round(cumulative) })
     }
     return data
-  }, [savings, earlyRepaymentFee])
+  }, [savings, earlyRepaymentFee, comparisonMonths])
 
   const updateTrack = (
     tracks: TrackInput[],
@@ -177,15 +185,15 @@ export default function RefinanceCalculatorPage() {
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>יתרה (₪)</label>
-                <input type="number" value={track.amount} onChange={e => updateTrack(tracks, setTracks, idx, 'amount', +e.target.value || 0)} style={rowSt} dir="ltr" />
+                <input type="number" min="0" value={track.amount} onChange={e => updateTrack(tracks, setTracks, idx, 'amount', +e.target.value || 0)} style={rowSt} dir="ltr" />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>ריבית %</label>
-                <input type="number" step="0.1" value={track.interestRate} onChange={e => updateTrack(tracks, setTracks, idx, 'interestRate', +e.target.value || 0)} style={rowSt} dir="ltr" />
+                <input type="number" min="0" step="0.1" value={track.interestRate} onChange={e => updateTrack(tracks, setTracks, idx, 'interestRate', +e.target.value || 0)} style={rowSt} dir="ltr" />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: t.textMuted, marginBottom: 4 }}>חודשים</label>
-                <input type="number" value={track.periodMonths} onChange={e => updateTrack(tracks, setTracks, idx, 'periodMonths', +e.target.value || 1)} style={rowSt} dir="ltr" />
+                <input type="number" min="1" value={track.periodMonths} onChange={e => updateTrack(tracks, setTracks, idx, 'periodMonths', +e.target.value || 1)} style={rowSt} dir="ltr" />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: col, whiteSpace: 'nowrap' }}>{formatCurrency(Math.round(monthly))}</span>
@@ -247,22 +255,41 @@ export default function RefinanceCalculatorPage() {
             <BarChart3 size={16} style={{ color: t.primary }} />
             השוואה
           </h3>
+          {/* A3-06: show each loan's totals with their own term labels */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ gap: 12, marginBottom: 14 }}>
-            {[
-              { label: 'החזר נוכחי',   value: formatCurrency(savings.existingMonthly), color: t.textSub, bg: t.bg },
-              { label: 'החזר חדש',     value: formatCurrency(savings.newMonthly),      color: t.success, bg: t.successBg },
-              { label: 'חיסכון חודשי', value: formatCurrency(savings.monthlySaving),   color: t.success, bg: t.successBg },
-              { label: 'חיסכון כולל',  value: formatCurrency(savings.totalSaving),     color: t.primary, bg: t.primary + '15' },
-            ].map(c => (
-              <div key={c.label} style={{ padding: '14px 16px', borderRadius: 14, background: c.bg, textAlign: 'center' }}>
-                <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 5 }}>{c.label}</p>
-                <p style={{ fontSize: 18, fontWeight: 800, color: c.color }}>{c.value}</p>
-              </div>
-            ))}
+            <div style={{ padding: '14px 16px', borderRadius: 14, background: t.bg, textAlign: 'center' }}>
+              <p style={{ fontSize: 11, color: t.textMuted, marginBottom: 2 }}>החזר נוכחי</p>
+              <p style={{ fontSize: 10, color: t.textMuted, marginBottom: 3 }}>{existingTracks.length > 0 ? Math.max(...existingTracks.map(tr => tr.periodMonths)) : 0} חו'</p>
+              <p style={{ fontSize: 18, fontWeight: 800, color: t.textSub }}>{formatCurrency(savings.existingMonthly)}</p>
+            </div>
+            <div style={{ padding: '14px 16px', borderRadius: 14, background: t.successBg, textAlign: 'center' }}>
+              <p style={{ fontSize: 11, color: t.textMuted, marginBottom: 2 }}>החזר חדש</p>
+              <p style={{ fontSize: 10, color: t.textMuted, marginBottom: 3 }}>{newTracks.length > 0 ? Math.max(...newTracks.map(tr => tr.periodMonths)) : 0} חו'</p>
+              <p style={{ fontSize: 18, fontWeight: 800, color: t.success }}>{formatCurrency(savings.newMonthly)}</p>
+            </div>
+            <div style={{ padding: '14px 16px', borderRadius: 14, background: t.successBg, textAlign: 'center' }}>
+              <p style={{ fontSize: 11, color: t.textMuted, marginBottom: 5 }}>חיסכון חודשי</p>
+              <p style={{ fontSize: 18, fontWeight: 800, color: t.success }}>{formatCurrency(savings.monthlySaving)}</p>
+            </div>
+            <div style={{ padding: '14px 16px', borderRadius: 14, background: t.primary + '15', textAlign: 'center' }}>
+              <p style={{ fontSize: 11, color: t.textMuted, marginBottom: 2 }}>{`חיסכון כולל (אופק ${comparisonMonths} חו')`}</p>
+              <p style={{ fontSize: 18, fontWeight: 800, color: t.primary }}>{formatCurrency(savings.totalSaving)}</p>
+            </div>
+          </div>
+          {/* A3-06: separate row for totals with loan term context */}
+          <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12, marginBottom: 14 }}>
+            <div style={{ padding: '12px 16px', borderRadius: 12, background: t.bg, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: t.textMuted }}>{`עלות כוללת קיים (${existingTracks.length > 0 ? Math.max(...existingTracks.map(tr => tr.periodMonths)) : 0} חו')`}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: t.text }}>{formatCurrency(savings.existingTotal)}</span>
+            </div>
+            <div style={{ padding: '12px 16px', borderRadius: 12, background: t.successBg, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: t.textMuted }}>{`עלות כוללת חדש (${newTracks.length > 0 ? Math.max(...newTracks.map(tr => tr.periodMonths)) : 0} חו')`}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: t.success }}>{formatCurrency(savings.newTotal)}</span>
+            </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', fontSize: 13, color: t.textSub }}>
             <span>עמלת פירעון: {formatCurrency(earlyRepaymentFee)}</span>
-            <span>Break-Even: {savings.breakEvenMonths === Infinity ? 'לא רלוונטי' : `${savings.breakEvenMonths} חודשים`}</span>
+            <span>Break-Even: {savings.breakEvenMonths === null ? 'לא רלוונטי' : `${savings.breakEvenMonths} חודשים`}</span>
             <span style={{ padding: '4px 14px', borderRadius: 20, fontWeight: 700, fontSize: 13, background: savings.isWorthIt ? t.successBg : t.dangerBg, color: savings.isWorthIt ? t.success : t.danger }}>
               {savings.isWorthIt ? '✅ כדאי לבצע מחזור' : '❌ לא כדאי כרגע'}
             </span>

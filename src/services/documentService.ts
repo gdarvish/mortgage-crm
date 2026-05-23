@@ -44,6 +44,22 @@ export const documentService = {
     type: string,
     category: string
   ): Promise<{ data: Document | null; error: FirestoreError | null }> {
+    // BUG A2-14: validate file size and MIME type before uploading
+    const MAX_SIZE = 20 * 1024 * 1024 // 20 MB
+    const ALLOWED_TYPES = [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ]
+    if (file.size > MAX_SIZE) {
+      throw new Error('הקובץ גדול מדי. הגודל המרבי הוא 20MB')
+    }
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      throw new Error('סוג הקובץ אינו נתמך. ניתן להעלות PDF, תמונות (JPEG/PNG/GIF) או מסמכי Word')
+    }
     try {
       const uid = await awaitUserId()
       const storagePath = `documents/${customerId}/${Date.now()}-${file.name}`

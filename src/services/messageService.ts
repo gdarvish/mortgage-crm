@@ -22,8 +22,9 @@ export const messageService = {
       const snap = await getDocs(
         query(collection(db, COL), where('user_id', '==', uid), where('customer_id', '==', customerId))
       )
+      // A4-10: sort descending (newest first)
       const data = fromDocs<Message>(snap.docs)
-        .sort((a, b) => new Date(a.sent_at || 0).getTime() - new Date(b.sent_at || 0).getTime())
+        .sort((a, b) => new Date(b.sent_at || 0).getTime() - new Date(a.sent_at || 0).getTime())
       return { data, error: null }
     } catch (e) {
       return { data: null, error: toError(e) }

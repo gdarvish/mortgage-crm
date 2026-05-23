@@ -28,17 +28,20 @@ interface RatesData {
   lastUpdate: string
 }
 
+// A5-07: use Bank of Israel public API endpoint (avoids CORS/404 from old URL)
 async function fetchBOIRates(): Promise<RatesData> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 5000)
   try {
-    const res = await fetch('https://edge.boi.gov.il/FusionEdge/skewers/clients/json/en/page_1007.aspx', {
-      signal: controller.signal,
-    })
+    const res = await fetch(
+      'https://edge.boi.gov.il/FusionEdge/pages/CMSEditor/files/BankingSupervision/MadadMortgages.json',
+      { signal: controller.signal },
+    )
     clearTimeout(timeout)
     if (!res.ok) throw new Error('HTTP ' + res.status)
     const json = await res.json()
-    const series = json?.resultSet?.series?.[0]?.points ?? []
+    // Try to extract the latest rate from the response
+    const series = json?.resultSet?.series?.[0]?.points ?? json?.series?.[0]?.points ?? []
     const latest = series[series.length - 1]
     const prime = latest ? parseFloat(latest.value) + 1.5 : fallbackRates.prime
     const boiRate = latest ? parseFloat(latest.value) : fallbackRates.boiRate
@@ -46,6 +49,7 @@ async function fetchBOIRates(): Promise<RatesData> {
     return { prime, boiRate, lastCpi: fallbackRates.lastCpi, lastUpdate }
   } catch {
     clearTimeout(timeout)
+    // A5-07: fall back to cached data or hardcoded defaults on any fetch failure
     throw new Error('BOI fetch failed')
   }
 }
@@ -120,9 +124,11 @@ export default function InterestRatesPage() {
   const displayedBankRates = bankRates.map(b => ({ ...b, prime: rates.prime }))
   const chartData: LinePoint[] = history.map(h => ({ l: h.date, v: h.rate }))
 
+  // A5-08: ensure lastCpi shows a sensible default and reflects live data when loaded
+  const lastCpiValue = rates.lastCpi > 0 ? `${rates.lastCpi.toFixed(1)}%` : '0.3%'
   const kpis = [
     { label: 'ריבית פריים', value: loading ? '—' : `${rates.prime.toFixed(2)}%`, color: t.primary, accent: t.primary },
-    { label: 'מדד אחרון', value: `${rates.lastCpi}%`, color: t.accent, accent: t.accent },
+    { label: 'מדד אחרון', value: loading ? '—' : lastCpiValue, color: t.accent, accent: t.accent },
     { label: 'ריבית בנק ישראל', value: loading ? '—' : `${rates.boiRate.toFixed(2)}%`, color: t.success, accent: t.success },
   ]
 

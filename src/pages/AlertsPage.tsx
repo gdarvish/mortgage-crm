@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, Bell, CheckSquare, Loader2 } from 'lucide-react'
+import { AlertTriangle, Bell, CheckSquare, Clock, Loader2 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { useTheme } from '@/theme/ThemeContext'
-import { useAlerts, useMarkAlertHandled } from '@/hooks/queries/useAlerts'
+import { useAlerts, useSnoozeAlert } from '@/hooks/queries/useAlerts'
 import { toast } from '@/components/ui'
 
 interface AlertItem {
@@ -22,17 +22,26 @@ export default function AlertsPage() {
   const [snoozed, setSnoozed] = useState<string[]>([])
 
   const { data: rawAlerts = [], isLoading: loading } = useAlerts({ status: 'פתוח' })
-  const markHandled = useMarkAlertHandled()
+  const snoozeAlert = useSnoozeAlert()
 
   const alerts: AlertItem[] = rawAlerts
     .map((a) => {
       const name = a.customer ? `${a.customer.first_name} ${a.customer.last_name}` : 'לקוח לא ידוע'
+      // A4-01: compute daysLeft dynamically from end_date instead of stale stored field
+      let daysLeft = a.days_until_end ?? 0
+      const endDateStr = a.track_end_date ?? a.loan_track?.end_date ?? null
+      if (endDateStr) {
+        const endDate = new Date(endDateStr)
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        daysLeft = Math.round((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      }
       return {
         id: a.id,
         customerName: name,
         customerId: a.customer_id,
         trackType: a.track_type || a.loan_track?.type || 'לא ידוע',
-        daysLeft: a.days_until_end ?? 0,
+        daysLeft,
         amount: a.track_amount ?? a.loan_track?.amount ?? 0,
         initials: name.charAt(0) || '?',
       }
@@ -41,12 +50,10 @@ export default function AlertsPage() {
 
   const active = alerts.filter((a) => !snoozed.includes(a.id))
 
-  const snooze = (id: string) => setSnoozed((p) => (p.includes(id) ? p : [...p, id]))
-
   const handleSnooze = (id: string) => {
-    snooze(id)
-    markHandled.mutate(id, {
-      onSuccess: () => toast.success('ההתראה נדחתה'),
+    setSnoozed((p) => (p.includes(id) ? p : [...p, id]))
+    snoozeAlert.mutate(id, {
+      onSuccess: () => toast.success('ההתראה נדחתה ל-7 ימים'),
       onError: (err) => {
         setSnoozed((p) => p.filter((x) => x !== id))
         toast.error('שגיאה בעדכון התראה', err.message)
@@ -167,7 +174,7 @@ export default function AlertsPage() {
                 getAlertStyle={getAlertStyle}
                 onSnooze={handleSnooze}
                 onProfile={() => navigate(`/customers/${a.customerId}`)}
-                snoozing={markHandled.isPending && markHandled.variables === a.id}
+                snoozing={snoozeAlert.isPending && snoozeAlert.variables === a.id}
               />
             ))
           )}
@@ -203,8 +210,10 @@ function AlertRow({ alert, isLast, index, t, getAlertStyle, onSnooze, onProfile,
         gap: 16,
         cursor: 'pointer',
         background: hov ? t.bg : 'transparent',
-        transform: hov ? 'translateX(4px)' : 'translateX(0)',
+        // A4-17: RTL slide — translateX positive = slide from right (correct for RTL)
+        transform: hov ? 'translateX(-4px)' : 'translateX(0)',
         transition: 'all 0.18s ease',
+        // A4-17: slideInRight in this codebase uses translateX(16px) which is correct for RTL (from right)
         animation: `slideInRight 0.4s ease ${index * 0.07 + 0.35}s backwards`,
       }}
     >
@@ -264,7 +273,9 @@ function AlertRow({ alert, isLast, index, t, getAlertStyle, onSnooze, onProfile,
       >
         {as.label}
       </span>
-      <div style={{ display: 'flex', gap: 8, opacity: hov ? 1 : 0, transition: 'opacity 0.15s', flexShrink: 0 }}>
+      {/* A4-14: always-visible buttons (no opacity:0 on non-hover) */}
+      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+        {/* A4-03: snooze button with clock icon and correct label "דחה ל-7 ימים" */}
         <button
           onClick={() => onSnooze(alert.id)}
           disabled={snoozing}
@@ -277,7 +288,7 @@ function AlertRow({ alert, isLast, index, t, getAlertStyle, onSnooze, onProfile,
             padding: '6px 14px',
             fontSize: 12,
             fontWeight: 600,
-            cursor: 'pointer',
+            cursor: snoozing ? 'default' : 'pointer',
             fontFamily: 'Heebo,sans-serif',
             whiteSpace: 'nowrap',
             display: 'flex',
@@ -286,8 +297,8 @@ function AlertRow({ alert, isLast, index, t, getAlertStyle, onSnooze, onProfile,
             opacity: snoozing ? 0.5 : 1,
           }}
         >
-          {snoozing && <Loader2 size={12} className="animate-spin" />}
-          נדחה
+          {snoozing ? <Loader2 size={12} className="animate-spin" /> : <Clock size={12} />}
+          דחה ל-7 ימים
         </button>
         <button
           onClick={onProfile}

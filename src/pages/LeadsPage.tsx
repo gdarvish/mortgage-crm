@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, useMemo, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, X, Mail, UserPlus, Loader2 } from 'lucide-react'
 import {
@@ -11,7 +11,7 @@ import {
   useDroppable,
 } from '@dnd-kit/core'
 import { formatDate } from '@/lib/utils'
-import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
+import { validatePersonalForm, validateIsraeliPhone, type FormErrors } from '@/utils/israeliValidations'
 import { toast, ConfirmDialog } from '@/components/ui'
 import { useTheme } from '@/theme/ThemeContext'
 import { useLeads, useCreateLead, useUpdateLead, useConvertLead } from '@/hooks/queries/useLeads'
@@ -251,10 +251,11 @@ export default function LeadsPage() {
   const [leadErrors, setLeadErrors] = useState<FormErrors>({})
   const [leadToConvert, setLeadToConvert] = useState<Lead | null>(null)
 
-  const { data: leads = [], isLoading: loading } = useLeads({
-    source: sourceFilter ?? undefined,
-    search: search || undefined,
-  })
+  // Fetch all leads unfiltered so statusCounts reflect true totals.
+  // Local filtering handles both search and source simultaneously,
+  // preventing the double-filter bug where the hook AND the local filter
+  // both applied the same search term.
+  const { data: leads = [], isLoading: loading } = useLeads({})
   const createLead = useCreateLead()
   const updateLead = useUpdateLead()
   const convertLead = useConvertLead()
@@ -299,7 +300,10 @@ export default function LeadsPage() {
     e.preventDefault()
     const errors: FormErrors = {}
     if (newLead.name.trim().length < 2) errors.name = 'שם חייב להיות לפחות 2 תווים'
-    Object.assign(errors, validatePersonalForm({ phone: newLead.phone, email: newLead.email }))
+    if (!newLead.phone || !validateIsraeliPhone(newLead.phone)) {
+      errors.phone = 'מספר טלפון ישראלי לא תקין (למשל 050-1234567)'
+    }
+    Object.assign(errors, validatePersonalForm({ email: newLead.email }))
     setLeadErrors(errors)
     if (Object.keys(errors).length > 0) {
       toast.error('יש שגיאות בטופס', 'אנא תקן את השדות המסומנים')
@@ -323,12 +327,15 @@ export default function LeadsPage() {
     )
   }
 
-  const filtered = leads.filter((l) => {
+  // Apply text search and source filter locally (single pass — no double filter).
+  // leads from the hook are unfiltered so kanban column header counts reflect
+  // the full dataset while the visible cards respect the current search/source.
+  const filtered = useMemo(() => leads.filter((l) => {
     const matchSearch =
-      !search || (l.name ?? '').includes(search) || (l.phone ?? '').includes(search)
+      !search || (l.name ?? '').toLowerCase().includes(search.toLowerCase()) || (l.phone ?? '').includes(search)
     const matchSource = !sourceFilter || l.source === sourceFilter
     return matchSearch && matchSource
-  })
+  }), [leads, search, sourceFilter])
 
   const inputSt: React.CSSProperties = {
     width: '100%',

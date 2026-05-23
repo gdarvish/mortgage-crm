@@ -9,10 +9,10 @@ import {
   startAfter,
   addDoc,
   updateDoc,
-  deleteDoc,
   serverTimestamp,
   limit,
   getCountFromServer,
+  writeBatch,
   type QueryConstraint,
   type QueryDocumentSnapshot,
   Timestamp,
@@ -199,7 +199,20 @@ export const customerService = {
 
   async delete(id: string): Promise<{ error: FirestoreError | null }> {
     try {
-      await deleteDoc(doc(db, COL, id))
+      // Delete sub-collection documents first using a batch
+      const subCollections = ['documents', 'signatures', 'tasks', 'mortgages']
+      const uid = await awaitUserId()
+      const batch = writeBatch(db)
+
+      for (const col of subCollections) {
+        const snap = await getDocs(
+          query(collection(db, col), where('user_id', '==', uid), where('customer_id', '==', id))
+        )
+        snap.docs.forEach(d => batch.delete(d.ref))
+      }
+
+      batch.delete(doc(db, COL, id))
+      await batch.commit()
       return { error: null }
     } catch (e) {
       return { error: toError(e) }

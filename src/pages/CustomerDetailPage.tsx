@@ -124,10 +124,17 @@ export default function CustomerDetailPage() {
   const docFileInputRef = useRef<HTMLInputElement>(null)
   const [uploadingDoc, setUploadingDoc] = useState(false)
   const [docUploadType, setDocUploadType] = useState('תעודת זהות + ספח')
+  const [docToDelete, setDocToDelete] = useState<Document | null>(null)
+  const [deletingDoc, setDeletingDoc] = useState(false)
   const [ocrDocId, setOcrDocId] = useState<string | null>(null)
   const [validateDocId, setValidateDocId] = useState<string | null>(null)
   const [composing, setComposing] = useState(false)
   const [aiPurpose, setAiPurpose] = useState('עדכון ללקוח')
+
+  // BUG A2-22: clear form validation errors when navigating to a different customer
+  useEffect(() => {
+    setFormErrors({})
+  }, [id])
 
   // -------------------------------------------------------------------------
   // Sync server data into local state
@@ -270,6 +277,24 @@ export default function CustomerDetailPage() {
     }
     setUploadingDoc(false)
     e.target.value = ''
+  }
+
+  const handleDeleteDocument = async () => {
+    if (!docToDelete || !id) return
+    setDeletingDoc(true)
+    try {
+      const { error } = await documentService.delete(docToDelete.id)
+      if (error) {
+        toast.error('שגיאה במחיקת מסמך', error.message)
+      } else {
+        setDocuments(prev => prev.filter(d => d.id !== docToDelete.id))
+        qc.invalidateQueries({ queryKey: ['documents', id] })
+        toast.success('המסמך נמחק')
+      }
+    } finally {
+      setDeletingDoc(false)
+      setDocToDelete(null)
+    }
   }
 
   const handleOcr = async (docId: string) => {
@@ -793,6 +818,14 @@ export default function CustomerDetailPage() {
                 <span style={{ padding: '4px 12px', borderRadius: 20, background: ds.bg, color: ds.text, fontSize: 12, fontWeight: 600 }}>
                   {doc.status}
                 </span>
+                <button
+                  onClick={() => setDocToDelete(doc)}
+                  className="crm-btn"
+                  title="מחק מסמך"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.danger, display: 'flex', flexShrink: 0 }}
+                >
+                  <Trash2 size={15} />
+                </button>
               </div>
             </div>
           )
@@ -1314,6 +1347,18 @@ export default function CustomerDetailPage() {
         loading={deleting}
         onConfirm={handleDeleteCustomer}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      {/* BUG A2-12: Delete document confirm dialog */}
+      <ConfirmDialog
+        open={!!docToDelete}
+        variant="danger"
+        title="מחיקת מסמך"
+        message={`למחוק את המסמך "${docToDelete?.type || ''}"? פעולה זו אינה הפיכה.`}
+        confirmText="מחק מסמך"
+        loading={deletingDoc}
+        onConfirm={handleDeleteDocument}
+        onCancel={() => setDocToDelete(null)}
       />
     </div>
   )

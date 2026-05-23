@@ -78,6 +78,8 @@ export default function SettingsPage() {
     if (error) {
       toast.error('שגיאה בשמירה', error.message)
     } else {
+      // A5-15: apply custom primary color to CSS variable so it takes effect immediately
+      document.documentElement.style.setProperty('--color-primary', settings.primaryColor)
       setSaved(true)
       toast.success('ההגדרות נשמרו בהצלחה')
       setTimeout(() => setSaved(false), 2500)
@@ -87,8 +89,15 @@ export default function SettingsPage() {
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    // A5-05: validate file size (≤2 MB) and MIME type
+    if (file.size > 2 * 1024 * 1024 || !file.type.startsWith('image/')) {
+      toast.error('הקובץ גדול מדי או לא נתמך', 'עד 2MB · JPG/PNG/GIF/SVG')
+      e.target.value = ''
+      return
+    }
     setUploadingLogo(true)
-    const { url, error } = await settingsService.uploadLogo(file)
+    // A5-04: pass existing URL so service can delete old blob
+    const { url, error } = await settingsService.uploadLogo(file, settings.logo_url || undefined)
     if (url) {
       setSettings(prev => ({ ...prev, logo_url: url }))
       await settingsService.upsert({ logo_url: url })

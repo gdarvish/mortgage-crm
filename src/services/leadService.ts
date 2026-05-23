@@ -102,6 +102,7 @@ export const leadService = {
         phone: lead.phone,
         email: lead.email,
         lead_source: lead.source,
+        notes: lead.notes ?? null,
         status: 'ליד',
         children: 0,
         existing_obligations: 0,

@@ -146,14 +146,19 @@ export default function CustomersPage() {
     )
   }
 
-  // Counts per status across loaded customers
+  // Clear bulk selection when status filter changes (BUG A2-27)
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [statusFilter])
+
+  // Counts per status across ALL loaded customers (unaffected by search — BUG A2-07)
   const counts = useMemo(() => {
     const acc: Record<string, number> = {}
     statuses.slice(1).forEach(s => {
-      acc[s] = customers.filter(c => c.status === s).length
+      acc[s] = allCustomers.filter(c => c.status === s).length
     })
     return acc
-  }, [customers])
+  }, [allCustomers])
 
   const inputSt: React.CSSProperties = {
     width: '100%', padding: '9px 12px', border: `1.5px solid ${t.border}`,

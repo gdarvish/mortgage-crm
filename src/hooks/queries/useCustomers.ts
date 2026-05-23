@@ -69,6 +69,8 @@ export function useDeleteCustomer() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['customers'] })
+      qc.invalidateQueries({ queryKey: ['documents'] })
+      qc.invalidateQueries({ queryKey: ['tasks'] })
     },
   })
 }

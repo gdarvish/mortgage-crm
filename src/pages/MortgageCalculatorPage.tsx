@@ -15,6 +15,7 @@ import {
 } from '@/utils/mortgageCalculations'
 import type { LoanTrackType, PropertyType } from '@/types/database'
 import { functions } from '@/lib/firebase'
+import { mortgageService } from '@/services/mortgageService'
 import { toast } from '@/components/ui'
 import { useTheme } from '@/theme/ThemeContext'
 import type { Theme } from '@/theme/themes'
@@ -40,7 +41,7 @@ const emptyTrack: TrackInput = { type: 'קל"צ', amount: 0, interestRate: 4.5, 
 
 // ─── SHARED: INPUT FIELD ──────────────────────────────────────────────────────
 function Field({
-  t, label, value, onChange, type = 'text', prefix, suffix, readOnly,
+  t, label, value, onChange, type = 'text', prefix, suffix, readOnly, min,
 }: {
   t: Theme
   label: string
@@ -50,6 +51,7 @@ function Field({
   prefix?: string
   suffix?: string
   readOnly?: boolean
+  min?: string // A3-17: allow min attribute
 }) {
   const [focus, setFocus] = useState(false)
   return (
@@ -70,6 +72,7 @@ function Field({
           onFocus={() => setFocus(true)}
           onBlur={() => setFocus(false)}
           dir="ltr"
+          min={min}
           style={{
             flex: 1, padding: '10px 12px', border: 'none', outline: 'none',
             background: 'transparent', color: readOnly ? t.textSub : t.text,
@@ -124,15 +127,36 @@ export default function MortgageCalculatorPage() {
   )
 
   const amortizationData = useMemo(() => {
+    // A3-23: aggregate amortization across ALL tracks (not just first)
+    // A3-05: use actual months from each track (not hardcoded 240)
     if (!showAmortization || tracks.length === 0) return []
-    const schedule = calculateAmortizationSchedule(tracks[0].amount, tracks[0].interestRate, tracks[0].periodMonths)
-    return schedule.filter((_, i) => i % 12 === 0).map(row => ({
-      year: Math.ceil(row.month / 12),
-      payment: row.payment,
-      principal: row.principal,
-      interest: row.interest,
-      balance: row.balance,
-    }))
+    const maxMonths = Math.max(...tracks.map(tr => tr.periodMonths))
+    const aggregated: { payment: number; principal: number; interest: number; balance: number }[] =
+      Array.from({ length: maxMonths }, () => ({ payment: 0, principal: 0, interest: 0, balance: 0 }))
+
+    for (const tr of tracks) {
+      const schedule = calculateAmortizationSchedule(
+        tr.amount, tr.interestRate, tr.periodMonths,
+        tr.graceMonths ?? 0, tr.graceType ?? 'חלקי'
+      )
+      for (let i = 0; i < schedule.length; i++) {
+        aggregated[i].payment   += schedule[i].payment
+        aggregated[i].principal += schedule[i].principal
+        aggregated[i].interest  += schedule[i].interest
+        aggregated[i].balance   += schedule[i].balance
+      }
+    }
+
+    return aggregated
+      .map((row, i) => ({ ...row, month: i + 1 }))
+      .filter((_, i) => i % 12 === 0)
+      .map(row => ({
+        year: Math.ceil(row.month / 12),
+        payment: Math.round(row.payment),
+        principal: Math.round(row.principal),
+        interest: Math.round(row.interest),
+        balance: Math.round(row.balance),
+      }))
   }, [showAmortization, tracks])
 
   const addTrack = () => setTracks([...tracks, { ...emptyTrack }])
@@ -172,9 +196,47 @@ export default function MortgageCalculatorPage() {
         })),
       })
     } catch (e) {
+      // A3-13: surface PDF export errors to user
       console.error('PDF export failed', e)
+      toast.error('שגיאה ביצוא PDF', e instanceof Error ? e.message : undefined)
     } finally {
       setGeneratingPdf(false)
+    }
+  }
+
+  // A3-15: implement save mix handler
+  const [savingMix, setSavingMix] = useState(false)
+  const handleSaveMix = async () => {
+    setSavingMix(true)
+    try {
+      // Try Firestore first; fall back to localStorage
+      const { data, error } = await mortgageService.create({
+        customer_id: '',
+        property_price: propertyPrice,
+        loan_amount: loanAmount,
+        own_capital: ownCapital,
+        monthly_income: monthlyIncome,
+        type: 'חדשה',
+        status: 'טיוטה',
+        property_type: propertyType,
+      })
+      if (error || !data) throw new Error(error?.message ?? 'שמירה נכשלה')
+      toast.success('התמהיל נשמר', `נוצר תיק משכנתא (${data.id})`)
+    } catch (e) {
+      // Fallback: save to localStorage
+      try {
+        const saved = {
+          savedAt: new Date().toISOString(),
+          propertyPrice, ownCapital, loanAmount, monthlyIncome, propertyType, tracks,
+        }
+        const key = `mortgage_mix_${Date.now()}`
+        localStorage.setItem(key, JSON.stringify(saved))
+        toast.success('התמהיל נשמר מקומית', key)
+      } catch {
+        toast.error('שגיאה בשמירת התמהיל', e instanceof Error ? e.message : undefined)
+      }
+    } finally {
+      setSavingMix(false)
     }
   }
 
@@ -235,8 +297,8 @@ export default function MortgageCalculatorPage() {
             <div style={{ ...card, padding: '22px 24px', animation: 'fadeUp 0.4s ease 0.05s backwards' }}>
               <h3 style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16 }}>נתוני הנכס</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <Field t={t} label="מחיר הנכס" value={propertyPrice} onChange={v => setPropertyPrice(Number(v) || 0)} type="number" prefix="₪" />
-                <Field t={t} label="הון עצמי" value={ownCapital} onChange={v => setOwnCapital(Number(v) || 0)} type="number" prefix="₪" />
+                <Field t={t} label="מחיר הנכס" value={propertyPrice} onChange={v => setPropertyPrice(Number(v) || 0)} type="number" prefix="₪" min="0" />
+                <Field t={t} label="הון עצמי" value={ownCapital} onChange={v => setOwnCapital(Number(v) || 0)} type="number" prefix="₪" min="0" />
 
                 <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12 }}>
                   <Field t={t} label="סכום הלוואה" value={formatCurrency(loanAmount)} readOnly />
@@ -259,7 +321,7 @@ export default function MortgageCalculatorPage() {
                       {propertyTypes.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                     </select>
                   </div>
-                  <Field t={t} label="הכנסה חודשית נטו" value={monthlyIncome} onChange={v => setMonthlyIncome(Number(v) || 0)} type="number" prefix="₪" />
+                  <Field t={t} label="הכנסה חודשית נטו" value={monthlyIncome} onChange={v => setMonthlyIncome(Number(v) || 0)} type="number" prefix="₪" min="0" />
                 </div>
               </div>
             </div>
@@ -327,11 +389,13 @@ export default function MortgageCalculatorPage() {
                 {aiAdvising ? 'מנתח...' : 'המלצת AI לתמהיל'}
               </button>
               <button
+                onClick={handleSaveMix}
+                disabled={savingMix}
                 className="crm-btn-primary"
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', fontSize: 13, fontWeight: 600, borderRadius: 12, border: 'none', cursor: 'pointer', background: t.primary, color: '#fff', fontFamily: 'Heebo,sans-serif', boxShadow: `0 4px 14px ${t.primary}45` }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', fontSize: 13, fontWeight: 600, borderRadius: 12, border: 'none', cursor: 'pointer', background: t.primary, color: '#fff', fontFamily: 'Heebo,sans-serif', boxShadow: `0 4px 14px ${t.primary}45`, opacity: savingMix ? 0.5 : 1 }}
               >
-                <Save size={15} />
-                שמור תמהיל ללקוח
+                {savingMix ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                {savingMix ? 'שומר...' : 'שמור תמהיל ללקוח'}
               </button>
               <button
                 onClick={handleExportPdf}

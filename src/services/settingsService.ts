@@ -1,5 +1,5 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { db, storage } from '@/lib/firebase'
 import { fromDoc, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { AdvisorSettings } from '@/types/database'
@@ -34,9 +34,18 @@ export const settingsService = {
     }
   },
 
-  async uploadLogo(file: File): Promise<{ url: string | null; error: FirestoreError | null }> {
+  async uploadLogo(file: File, existingUrl?: string): Promise<{ url: string | null; error: FirestoreError | null }> {
     try {
       const uid = await awaitUserId()
+      // A5-04: delete old logo blob before uploading a new one
+      if (existingUrl) {
+        try {
+          const oldRef = ref(storage, existingUrl)
+          await deleteObject(oldRef)
+        } catch {
+          // ignore — orphan cleanup is best-effort
+        }
+      }
       const ext = file.name.split('.').pop()
       const fileName = `logo-${Date.now()}.${ext}`
       const fileRef = ref(storage, `logos/${uid}/${fileName}`)
