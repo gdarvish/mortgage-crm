@@ -103,6 +103,10 @@ export function useCompleteTask() {
     mutationFn: async (id: string) => {
       await updateDoc(doc(db, 'tasks', id), { status: 'הושלמה' })
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['dashboard'] }),
+    onSuccess: () => {
+      // A5-22: invalidate both dashboard and tasks queries
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['tasks'] })
+    },
   })
 }

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import SignatureCanvas from 'react-signature-canvas'
 import { httpsCallable } from 'firebase/functions'
@@ -30,6 +30,21 @@ export default function SignaturePage() {
   const sigRef = useRef<SignatureCanvas | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
 
+  // A5-21: apply HiDPI (retina) scaling to the canvas context on mount and resize
+  const applyHiDPI = useCallback(() => {
+    const canvas = sigRef.current?.getCanvas()
+    if (!canvas || !wrapRef.current) return
+    const dpr = window.devicePixelRatio || 1
+    const cssWidth = wrapRef.current.clientWidth
+    const cssHeight = 200
+    canvas.width = cssWidth * dpr
+    canvas.height = cssHeight * dpr
+    canvas.style.width = `${cssWidth}px`
+    canvas.style.height = `${cssHeight}px`
+    const ctx = canvas.getContext('2d')
+    if (ctx) ctx.scale(dpr, dpr)
+  }, [])
+
   useEffect(() => {
     if (!token) {
       setLoadError('קישור לא תקין')
@@ -54,8 +69,21 @@ export default function SignaturePage() {
   useEffect(() => {
     if (request && wrapRef.current) {
       setCanvasWidth(wrapRef.current.clientWidth)
+      // Apply HiDPI after the canvas has rendered
+      setTimeout(applyHiDPI, 0)
     }
-  }, [request])
+  }, [request, applyHiDPI])
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (wrapRef.current) {
+        setCanvasWidth(wrapRef.current.clientWidth)
+        applyHiDPI()
+      }
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [applyHiDPI])
 
   const clearCanvas = () => {
     sigRef.current?.clear()
@@ -186,15 +214,24 @@ export default function SignaturePage() {
               className="border-2 border-dashed border-gray-300 rounded-lg overflow-hidden bg-white"
               style={{ touchAction: 'none' }}
             >
+              {/* A5-20: add role and aria-label for accessibility */}
               <SignatureCanvas
                 ref={sigRef}
                 penColor="#1c1917"
-                canvasProps={{ width: canvasWidth, height: 200, className: 'touch-none' }}
+                canvasProps={{
+                  width: canvasWidth,
+                  height: 200,
+                  className: 'touch-none',
+                  role: 'img',
+                  'aria-label': 'אזור חתימה',
+                }}
                 onEnd={() => setSigned(true)}
               />
             </div>
+            {/* A5-20: aria-label on clear button */}
             <button
               onClick={clearCanvas}
+              aria-label="נקה חתימה"
               className="mt-2 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-800"
             >
               <RotateCcw size={14} /> נקה חתימה

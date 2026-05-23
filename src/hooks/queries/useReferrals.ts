@@ -23,3 +23,15 @@ export function useCreateReferral() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['referrals'] }),
   })
 }
+
+// A4-11: hook for deleting a referral partner (invalidates ['referrals'] cache)
+export function useDeleteReferral() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await referralService.delete(id)
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['referrals'] }),
+  })
+}

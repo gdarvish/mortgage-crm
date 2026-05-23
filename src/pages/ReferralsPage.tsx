@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Share2, Plus, Phone, TrendingUp, Loader2, X } from 'lucide-react'
+import { Share2, Plus, Phone, TrendingUp, Loader2, X, Trash2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { useReferrals, useCreateReferral } from '@/hooks/queries/useReferrals'
-import { toast } from '@/components/ui'
+import { useReferrals, useCreateReferral, useDeleteReferral } from '@/hooks/queries/useReferrals'
+import { toast, ConfirmDialog } from '@/components/ui'
 import { useTheme } from '@/theme/ThemeContext'
 
 const partnerTypes = ['סוכן נדל"ן', 'עו"ד', 'רו"ח', 'לקוח קיים', 'אחר']
@@ -14,8 +14,12 @@ export default function ReferralsPage() {
     name: '', type: 'סוכן נדל"ן', phone: '', email: '', company: '',
   })
 
+  // A4-11: state for delete confirmation dialog
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+
   const { data: partners = [], isLoading: loading } = useReferrals()
   const createReferral = useCreateReferral()
+  const deleteReferral = useDeleteReferral()
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,6 +45,21 @@ export default function ReferralsPage() {
         onError: (err) => toast.error('שגיאה בשמירת שותף', err.message),
       }
     )
+  }
+
+  // A4-11: confirm delete handler
+  const handleDeleteConfirm = () => {
+    if (!deleteTarget) return
+    deleteReferral.mutate(deleteTarget.id, {
+      onSuccess: () => {
+        toast.success('השותף נמחק')
+        setDeleteTarget(null)
+      },
+      onError: (err) => {
+        toast.error('שגיאה במחיקת שותף', err.message)
+        setDeleteTarget(null)
+      },
+    })
   }
 
   const totalRefs = partners.reduce((s, p) => s + p.total_referrals, 0)
@@ -101,7 +120,16 @@ export default function ReferralsPage() {
                 ? Math.round((partner.converted_referrals / partner.total_referrals) * 100)
                 : 0
               return (
-                <PartnerCard key={partner.id} partner={partner} rate={rate} index={i} t={t} />
+                <PartnerCard
+                  key={partner.id}
+                  partner={partner}
+                  rate={rate}
+                  index={i}
+                  t={t}
+                  // A4-11: pass delete handler to card
+                  onDelete={() => setDeleteTarget({ id: partner.id, name: partner.name })}
+                  deleting={deleteReferral.isPending && deleteReferral.variables === partner.id}
+                />
               )
             })}
           </div>
@@ -190,6 +218,19 @@ export default function ReferralsPage() {
             </div>
           </div>
         )}
+
+        {/* A4-11: Confirm delete dialog showing the partner name */}
+        <ConfirmDialog
+          open={!!deleteTarget}
+          variant="danger"
+          title="מחיקת שותף הפניה"
+          message={`האם אתה בטוח שברצונך למחוק את "${deleteTarget?.name ?? ''}"? לא ניתן לבטל פעולה זו.`}
+          confirmText="מחק"
+          cancelText="ביטול"
+          loading={deleteReferral.isPending}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
+        />
       </div>
     </div>
   )
@@ -200,9 +241,12 @@ interface PartnerCardProps {
   rate: number
   index: number
   t: import('@/theme/themes').Theme
+  // A4-11 + A4-14: always-visible delete button
+  onDelete: () => void
+  deleting: boolean
 }
 
-function PartnerCard({ partner, rate, index, t }: PartnerCardProps) {
+function PartnerCard({ partner, rate, index, t, onDelete, deleting }: PartnerCardProps) {
   const [hov, setHov] = useState(false)
   return (
     <div
@@ -214,6 +258,7 @@ function PartnerCard({ partner, rate, index, t }: PartnerCardProps) {
         transform: hov ? 'translateY(-4px)' : 'translateY(0)',
         transition: 'all 0.22s cubic-bezier(0.34,1.56,0.64,1)',
         animation: `fadeUp 0.4s ease ${index * 0.06 + 0.05}s backwards`, cursor: 'default',
+        position: 'relative',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
@@ -224,12 +269,33 @@ function PartnerCard({ partner, rate, index, t }: PartnerCardProps) {
             background: t.successBg, color: t.success,
           }}>{partner.type}</span>
         </div>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-            <TrendingUp size={13} style={{ color: t.primary }} />
-            <span style={{ fontSize: 18, fontWeight: 800, color: t.primary }}>{rate}%</span>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <TrendingUp size={13} style={{ color: t.primary }} />
+              <span style={{ fontSize: 18, fontWeight: 800, color: t.primary }}>{rate}%</span>
+            </div>
+            <span style={{ fontSize: 11, color: t.textMuted }}>המרה</span>
           </div>
-          <span style={{ fontSize: 11, color: t.textMuted }}>המרה</span>
+          {/* A4-11 + A4-14: always-visible delete button (no hover-only opacity) */}
+          <button
+            onClick={onDelete}
+            disabled={deleting}
+            aria-label="מחק שותף"
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: deleting ? 'default' : 'pointer',
+              padding: 4,
+              borderRadius: 6,
+              color: '#dc2626',
+              opacity: deleting ? 0.4 : 0.6,
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <Trash2 size={14} color="#dc2626" />
+          </button>
         </div>
       </div>
       {partner.company && <p style={{ fontSize: 13, color: t.textSub, marginBottom: 8 }}>{partner.company}</p>}

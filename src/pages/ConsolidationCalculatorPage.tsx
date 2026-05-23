@@ -149,11 +149,12 @@ export default function ConsolidationCalculatorPage() {
                 {loans.map((loan, idx) => (
                   <tr key={idx} style={{ borderTop: `1px solid ${t.borderLight}` }}>
                     <td style={tdSt}><select value={loan.type} onChange={e => updateLoan(idx, 'type', e.target.value)} style={cellSt}>{loanTypes.map(lt => <option key={lt}>{lt}</option>)}</select></td>
-                    <td style={tdSt}><input type="number" value={loan.balance} onChange={e => updateLoan(idx, 'balance', e.target.value)} style={cellSt} dir="ltr" /></td>
-                    <td style={tdSt}><input type="number" value={loan.monthlyPayment} onChange={e => updateLoan(idx, 'monthlyPayment', e.target.value)} style={cellSt} dir="ltr" /></td>
-                    <td style={tdSt}><input type="number" step="0.1" value={loan.interestRate} onChange={e => updateLoan(idx, 'interestRate', e.target.value)} style={cellSt} dir="ltr" /></td>
-                    <td style={tdSt}><input type="number" value={loan.remainingMonths} onChange={e => updateLoan(idx, 'remainingMonths', e.target.value)} style={cellSt} dir="ltr" /></td>
-                    <td style={tdSt}><input type="number" value={loan.earlyRepaymentFee} onChange={e => updateLoan(idx, 'earlyRepaymentFee', e.target.value)} style={cellSt} dir="ltr" /></td>
+                    {/* A3-17: min="0" on all numeric inputs */}
+                    <td style={tdSt}><input type="number" min="0" value={loan.balance} onChange={e => updateLoan(idx, 'balance', e.target.value)} style={cellSt} dir="ltr" /></td>
+                    <td style={tdSt}><input type="number" min="0" value={loan.monthlyPayment} onChange={e => updateLoan(idx, 'monthlyPayment', e.target.value)} style={cellSt} dir="ltr" /></td>
+                    <td style={tdSt}><input type="number" min="0" step="0.1" value={loan.interestRate} onChange={e => updateLoan(idx, 'interestRate', e.target.value)} style={cellSt} dir="ltr" /></td>
+                    <td style={tdSt}><input type="number" min="1" value={loan.remainingMonths} onChange={e => updateLoan(idx, 'remainingMonths', e.target.value)} style={cellSt} dir="ltr" /></td>
+                    <td style={tdSt}><input type="number" min="0" value={loan.earlyRepaymentFee} onChange={e => updateLoan(idx, 'earlyRepaymentFee', e.target.value)} style={cellSt} dir="ltr" /></td>
                     <td style={tdSt}><button onClick={() => removeLoan(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.danger }}><Trash2 size={14} /></button></td>
                   </tr>
                 ))}
@@ -168,8 +169,9 @@ export default function ConsolidationCalculatorPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 14 }}>
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6 }}>ריבית איחוד %</label>
+              {/* A3-17: min="0" */}
               <input
-                type="number" step="0.1" value={consolidatedRate}
+                type="number" min="0" step="0.1" value={consolidatedRate}
                 onChange={e => setConsolidatedRate(+e.target.value || 0)}
                 style={{ padding: '10px 12px', border: `1.5px solid ${t.border}`, borderRadius: 9, fontSize: 14, color: t.text, background: t.inputBg, outline: 'none', fontFamily: 'Heebo,sans-serif', width: 160 }}
                 dir="ltr"
@@ -177,8 +179,9 @@ export default function ConsolidationCalculatorPage() {
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 6 }}>תקופה (חודשים)</label>
+              {/* A3-17: min="1" for term months */}
               <input
-                type="number" value={consolidatedMonths}
+                type="number" min="1" value={consolidatedMonths}
                 onChange={e => setConsolidatedMonths(+e.target.value || 1)}
                 style={{ padding: '10px 12px', border: `1.5px solid ${t.border}`, borderRadius: 9, fontSize: 14, color: t.text, background: t.inputBg, outline: 'none', fontFamily: 'Heebo,sans-serif', width: 160 }}
                 dir="ltr"

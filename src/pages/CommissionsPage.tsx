@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { CheckSquare, AlertTriangle, DollarSign } from 'lucide-react'
+import { CheckSquare, AlertTriangle, DollarSign, Trash2 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useTheme } from '@/theme/ThemeContext'
-import { useCommissions } from '@/hooks/queries/useCommissions'
+import { useCommissions, useDeleteCommission } from '@/hooks/queries/useCommissions'
+import { toast, ConfirmDialog } from '@/components/ui'
 
 type CommissionRow = {
   id: string
@@ -18,8 +19,12 @@ type CommissionRow = {
 export default function CommissionsPage() {
   const t = useTheme()
   const [filter, setFilter] = useState('הכל')
+  // A4-11 / A4-14: state for delete confirmation
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string } | null>(null)
 
   const { data: rawCommissions = [], isLoading: loading } = useCommissions()
+  // A4-06: use React Query mutation hook for delete (invalidates cache)
+  const deleteCommission = useDeleteCommission()
 
   const commissions: CommissionRow[] = rawCommissions.map((c) => {
     const name = c.customer ? `${c.customer.first_name} ${c.customer.last_name}` : 'לא ידוע'
@@ -30,6 +35,7 @@ export default function CommissionsPage() {
       loanAmount: c.mortgage?.loan_amount ?? 0,
       amount: c.amount ?? 0,
       status: c.status ?? 'ממתין',
+      // A4-05: store as string (already converted by firestoreHelpers) but guard anyway
       paymentDate: c.payment_date ?? null,
       createdAt: c.created_at ?? '',
     }
@@ -48,6 +54,20 @@ export default function CommissionsPage() {
       return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
     })
     .reduce((s, c) => s + c.amount, 0)
+
+  const handleDeleteConfirm = () => {
+    if (!deleteTarget) return
+    deleteCommission.mutate(deleteTarget.id, {
+      onSuccess: () => {
+        toast.success('העמלה נמחקה')
+        setDeleteTarget(null)
+      },
+      onError: (err) => {
+        toast.error('שגיאה במחיקת עמלה', err.message)
+        setDeleteTarget(null)
+      },
+    })
+  }
 
   if (loading) {
     return (
@@ -163,7 +183,7 @@ export default function CommissionsPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
-                  {['לקוח', 'סכום הלוואה', 'עמלה', 'אחוז', 'סטטוס', 'תאריך תשלום'].map((h) => (
+                  {['לקוח', 'סכום הלוואה', 'עמלה', 'אחוז', 'סטטוס', 'תאריך תשלום', ''].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -183,13 +203,34 @@ export default function CommissionsPage() {
               </thead>
               <tbody>
                 {filtered.map((c, i) => (
-                  <CommissionRowEl key={c.id} row={c} index={i} isLast={i === filtered.length - 1} t={t} />
+                  <CommissionRowEl
+                    key={c.id}
+                    row={c}
+                    index={i}
+                    isLast={i === filtered.length - 1}
+                    t={t}
+                    onDelete={() => setDeleteTarget({ id: c.id })}
+                    deleting={deleteCommission.isPending && deleteCommission.variables === c.id}
+                  />
                 ))}
               </tbody>
             </table>
             </div>
           )}
         </div>
+
+        {/* A4-06 + A4-14: delete confirmation dialog */}
+        <ConfirmDialog
+          open={!!deleteTarget}
+          variant="danger"
+          title="מחיקת עמלה"
+          message="האם אתה בטוח שברצונך למחוק עמלה זו? לא ניתן לבטל פעולה זו."
+          confirmText="מחק"
+          cancelText="ביטול"
+          loading={deleteCommission.isPending}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
+        />
       </div>
     </div>
   )
@@ -200,12 +241,26 @@ interface CommissionRowProps {
   index: number
   isLast: boolean
   t: ReturnType<typeof useTheme>
+  // A4-14: always-visible delete action
+  onDelete: () => void
+  deleting: boolean
 }
 
-function CommissionRowEl({ row, index, isLast, t }: CommissionRowProps) {
+function CommissionRowEl({ row, index, isLast, t, onDelete, deleting }: CommissionRowProps) {
   const [hov, setHov] = useState(false)
   const isPaid = row.status === 'שולם'
   const pct = row.loanAmount > 0 ? ((row.amount / row.loanAmount) * 100).toFixed(2) : '0.00'
+
+  // A4-05: safely format the payment date even if it arrives as a Timestamp object
+  function toSafeDate(value: unknown): Date | string | null {
+    if (!value) return null
+    if (typeof value === 'object' && typeof (value as { toDate?: unknown }).toDate === 'function') {
+      return (value as { toDate: () => Date }).toDate()
+    }
+    if (value instanceof Date) return value
+    return String(value)
+  }
+
   return (
     <tr
       onMouseEnter={() => setHov(true)}
@@ -260,7 +315,28 @@ function CommissionRowEl({ row, index, isLast, t }: CommissionRowProps) {
         </span>
       </td>
       <td style={{ padding: '15px 22px', fontSize: 13, color: t.textMuted }}>
-        {row.paymentDate ? formatDate(row.paymentDate) : '—'}
+        {/* A4-05: use toSafeDate to handle potential Timestamp objects */}
+        {row.paymentDate ? formatDate(toSafeDate(row.paymentDate)) : '—'}
+      </td>
+      {/* A4-14: always-visible delete button (not hidden behind hover opacity) */}
+      <td style={{ padding: '15px 16px' }}>
+        <button
+          onClick={onDelete}
+          disabled={deleting}
+          aria-label="מחק עמלה"
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: deleting ? 'default' : 'pointer',
+            opacity: deleting ? 0.4 : 0.55,
+            padding: 6,
+            borderRadius: 6,
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
+          <Trash2 size={14} color="#dc2626" />
+        </button>
       </td>
     </tr>
   )

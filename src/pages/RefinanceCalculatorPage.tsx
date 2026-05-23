@@ -239,8 +239,10 @@ export default function RefinanceCalculatorPage() {
         {/* Fee */}
         <div style={{ ...card, padding: '18px 22px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 14, animation: 'fadeUp 0.4s ease 0.15s backwards' }}>
           <label style={{ fontSize: 13, color: t.textMuted, whiteSpace: 'nowrap' }}>עמלת פירעון מוקדם:</label>
+          {/* A3-17: min="0" */}
           <input
             type="number"
+            min="0"
             value={earlyRepaymentFee}
             onChange={e => setEarlyRepaymentFee(+e.target.value || 0)}
             style={{ padding: '8px 12px', border: `1.5px solid ${t.border}`, borderRadius: 9, fontSize: 14, color: t.text, background: t.inputBg, outline: 'none', fontFamily: 'Heebo,sans-serif', width: 160 }}

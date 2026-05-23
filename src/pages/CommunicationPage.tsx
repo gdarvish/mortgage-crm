@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { MessageSquare, Send, Phone, Mail, Check, Loader2, Trash2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useTheme } from '@/theme/ThemeContext'
 import { customerService } from '@/services/customerService'
 import { messageService } from '@/services/messageService'
+import { useMessages, useMessagesQueryClient } from '@/hooks/queries/useMessages'
 import { toast } from '@/components/ui'
 import type { Customer, Message } from '@/types/database'
 
@@ -23,13 +24,15 @@ const channelMeta: Record<Message['channel'], { bg: string; text: string; icon: 
 export default function CommunicationPage() {
   const t = useTheme()
   const [customers, setCustomers] = useState<Customer[]>([])
-  const [messages, setMessages] = useState<Message[]>([])
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [channel, setChannel] = useState<Message['channel']>('וואטסאפ')
   const [messageText, setMessageText] = useState('')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
-  const [loadingMessages, setLoadingMessages] = useState(false)
+  const qc = useMessagesQueryClient()
+
+  // A4-20: use React Query hook instead of local useState for messages
+  const { data: messages = [], isLoading: loadingMessages } = useMessages(selectedCustomerId || undefined)
 
   useEffect(() => {
     customerService.getAll().then(({ data }) => {
@@ -37,27 +40,13 @@ export default function CommunicationPage() {
     })
   }, [])
 
-  const fetchMessages = useCallback(async (customerId: string) => {
-    if (!customerId) {
-      setMessages([])
-      return
-    }
-    setLoadingMessages(true)
-    const { data } = await messageService.getByCustomer(customerId)
-    setMessages(data ?? [])
-    setLoadingMessages(false)
-  }, [])
-
-  useEffect(() => {
-    fetchMessages(selectedCustomerId)
-  }, [selectedCustomerId, fetchMessages])
-
+  // A4-08: use replaceAll (or /g regex) so all occurrences of {name} are replaced
   const applyTemplate = (templateId: string) => {
     const tmpl = templates.find((tp) => tp.id === templateId)
     if (!tmpl) return
     const cust = customers.find((c) => c.id === selectedCustomerId)
     const name = cust ? cust.first_name : 'לקוח'
-    setMessageText(tmpl.template.replace('{name}', name))
+    setMessageText(tmpl.template.replace(/\{name\}/g, name))
   }
 
   const handleSend = async () => {
@@ -70,7 +59,8 @@ export default function CommunicationPage() {
       content: messageText,
     })
     if (data) {
-      setMessages((prev) => [data, ...prev])
+      // Invalidate React Query cache so the list refreshes (A4-20)
+      qc.invalidateQueries({ queryKey: ['messages', selectedCustomerId] })
       setMessageText('')
       setSent(true)
       setTimeout(() => setSent(false), 2200)
@@ -80,6 +70,7 @@ export default function CommunicationPage() {
     if (!error) {
       const cust = customers.find((c) => c.id === selectedCustomerId)
       if (channel === 'וואטסאפ' && cust?.phone) {
+        // A4-12: sendWhatsApp already normalizes Israeli numbers (strips leading 0, prepends 972)
         messageService.sendWhatsApp(cust.phone, messageText)
       } else if (channel === 'אימייל' && cust?.email) {
         window.open(`mailto:${cust.email}?body=${encodeURIComponent(messageText)}`, '_blank')
@@ -92,7 +83,8 @@ export default function CommunicationPage() {
 
   const handleDeleteMessage = async (msgId: string) => {
     await messageService.delete(msgId)
-    setMessages((prev) => prev.filter((m) => m.id !== msgId))
+    // Invalidate React Query cache so the list refreshes (A4-20)
+    qc.invalidateQueries({ queryKey: ['messages', selectedCustomerId] })
   }
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId)
@@ -331,6 +323,17 @@ function MessageRow({ message, index, isLast, t, onDelete }: MessageRowProps) {
   const [hov, setHov] = useState(false)
   const cc = channelMeta[message.channel] ?? { bg: t.pillBg, text: t.textSub, icon: MessageSquare }
   const ChannelIcon = cc.icon
+
+  // A4-09: handle Firestore Timestamp objects that may not yet be converted to ISO string
+  // (e.g. a raw Timestamp returned before tsToIso runs). Call .toDate() if it's a Timestamp.
+  const sentAtRaw = message.sent_at as unknown
+  let sentAtDate: Date | string | null = null
+  if (sentAtRaw && typeof (sentAtRaw as { toDate?: unknown }).toDate === 'function') {
+    sentAtDate = (sentAtRaw as { toDate: () => Date }).toDate()
+  } else {
+    sentAtDate = message.sent_at ?? null
+  }
+
   return (
     <div
       onMouseEnter={() => setHov(true)}
@@ -384,7 +387,7 @@ function MessageRow({ message, index, isLast, t, onDelete }: MessageRowProps) {
           </span>
         </div>
         <p style={{ fontSize: 13, color: t.textSub, lineHeight: 1.5 }}>{message.content}</p>
-        <p style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>{formatDate(message.sent_at)}</p>
+        <p style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>{formatDate(sentAtDate)}</p>
       </div>
       {hov && (
         <button

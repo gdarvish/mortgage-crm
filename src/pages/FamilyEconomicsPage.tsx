@@ -181,7 +181,8 @@ export default function FamilyEconomicsPage() {
               {/* Visual bar */}
               <div style={{ height: 10, borderRadius: 5, background: t.border, overflow: 'hidden', marginBottom: 8 }}>
                 <div style={{ display: 'flex', height: '100%' }}>
-                  <div style={{ width: `${Math.min(expPct, 100)}%`, background: '#a8a29e', transition: 'width 0.5s' }} />
+                  {/* A5-11: use theme token instead of hardcoded #a8a29e */}
+                  <div style={{ width: `${Math.min(expPct, 100)}%`, background: t.textMuted, transition: 'width 0.5s' }} />
                   <div style={{ width: `${Math.min(dti, 100 - expPct)}%`, background: t.primary, transition: 'width 0.5s' }} />
                 </div>
               </div>
@@ -225,9 +226,10 @@ export default function FamilyEconomicsPage() {
               </div>
             </div>
 
+            {/* A5-12: print:hidden hides the button from print layout */}
             <button
               onClick={handlePrint}
-              className="crm-btn-primary"
+              className="crm-btn-primary print:hidden"
               style={{
                 background: t.primary, color: '#fff', border: 'none', borderRadius: 14,
                 padding: '11px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer',

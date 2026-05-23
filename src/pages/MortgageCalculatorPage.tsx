@@ -215,10 +215,11 @@ export default function MortgageCalculatorPage() {
         property_price: propertyPrice,
         loan_amount: loanAmount,
         own_capital: ownCapital,
-        monthly_income: monthlyIncome,
         type: 'חדשה',
         status: 'טיוטה',
         property_type: propertyType,
+        notes: null,
+        compliance_status: null,
       })
       if (error || !data) throw new Error(error?.message ?? 'שמירה נכשלה')
       toast.success('התמהיל נשמר', `נוצר תיק משכנתא (${data.id})`)
@@ -506,10 +507,11 @@ export default function MortgageCalculatorPage() {
                   </div>
 
                   {/* Inputs grid */}
+                  {/* A3-17: min attributes to prevent negative values */}
                   <div className="grid grid-cols-1 sm:grid-cols-3" style={{ gap: 12, marginBottom: 16 }}>
-                    <Field t={t} label="סכום" value={track.amount} onChange={v => updateTrack(idx, 'amount', +v || 0)} type="number" prefix="₪" />
-                    <Field t={t} label="ריבית שנתית" value={track.interestRate} onChange={v => updateTrack(idx, 'interestRate', +v || 0)} type="number" suffix="%" />
-                    <Field t={t} label="תקופה" value={track.periodMonths} onChange={v => updateTrack(idx, 'periodMonths', +v || 0)} type="number" suffix="חו'" />
+                    <Field t={t} label="סכום" value={track.amount} onChange={v => updateTrack(idx, 'amount', +v || 0)} type="number" prefix="₪" min="0" />
+                    <Field t={t} label="ריבית שנתית" value={track.interestRate} onChange={v => updateTrack(idx, 'interestRate', +v || 0)} type="number" suffix="%" min="0" />
+                    <Field t={t} label="תקופה" value={track.periodMonths} onChange={v => updateTrack(idx, 'periodMonths', +v || 0)} type="number" suffix="חו'" min="1" />
                   </div>
 
                   {/* Grace period */}

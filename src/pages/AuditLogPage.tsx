@@ -8,11 +8,16 @@ import { formatDate } from '@/lib/utils'
 import { useTheme } from '@/theme/ThemeContext'
 import type { AuditLogEntry } from '@/types/database'
 
+// A5-17: map both singular entity_type values and plural Firestore collection names to Hebrew labels
 const ENTITY_LABELS: Record<string, string> = {
   customer: 'לקוח',
+  customers: 'לקוחות',
   lead: 'ליד',
+  leads: 'לידים',
   mortgage: 'משכנתא',
+  mortgages: 'משכנתאות',
   document: 'מסמך',
+  documents: 'מסמכים',
 }
 
 const FIELD_LABELS: Record<string, string> = {
@@ -139,6 +144,10 @@ export default function AuditLogPage() {
             </p>
           </div>
         ) : (
+          <>
+          <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 12 }}>
+            מציג {filtered.length} רשומות
+          </p>
           <div className="space-y-3">
             {filtered.map((entry, i) => (
               <div
@@ -150,18 +159,24 @@ export default function AuditLogPage() {
                 }}
               >
                 <div className="flex items-center justify-between mb-3">
-                  <span
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      padding: '3px 10px',
-                      borderRadius: 20,
-                      background: t.successBg,
-                      color: t.success,
-                    }}
-                  >
-                    {ENTITY_LABELS[entry.entity_type] ?? entry.entity_type}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        padding: '3px 10px',
+                        borderRadius: 20,
+                        background: t.successBg,
+                        color: t.success,
+                      }}
+                    >
+                      {ENTITY_LABELS[entry.entity_type] ?? entry.entity_type}
+                    </span>
+                    {/* A5-18: show entity name with fallback to entity_id or em dash */}
+                    <span style={{ fontSize: 12, color: t.textSub }}>
+                      {(entry as AuditLogEntry & { entity_name?: string }).entity_name ?? entry.entity_id ?? '—'}
+                    </span>
+                  </div>
                   <span style={{ fontSize: 12, color: t.textMuted }}>{formatDate(entry.changed_at)}</span>
                 </div>
                 <div className="space-y-1.5">
@@ -182,6 +197,7 @@ export default function AuditLogPage() {
               </div>
             ))}
           </div>
+          </>
         )}
       </div>
     </div>
