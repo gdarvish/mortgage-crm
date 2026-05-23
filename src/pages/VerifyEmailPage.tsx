@@ -28,13 +28,18 @@ export default function VerifyEmailPage() {
   const checkVerified = async () => {
     if (!auth.currentUser) return
     setChecking(true)
-    await auth.currentUser.reload()
-    setChecking(false)
-    if (auth.currentUser.emailVerified) {
-      // Hard navigation so the auth store re-initialises with the verified user.
-      window.location.href = '/dashboard'
-    } else {
-      toast.warning('המייל עדיין לא אומת', 'בדוק את תיבת הדואר ולחץ על הקישור שבמייל')
+    try {
+      await auth.currentUser.reload()
+      if (auth.currentUser.emailVerified) {
+        useAuthStore.setState({ user: auth.currentUser })
+        navigate('/dashboard', { replace: true })
+      } else {
+        toast.warning('המייל עדיין לא אומת', 'בדוק את תיבת הדואר ולחץ על הקישור שבמייל')
+      }
+    } catch (err) {
+      toast.error('שגיאה בבדיקה', err instanceof Error ? err.message : undefined)
+    } finally {
+      setChecking(false)
     }
   }
 

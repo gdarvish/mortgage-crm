@@ -51,8 +51,9 @@ export const useAuthStore = create<AuthStore>((set) => ({
       await signInWithEmailAndPassword(auth, email, password)
       return { error: null }
     } catch (error) {
-      set({ loading: false })
       return { error: error as AuthError }
+    } finally {
+      set({ loading: false })
     }
   },
 
@@ -63,8 +64,9 @@ export const useAuthStore = create<AuthStore>((set) => ({
       await sendEmailVerification(cred.user)
       return { error: null }
     } catch (error) {
-      set({ loading: false })
       return { error: error as AuthError }
+    } finally {
+      set({ loading: false })
     }
   },
 
@@ -75,13 +77,18 @@ export const useAuthStore = create<AuthStore>((set) => ({
       await signInWithPopup(auth, provider)
       return { error: null }
     } catch (error) {
-      set({ loading: false })
       return { error: error as AuthError }
+    } finally {
+      set({ loading: false })
     }
   },
 
   signOut: async () => {
     set({ loading: true })
-    await fbSignOut(auth)
+    try {
+      await fbSignOut(auth)
+    } finally {
+      set({ loading: false, user: null })
+    }
   },
 }))

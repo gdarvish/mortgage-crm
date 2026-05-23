@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, UserPlus, FileText, Calculator,
@@ -74,6 +74,13 @@ export default function Header() {
   const navigate = useNavigate()
   const [hovBell, setHovBell] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [menuOpen])
 
   const isActive = (item: NavItem) =>
     item.match.some((m) => (m === '/' ? location.pathname === '/' : location.pathname.startsWith(m)))
@@ -233,11 +240,15 @@ export default function Header() {
           className="fixed inset-0 z-[90] lg:hidden"
           style={{ background: 'rgba(0,0,0,0.5)' }}
           onClick={() => setMenuOpen(false)}
+          role="presentation"
         >
           <div
             className="absolute overflow-y-auto animate-slide-in"
             style={{ top: 58, right: 0, bottom: 0, width: 264, background: t.nav }}
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="תפריט ניווט"
           >
             <div style={{ padding: '8px 0' }}>
               {navItems.map((item) => {

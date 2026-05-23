@@ -94,14 +94,18 @@ export function GlobalSearch() {
       {open && (
         <div
           className="fixed inset-0 z-[200] flex items-start justify-center pt-24 px-4"
-          style={{ background: 'rgba(28,25,23,0.5)' }}
+          style={{ background: 'rgba(0,0,0,0.5)' }}
           onClick={() => setOpen(false)}
           dir="rtl"
+          role="presentation"
         >
           <div
             className="w-full max-w-xl overflow-hidden animate-fade-in"
             style={{ borderRadius: 16, background: t.cardBg, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="חיפוש"
           >
             <div className="flex items-center gap-2 px-4 border-b" style={{ borderColor: t.borderLight }}>
               <Search size={18} style={{ color: t.textMuted }} />

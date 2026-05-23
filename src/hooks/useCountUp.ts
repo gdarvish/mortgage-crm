@@ -5,8 +5,13 @@ export function useCountUp(target: number, duration = 1100, delay = 0): number {
   const [count, setCount] = useState(0)
 
   useEffect(() => {
-    if (typeof target !== 'number' || Number.isNaN(target) || target === 0) {
-      setCount(target || 0)
+    if (!Number.isFinite(target)) {
+      if (import.meta.env.DEV) console.warn('useCountUp: non-finite target', target)
+      setCount(0)
+      return
+    }
+    if (target === 0) {
+      setCount(0)
       return
     }
     let raf = 0

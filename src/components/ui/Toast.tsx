@@ -27,7 +27,9 @@ interface ToastStore {
 const useToastStore = create<ToastStore>((set) => ({
   toasts: [],
   addToast: (toast) => {
-    const id = Math.random().toString(36).slice(2, 9)
+    const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `t-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
     set((state) => ({
       toasts: [...state.toasts, { ...toast, id }],
     }))

@@ -13,6 +13,20 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&family=Assistant:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <title>MortgageCRM - מערכת ניהול יועץ משכנתאות</title>
+    <script>
+      // Pre-paint theme application to avoid FOUC on dark themes.
+      (function () {
+        try {
+          var id = localStorage.getItem('crm-theme');
+          if (id !== 'earth' && id !== 'deep' && id !== 'night') id = 'earth';
+          var bg = id === 'night' ? '#141210' : id === 'deep' ? '#f0f4f9' : '#faf9f7';
+          var fg = id === 'night' ? '#fafaf9' : id === 'deep' ? '#0f2440' : '#1c1917';
+          document.documentElement.setAttribute('data-theme', id);
+          document.documentElement.style.background = bg;
+          document.documentElement.style.color = fg;
+        } catch (_) { /* localStorage unavailable */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

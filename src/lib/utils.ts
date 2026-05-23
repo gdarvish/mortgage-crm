@@ -6,6 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number): string {
+  if (!Number.isFinite(amount)) return '₪0'
   return new Intl.NumberFormat('he-IL', {
     style: 'currency',
     currency: 'ILS',
@@ -22,8 +23,10 @@ export function formatPercent(value: number): string {
   return `${value.toFixed(2)}%`
 }
 
-export function formatDate(date: Date | string): string {
+export function formatDate(date: Date | string | null | undefined): string {
+  if (!date) return '—'
   const d = typeof date === 'string' ? new Date(date) : date
+  if (Number.isNaN(d.getTime())) return '—'
   return d.toLocaleDateString('he-IL', {
     year: 'numeric',
     month: '2-digit',
@@ -50,12 +53,15 @@ export function calculateMonthlyPayment(
   annualRate: number,
   months: number
 ): number {
-  if (annualRate === 0) return principal / months
-  const monthlyRate = annualRate / 100 / 12
-  return (
+  if (!Number.isFinite(principal) || !Number.isFinite(annualRate) || !Number.isFinite(months)) return 0
+  if (principal <= 0 || months <= 0) return 0
+  const rate = annualRate < 0 ? 0 : annualRate
+  if (rate === 0) return principal / months
+  const monthlyRate = rate / 100 / 12
+  const payment =
     (principal * monthlyRate * Math.pow(1 + monthlyRate, months)) /
     (Math.pow(1 + monthlyRate, months) - 1)
-  )
+  return Number.isFinite(payment) ? payment : 0
 }
 
 export function generateToken(): string {

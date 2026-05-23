@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useLayoutEffect, useCallback, type ReactNode } from 'react'
 import { THEMES, type Theme, type ThemeId } from './themes'
 
 const STORAGE_KEY = 'crm-theme'
@@ -35,6 +35,15 @@ function applyCssVars(theme: Theme) {
     '--color-danger-bg': theme.dangerBg,
     '--color-success': theme.success,
     '--color-success-bg': theme.successBg,
+    '--color-warning': theme.warning,
+    '--color-warning-bg': theme.warningBg,
+    '--color-info': theme.info,
+    '--color-info-bg': theme.infoBg,
+    '--color-input-bg': theme.inputBg,
+    '--color-pill-bg': theme.pillBg,
+    '--color-pill-text': theme.pillText,
+    '--shadow-card': theme.shadow,
+    '--shadow-card-hover': theme.shadowHover,
   }
   for (const [key, value] of Object.entries(vars)) {
     root.style.setProperty(key, value)
@@ -58,7 +67,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [themeId, setThemeIdState] = useState<ThemeId>(readStoredTheme)
   const theme = THEMES[themeId]
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyCssVars(theme)
   }, [theme])
 
