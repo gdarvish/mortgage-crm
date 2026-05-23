@@ -69,6 +69,10 @@ export const mortgageService = {
         user_id: uid,
         type: mortgage.type ?? 'חדשה',
         status: mortgage.status ?? 'טיוטה',
+        name: mortgage.name ?? null,
+        property_address: mortgage.property_address ?? null,
+        property_address_x: mortgage.property_address_x ?? null,
+        property_address_y: mortgage.property_address_y ?? null,
         created_at: serverTimestamp(),
       }
       const ref = await addDoc(collection(db, 'mortgages'), payload)

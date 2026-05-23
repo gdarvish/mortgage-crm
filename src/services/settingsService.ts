@@ -5,9 +5,31 @@ import { fromDoc, awaitUserId, toError, type FirestoreError } from '@/services/_
 import type { AdvisorSettings } from '@/types/database'
 
 const SETTINGS_DOC = 'profile'
+const RATES_DOC = 'rates'
 
 function settingsRef(uid: string) {
   return doc(db, 'users', uid, 'advisor_settings', SETTINGS_DOC)
+}
+
+function ratesRef(uid: string) {
+  return doc(db, 'users', uid, 'settings', RATES_DOC)
+}
+
+export interface BankRate {
+  bank: string
+  prime: number
+  fixedNonLinked: number // קל"צ
+  fixedLinked: number // קל"ב
+  variableLinked: number // מ"צ
+  variableNotLinked: number // מ"ל
+}
+
+export interface RatesDoc {
+  bankRates: BankRate[]
+  prime: number
+  boiRate: number
+  lastCpi: number
+  updated_at: string
 }
 
 export const settingsService = {
@@ -31,6 +53,28 @@ export const settingsService = {
       return { data: fromDoc<AdvisorSettings>(snap), error: null }
     } catch (e) {
       return { data: null, error: toError(e) }
+    }
+  },
+
+  async getRates(): Promise<{ data: RatesDoc | null; error: FirestoreError | null }> {
+    try {
+      const uid = await awaitUserId()
+      const snap = await getDoc(ratesRef(uid))
+      if (!snap.exists()) return { data: null, error: null }
+      return { data: fromDoc<RatesDoc>(snap), error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
+  },
+
+  async saveRates(rates: RatesDoc): Promise<{ error: FirestoreError | null }> {
+    try {
+      const uid = await awaitUserId()
+      const payload: RatesDoc = { ...rates, updated_at: new Date().toISOString() }
+      await setDoc(ratesRef(uid), payload, { merge: true })
+      return { error: null }
+    } catch (e) {
+      return { error: toError(e) }
     }
   },
 

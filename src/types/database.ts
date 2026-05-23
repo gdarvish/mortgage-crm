@@ -127,6 +127,7 @@ export interface Customer {
   questionnaire_token: string | null
   questionnaire_token_expires_at?: string | null
   questionnaire_completed: boolean
+  financial_data?: Json | null
   created_at: string
   updated_at: string
 }
@@ -204,6 +205,10 @@ export interface Mortgage {
   id: string
   customer_id: string
   type: MortgageType
+  name?: string | null
+  property_address?: string | null
+  property_address_x?: number | null
+  property_address_y?: number | null
   property_price: number | null
   property_type: PropertyType | null
   own_capital: number | null
@@ -370,4 +375,15 @@ export interface AuditLogEntry {
   changes: Record<string, { from: unknown; to: unknown }>
   changed_fields: string[]
   changed_at: string
+}
+
+export interface FinancialData {
+  income1?: number
+  income2?: number
+  mortgagePayment?: number
+  expenses?: Array<{
+    category: 'דיור' | 'מזון' | 'רכב' | 'חינוך' | 'בילויים' | 'חיסכון' | 'אחר'
+    amount: number
+  }>
+  updated_at?: string
 }
