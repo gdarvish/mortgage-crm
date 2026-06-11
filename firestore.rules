@@ -76,14 +76,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Public read collections
+    // Public read collections — written only by Cloud Functions (admin SDK),
+    // never by clients, so a single advisor can't pollute global data.
     match /interest_rates/{rateId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if false;
     }
     match /cpi_index/{cpiId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if false;
     }
   }
 }
