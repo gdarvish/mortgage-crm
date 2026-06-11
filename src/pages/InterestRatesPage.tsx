@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { TrendingUp, RefreshCw, Loader2, Pencil, AlertTriangle } from 'lucide-react'
+import { doc, getDoc, Timestamp } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { useTheme } from '@/theme/ThemeContext'
 import { Modal } from '@/components/ui/Modal'
 import { toast } from '@/components/ui/Toast'
@@ -39,26 +41,23 @@ interface BOIFetchResult {
   lastUpdate: string
 }
 
+// BOI rates are synced server-side by the scheduled `syncBoiRates` Cloud
+// Function (direct browser fetch to edge.boi.gov.il is blocked by CORS).
+// The shared doc is publicly readable per firestore.rules.
 async function fetchBOIRates(): Promise<BOIFetchResult> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 5000)
-  try {
-    const res = await fetch(
-      'https://edge.boi.gov.il/FusionEdge/pages/CMSEditor/files/BankingSupervision/MadadMortgages.json',
-      { signal: controller.signal },
-    )
-    clearTimeout(timeout)
-    if (!res.ok) throw new Error('HTTP ' + res.status)
-    const json = await res.json()
-    const series = json?.resultSet?.series?.[0]?.points ?? json?.series?.[0]?.points ?? []
-    const latest = series[series.length - 1]
-    if (!latest) throw new Error('No data')
-    const boiRate = parseFloat(latest.value)
-    const prime = boiRate + 1.5
-    return { prime, boiRate, lastUpdate: latest?.period ?? '' }
-  } catch (e) {
-    clearTimeout(timeout)
-    throw e instanceof Error ? e : new Error('BOI fetch failed')
+  const snap = await getDoc(doc(db, 'interest_rates', 'current'))
+  if (!snap.exists()) throw new Error('No BOI rates synced yet')
+  const data = snap.data() as {
+    boi_rate?: number
+    prime?: number
+    period?: string
+    updated_at?: Timestamp
+  }
+  if (typeof data.boi_rate !== 'number') throw new Error('Invalid BOI rates doc')
+  return {
+    boiRate: data.boi_rate,
+    prime: data.prime ?? data.boi_rate + 1.5,
+    lastUpdate: data.period ?? '',
   }
 }
 
