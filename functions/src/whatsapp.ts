@@ -1,12 +1,16 @@
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
 import { FieldValue } from 'firebase-admin/firestore'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import { db, REGION } from './common'
 
 // Configure with: firebase functions:secrets:set WHATSAPP_TOKEN  (etc.)
 const WHATSAPP_TOKEN = defineSecret('WHATSAPP_TOKEN')
 const WHATSAPP_PHONE_NUMBER_ID = defineSecret('WHATSAPP_PHONE_NUMBER_ID')
 const WHATSAPP_VERIFY_TOKEN = defineSecret('WHATSAPP_VERIFY_TOKEN')
+// App Secret from Meta App Dashboard → Settings → Basic — used to verify
+// the X-Hub-Signature-256 header on inbound webhook POSTs.
+const WHATSAPP_APP_SECRET = defineSecret('WHATSAPP_APP_SECRET')
 
 const GRAPH_API = 'https://graph.facebook.com/v21.0'
 
@@ -160,7 +164,7 @@ async function handleStatusUpdate(status: StatusUpdate): Promise<void> {
 }
 
 export const whatsappWebhook = onRequest(
-  { region: REGION, secrets: [WHATSAPP_VERIFY_TOKEN] },
+  { region: REGION, secrets: [WHATSAPP_VERIFY_TOKEN, WHATSAPP_APP_SECRET] },
   async (req, res) => {
     // Verification handshake — Meta sends a GET when the webhook URL is registered.
     if (req.method === 'GET') {
@@ -176,6 +180,22 @@ export const whatsappWebhook = onRequest(
     }
     if (req.method !== 'POST') {
       res.status(405).send('Method Not Allowed')
+      return
+    }
+
+    // Verify Meta's HMAC signature before any processing — otherwise anyone
+    // who knows the webhook URL can write forged inbound messages.
+    const signature = req.get('x-hub-signature-256') ?? ''
+    const expected =
+      'sha256=' +
+      createHmac('sha256', WHATSAPP_APP_SECRET.value())
+        .update(req.rawBody) // rawBody is available on Cloud Functions v2 onRequest
+        .digest('hex')
+    const sigBuf = Buffer.from(signature)
+    const expBuf = Buffer.from(expected)
+    if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
+      console.warn('whatsappWebhook: invalid signature')
+      res.status(403).send('Forbidden')
       return
     }
 
