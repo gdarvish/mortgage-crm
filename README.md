@@ -1,73 +1,87 @@
-# React + TypeScript + Vite
+# MortgageCRM
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+מערכת CRM ליועצי משכנתאות בישראל: ניהול לקוחות ולידים, תיקי משכנתא ומסלולים, מסמכים עם OCR ובדיקת תקינות מבוססי AI, שאלון לקוח ציבורי, חתימה דיגיטלית, הודעות וואטסאפ, התראות אוטומטיות ונתוני ריבית בנק ישראל.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Frontend:** React 19 + TypeScript + Vite, Tailwind CSS
+- **Backend:** Firebase — Auth, Firestore, Storage, Cloud Functions v2 (region `europe-west1`)
+- **AI:** Anthropic Claude (OCR תלושי שכר, בדיקת מסמכים, המלצת תמהיל)
+- **Messaging:** WhatsApp Business Cloud API (Meta Graph API)
 
-## React Compiler
+## הרצה מקומית
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+cp .env.example .env   # ומלא את ערכי Firebase
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+להרצת ה-Cloud Functions מקומית:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd functions
+npm install
+npm run serve   # builds + starts the functions emulator
 ```
+
+אפשר להפנות את הקליינט לאמולטורים עם `VITE_USE_FIREBASE_EMULATOR=true` ב-`.env`.
+
+## משתני סביבה (קליינט)
+
+ראה `.env.example`:
+
+| משתנה | תיאור |
+|---|---|
+| `VITE_FIREBASE_*` | קונפיגורציית Firebase Web SDK (מה-Console) |
+| `VITE_USE_FIREBASE_EMULATOR` | `true` לעבודה מול אמולטורים מקומיים |
+| `VITE_RECAPTCHA_SITE_KEY` | מפתח reCAPTCHA v3 (אופציונלי) להגנת הטפסים הציבוריים |
+
+## Cloud Functions
+
+הפונקציות יושבות תחת `functions/src`:
+
+| מודול | תוכן |
+|---|---|
+| `index.ts` | טפסים ציבוריים (שאלון, חתימה, פורטל לקוח), מחיקות מדורגות, התראות מתוזמנות |
+| `ai.ts` | ניסוח הודעות, בדיקת מסמכים, המלצת תמהיל (Claude) |
+| `ocr.ts` | OCR לתלושי שכר (Claude) |
+| `whatsapp.ts` | שליחת הודעות + webhook נכנס (עם אימות חתימת Meta) |
+| `rates.ts` | סנכרון יומי של ריבית בנק ישראל ל-`interest_rates/current` |
+| `activity.ts`, `audit.ts` | פיד פעילות ויומן ביקורת |
+
+### סודות (Secrets)
+
+מוגדרים עם `firebase functions:secrets:set <NAME>`:
+
+| Secret | שימוש |
+|---|---|
+| `ANTHROPIC_API_KEY` | קריאות Claude (AI/OCR) |
+| `WHATSAPP_TOKEN` | טוקן גישה ל-Graph API |
+| `WHATSAPP_PHONE_NUMBER_ID` | מזהה מספר הטלפון העסקי |
+| `WHATSAPP_VERIFY_TOKEN` | אימות ה-handshake של ה-webhook |
+| `WHATSAPP_APP_SECRET` | App Secret מ-Meta — אימות חתימת `X-Hub-Signature-256` |
+
+משתני סביבה נוספים לפונקציות:
+
+| משתנה | שימוש |
+|---|---|
+| `RECAPTCHA_SECRET_KEY` | אימות reCAPTCHA בצד שרת |
+| `ENFORCE_RECAPTCHA` | `true` בפרודקשן — נכשל אם reCAPTCHA לא מוגדר במקום לדלג |
+
+## פריסה
+
+```bash
+npm run build                      # frontend (Vercel — ראה vercel.json)
+firebase deploy --only functions   # Cloud Functions
+firebase deploy --only firestore:rules,storage
+```
+
+## סקריפטים
+
+| פקודה | תיאור |
+|---|---|
+| `npm run dev` | שרת פיתוח Vite |
+| `npm run build` | בניית פרודקשן (כולל `tsc -b`) |
+| `npm run lint` | ESLint |
+| `cd functions && npm run build` | קומפילציית הפונקציות |
