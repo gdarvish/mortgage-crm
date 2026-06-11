@@ -99,6 +99,46 @@ export const getCustomerByQuestionnaireToken = onCall({ region: REGION }, async 
   }
 })
 
+/** נתוני פורטל לקוח ציבורי — מחזיר רק שדות לתצוגת לקוח, לא מידע פנימי. */
+export const getPortalByToken = onCall({ region: REGION }, async (req) => {
+  await checkRateLimit('portal_get:' + clientIp(req))
+  const token = req.data?.token
+  if (!token || typeof token !== 'string') {
+    throw new HttpsError('invalid-argument', 'token is required')
+  }
+  const docSnap = await findCustomerByToken(token)
+  if (!docSnap) throw new HttpsError('not-found', 'Customer not found')
+  const data = docSnap.data()
+  if (isExpired(data.questionnaire_token_expires_at)) {
+    throw new HttpsError('deadline-exceeded', 'Token expired')
+  }
+
+  const advisorSnap = await db
+    .collection('users')
+    .doc(data.user_id)
+    .collection('advisor_settings')
+    .doc('profile')
+    .get()
+  const advisor = advisorSnap.data() ?? {}
+
+  const docsSnap = await db
+    .collection('documents')
+    .where('user_id', '==', data.user_id)
+    .where('customer_id', '==', docSnap.id)
+    .get()
+
+  return {
+    customer_name: `${data.first_name ?? ''} ${data.last_name ?? ''}`.trim(),
+    status: data.status ?? '',
+    advisor_name: advisor.name ?? '',
+    advisor_phone: advisor.phone ?? '',
+    documents: docsSnap.docs.map((d) => ({
+      type: d.data().type ?? '',
+      status: d.data().status ?? 'ממתין',
+    })),
+  }
+})
+
 export const submitQuestionnaire = onCall({ region: REGION }, async (req) => {
   await checkRateLimit('q_submit:' + clientIp(req))
   const { token, payload, recaptcha_token } = req.data ?? {}
