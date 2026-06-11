@@ -48,10 +48,18 @@ async function checkRateLimit(qualifier: string, maxCalls = 10, windowSec = 60):
   })
 }
 
-/** אימות reCAPTCHA v3. אם RECAPTCHA_SECRET_KEY לא מוגדר — מדלגים על הבדיקה. */
+/**
+ * אימות reCAPTCHA v3. אם RECAPTCHA_SECRET_KEY לא מוגדר — מדלגים על הבדיקה,
+ * אלא אם ENFORCE_RECAPTCHA=true (פרודקשן), ואז זו שגיאת קונפיגורציה.
+ */
 async function verifyRecaptcha(token: unknown): Promise<void> {
   const secret = process.env.RECAPTCHA_SECRET_KEY
-  if (!secret) return
+  if (!secret) {
+    if (process.env.ENFORCE_RECAPTCHA === 'true') {
+      throw new HttpsError('failed-precondition', 'reCAPTCHA not configured')
+    }
+    return // dev only — public forms run without bot protection
+  }
   if (!token || typeof token !== 'string') {
     throw new HttpsError('permission-denied', 'reCAPTCHA token missing')
   }
