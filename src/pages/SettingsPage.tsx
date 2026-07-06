@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Settings, Upload, Save, Eye, Trash2, Loader2, CheckCircle } from 'lucide-react'
-import { collection, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore'
-import { db, auth } from '@/lib/firebase'
+import { httpsCallable } from 'firebase/functions'
+import { functions } from '@/lib/firebase'
 import { settingsService } from '@/services/settingsService'
 import { toast } from '@/components/ui'
 
@@ -221,21 +221,10 @@ function DangerZone() {
   const [confirm, setConfirm] = useState(false)
 
   const handleDelete = async () => {
-    const uid = auth.currentUser?.uid
-    if (!uid) return
     setDeleting(true)
     try {
-      // Delete every user-scoped collection — each doc carries user_id,
-      // which the Firestore rules require the query to filter on.
-      const userScoped = [
-        'customers', 'leads', 'tasks', 'alerts', 'commissions', 'documents',
-        'messages', 'referral_partners', 'mortgages', 'loan_tracks', 'bank_responses',
-      ]
-      for (const col of userScoped) {
-        const snap = await getDocs(query(collection(db, col), where('user_id', '==', uid)))
-        await Promise.all(snap.docs.map(d => deleteDoc(doc(db, col, d.id))))
-      }
-
+      const fn = httpsCallable(functions, 'deleteAllUserData')
+      await fn()
       setDone(true)
       setConfirm(false)
     } catch (e) {
@@ -252,7 +241,7 @@ function DangerZone() {
       </h2>
       <p className="text-sm text-gray-500 mb-4">מחיקת כל הנתונים מהמערכת — פעולה בלתי הפיכה</p>
       {done ? (
-        <p className="text-sm font-medium text-green-600">✓ כל הנתונים נמחקו בהצלחה</p>
+        <p className="text-sm font-medium text-green-600">✓ כל נתוני הלקוחות נמחקו (יומן הביקורת נשמר)</p>
       ) : confirm ? (
         <div className="flex items-center gap-3">
           <p className="text-sm text-red-600 font-medium">האם אתה בטוח לחלוטין?</p>

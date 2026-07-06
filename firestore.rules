@@ -76,14 +76,19 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Public read collections
+    // Public read collections — writes only via admin SDK (Cloud Functions)
     match /interest_rates/{rateId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if false;
     }
     match /cpi_index/{cpiId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if false;
+    }
+
+    // Rate-limit entries — managed by Cloud Functions only
+    match /rate_limits/{docId} {
+      allow read, write: if false;
     }
   }
 }

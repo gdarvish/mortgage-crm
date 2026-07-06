@@ -149,7 +149,7 @@ export function checkCompliance(
 ): ComplianceResult {
   const totalLoan = tracks.reduce((sum, t) => sum + t.amount, 0)
   const totalMonthlyPayment = tracks.reduce(
-    (sum, t) => sum + calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths),
+    (sum, t) => sum + effectiveMonthlyPayment(t),
     0
   )
   const maxPeriod = Math.max(...tracks.map(t => t.periodMonths))
@@ -196,14 +196,14 @@ export function checkCompliance(
         : `ריבית קבועה חסרה: ${fixedPercent.toFixed(1)}% (מינימום 33.3%)`,
     },
     {
-      name: 'פריים (מקסימום)',
+      name: 'פריים (בתוך מגבלת המשתנה)',
       value: Math.round(primePercent * 10) / 10,
-      limit: 33.3,
-      isValid: primePercent <= 33.3,
-      severity: 'error',
-      message: primePercent <= 33.3
-        ? `פריים תקין: ${primePercent.toFixed(1)}% (מקסימום 33.3%)`
-        : `פריים חורג: ${primePercent.toFixed(1)}% (מקסימום 33.3%)`,
+      limit: 66.6,
+      isValid: primePercent <= 66.6,
+      severity: 'warning',
+      message: primePercent <= 66.6
+        ? `פריים תקין: ${primePercent.toFixed(1)}% (מקסימום 66.6%)`
+        : `פריים חורג: ${primePercent.toFixed(1)}% (מקסימום 66.6%)`,
     },
     {
       name: 'משתנה כולל (מקסימום)',
@@ -238,47 +238,61 @@ export function checkCompliance(
   ]
 
   return {
-    isValid: checks.every(c => c.isValid),
+    isValid: checks.filter(c => c.severity === 'error').every(c => c.isValid),
     checks,
   }
+}
+
+export interface LiveRates {
+  fixed_linked?: number
+  fixed_unlinked?: number
+  variable_linked?: number
+  eligibility?: number
 }
 
 export function generateRecommendedMixes(
   loanAmount: number,
   periodMonths: number,
-  primeRate: number
+  primeRate: number,
+  rates?: LiveRates,
 ): { name: string; tracks: TrackInput[] }[] {
+  const r = {
+    fixedLinked: rates?.fixed_linked ?? 4.5,
+    fixedUnlinked: rates?.fixed_unlinked ?? 3.8,
+    variableLinked: rates?.variable_linked ?? 3.2,
+    eligibility: rates?.eligibility ?? 3.0,
+  }
   return [
     {
       name: 'שמרני',
       tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.4), interestRate: 4.5, periodMonths },
-        { type: 'קל"ב', amount: Math.round(loanAmount * 0.3), interestRate: 3.8, periodMonths },
+        { type: 'קל"צ', amount: Math.round(loanAmount * 0.4), interestRate: r.fixedLinked, periodMonths },
+        { type: 'קל"ב', amount: Math.round(loanAmount * 0.3), interestRate: r.fixedUnlinked, periodMonths },
         { type: 'פריים', amount: Math.round(loanAmount * 0.3), interestRate: primeRate, periodMonths },
       ],
     },
     {
       name: 'מאוזן',
       tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.34), interestRate: 4.5, periodMonths },
-        { type: 'קל"ב', amount: Math.round(loanAmount * 0.33), interestRate: 3.8, periodMonths },
+        { type: 'קל"צ', amount: Math.round(loanAmount * 0.34), interestRate: r.fixedLinked, periodMonths },
+        { type: 'קל"ב', amount: Math.round(loanAmount * 0.33), interestRate: r.fixedUnlinked, periodMonths },
         { type: 'פריים', amount: Math.round(loanAmount * 0.33), interestRate: primeRate, periodMonths },
       ],
     },
     {
       name: 'אגרסיבי',
       tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.34), interestRate: 4.5, periodMonths },
-        { type: 'משתנה_צמודה', amount: Math.round(loanAmount * 0.33), interestRate: 3.2, periodMonths },
+        { type: 'קל"צ', amount: Math.round(loanAmount * 0.34), interestRate: r.fixedLinked, periodMonths },
+        { type: 'משתנה_צמודה', amount: Math.round(loanAmount * 0.33), interestRate: r.variableLinked, periodMonths },
         { type: 'פריים', amount: Math.round(loanAmount * 0.33), interestRate: primeRate, periodMonths },
       ],
     },
     {
       name: 'מותאם אישית',
       tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.35), interestRate: 4.5, periodMonths },
-        { type: 'קל"ב', amount: Math.round(loanAmount * 0.2), interestRate: 3.8, periodMonths },
-        { type: 'זכאות', amount: Math.round(loanAmount * 0.15), interestRate: 3.0, periodMonths: Math.min(periodMonths, 240) },
+        { type: 'קל"צ', amount: Math.round(loanAmount * 0.35), interestRate: r.fixedLinked, periodMonths },
+        { type: 'קל"ב', amount: Math.round(loanAmount * 0.2), interestRate: r.fixedUnlinked, periodMonths },
+        { type: 'זכאות', amount: Math.round(loanAmount * 0.15), interestRate: r.eligibility, periodMonths: Math.min(periodMonths, 240) },
         { type: 'פריים', amount: Math.round(loanAmount * 0.3), interestRate: primeRate, periodMonths },
       ],
     },

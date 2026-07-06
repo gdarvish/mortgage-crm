@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Plus, Sparkles, AlertTriangle, CheckCircle, Download, Save, X, Loader2 } from 'lucide-react'
 import { httpsCallable } from 'firebase/functions'
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -12,9 +13,10 @@ import {
   effectiveMonthlyPayment,
   type TrackInput,
   type GraceType,
+  type LiveRates,
 } from '@/utils/mortgageCalculations'
 import type { LoanTrackType, PropertyType } from '@/types/database'
-import { functions } from '@/lib/firebase'
+import { db, functions } from '@/lib/firebase'
 import { toast } from '@/components/ui'
 
 const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
@@ -103,6 +105,31 @@ export default function MortgageCalculatorPage() {
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [aiAdvising, setAiAdvising] = useState(false)
   const [aiAdvice, setAiAdvice] = useState<{ rationale: string; risk_level: string } | null>(null)
+  const [liveRates, setLiveRates] = useState<LiveRates | undefined>()
+
+  useEffect(() => {
+    const rateMap: Record<string, string> = {
+      'קל"צ': 'fixed_linked',
+      'קל"ב': 'fixed_unlinked',
+      'משתנה_צמודה': 'variable_linked',
+      'זכאות': 'eligibility',
+    }
+    getDocs(query(collection(db, 'interest_rates'), orderBy('effective_date', 'desc'), limit(20)))
+      .then(snap => {
+        const rates: LiveRates = {}
+        const seen = new Set<string>()
+        for (const d of snap.docs) {
+          const data = d.data()
+          const key = rateMap[data.track_type]
+          if (key && !seen.has(key) && typeof data.rate === 'number') {
+            (rates as Record<string, number>)[key] = data.rate
+            seen.add(key)
+          }
+        }
+        if (Object.keys(rates).length > 0) setLiveRates(rates)
+      })
+      .catch(() => {})
+  }, [])
 
   const loanAmount  = Math.max(0, propertyPrice - ownCapital)
   const ltv         = propertyPrice > 0 ? Math.round((loanAmount / propertyPrice) * 100) : 0
@@ -125,8 +152,8 @@ export default function MortgageCalculatorPage() {
   )
 
   const recommendations = useMemo(() =>
-    generateRecommendedMixes(loanAmount, 300, 6.0),
-    [loanAmount]
+    generateRecommendedMixes(loanAmount, 300, 6.0, liveRates),
+    [loanAmount, liveRates]
   )
 
   const amortizationData = useMemo(() => {

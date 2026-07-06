@@ -96,8 +96,59 @@ export const getCustomerByQuestionnaireToken = onCall({ region: REGION }, async 
     own_capital: data.own_capital ?? 0,
     existing_obligations: data.existing_obligations ?? 0,
     questionnaire_completed: data.questionnaire_completed ?? false,
+    employment_type: data.employment_type ?? null,
+    has_existing_property: data.has_existing_property ?? null,
+    existing_property_value: data.existing_property_value ?? null,
+    credit_card_frames: data.credit_card_frames ?? null,
+    mortgage_purpose: data.mortgage_purpose ?? null,
+    requested_amount: data.requested_amount ?? null,
   }
 })
+
+const STRING_FIELDS = [
+  'first_name', 'last_name', 'id_number', 'phone', 'email',
+  'address', 'marital_status', 'notes', 'employment_type', 'mortgage_purpose',
+] as const
+
+const NUMBER_FIELDS = [
+  'children', 'monthly_income', 'partner_income', 'own_capital',
+  'existing_obligations', 'existing_property_value', 'credit_card_frames',
+  'requested_amount',
+] as const
+
+const BOOLEAN_FIELDS = ['has_existing_property'] as const
+
+function sanitizePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const key of STRING_FIELDS) {
+    if (key in payload) {
+      const v = payload[key]
+      if (typeof v !== 'string' || v.length > 500) {
+        throw new HttpsError('invalid-argument', `שדה ${key} אינו תקין`)
+      }
+      out[key] = v.trim()
+    }
+  }
+  for (const key of NUMBER_FIELDS) {
+    if (key in payload) {
+      const v = payload[key]
+      if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 100_000_000) {
+        throw new HttpsError('invalid-argument', `שדה ${key} אינו תקין`)
+      }
+      out[key] = v
+    }
+  }
+  for (const key of BOOLEAN_FIELDS) {
+    if (key in payload) {
+      const v = payload[key]
+      if (typeof v !== 'boolean') {
+        throw new HttpsError('invalid-argument', `שדה ${key} אינו תקין`)
+      }
+      out[key] = v
+    }
+  }
+  return out
+}
 
 export const submitQuestionnaire = onCall({ region: REGION }, async (req) => {
   await checkRateLimit('q_submit:' + clientIp(req))
@@ -115,15 +166,7 @@ export const submitQuestionnaire = onCall({ region: REGION }, async (req) => {
     throw new HttpsError('deadline-exceeded', 'Token expired')
   }
 
-  const allowed: Record<string, unknown> = {}
-  const allowedKeys = [
-    'first_name', 'last_name', 'id_number',
-    'phone', 'email', 'address', 'marital_status', 'children',
-    'monthly_income', 'partner_income', 'own_capital', 'existing_obligations', 'notes',
-  ]
-  for (const key of allowedKeys) {
-    if (key in payload) allowed[key] = (payload as Record<string, unknown>)[key]
-  }
+  const allowed = sanitizePayload(payload as Record<string, unknown>)
   allowed.questionnaire_completed = true
   // Burn the token after a successful submission.
   allowed.questionnaire_token = null
@@ -132,6 +175,48 @@ export const submitQuestionnaire = onCall({ region: REGION }, async (req) => {
 
   await docSnap.ref.update(allowed)
   return { ok: true }
+})
+
+export const getPortalDataByToken = onCall({ region: REGION }, async (req) => {
+  await checkRateLimit('portal_get:' + clientIp(req))
+  const token = req.data?.token
+  if (!token || typeof token !== 'string') {
+    throw new HttpsError('invalid-argument', 'token is required')
+  }
+  const snap = await db.collection('customers')
+    .where('portal_token', '==', token).limit(1).get()
+  if (snap.empty) throw new HttpsError('not-found', 'Customer not found')
+  const custDoc = snap.docs[0]
+  const customer = custDoc.data()
+  if (isExpired(customer.portal_token_expires_at)) {
+    throw new HttpsError('deadline-exceeded', 'Token expired')
+  }
+  const uid = customer.user_id as string
+  const [docsSnap, sigsSnap, settingsSnap] = await Promise.all([
+    db.collection('documents').where('customer_id', '==', custDoc.id).get(),
+    db.collection('signatures')
+      .where('customer_id', '==', custDoc.id)
+      .where('status', '==', 'ממתין').get(),
+    db.doc(`users/${uid}/advisor_settings/profile`).get(),
+  ])
+  const advisor = settingsSnap.exists ? settingsSnap.data() : null
+  return {
+    first_name: customer.first_name ?? '',
+    status: customer.status ?? '',
+    documents: docsSnap.docs.map((d) => ({
+      type: d.data().type ?? '',
+      status: d.data().status ?? '',
+    })),
+    pending_signatures: sigsSnap.docs.map((d) => ({
+      document_name: d.data().document_name ?? 'מסמך לחתימה',
+      sign_url_token: d.data().token ?? null,
+    })),
+    advisor: {
+      name: advisor?.name ?? '',
+      phone: advisor?.phone ?? '',
+      title: advisor?.title ?? 'יועץ משכנתאות',
+    },
+  }
 })
 
 export const getSignatureByToken = onCall({ region: REGION }, async (req) => {
@@ -237,10 +322,25 @@ async function deleteWhere(collection: string, field: string, value: string) {
   await Promise.all(batches.map((b) => b.commit()))
 }
 
+async function deleteStorageForCustomer(customerId: string): Promise<void> {
+  const bucket = getStorage().bucket()
+  const docsSnap = await db.collection('documents')
+    .where('customer_id', '==', customerId).get()
+  for (const d of docsSnap.docs) {
+    const storagePath = d.data().storage_path
+    if (storagePath && typeof storagePath === 'string') {
+      try { await bucket.file(storagePath).delete() } catch { /* file may not exist */ }
+    }
+  }
+  try { await bucket.deleteFiles({ prefix: `documents/${customerId}/` }) } catch { /* ok */ }
+  try { await bucket.deleteFiles({ prefix: `signatures/${customerId}/` }) } catch { /* ok */ }
+}
+
 export const onCustomerDeleted = onDocumentDeleted(
   { region: REGION, document: 'customers/{customerId}' },
   async (event) => {
     const customerId = event.params.customerId
+    await deleteStorageForCustomer(customerId)
     await Promise.all([
       deleteWhere('documents', 'customer_id', customerId),
       deleteWhere('mortgages', 'customer_id', customerId),
@@ -263,6 +363,30 @@ export const onMortgageDeleted = onDocumentDeleted(
     ])
   }
 )
+
+export const deleteAllUserData = onCall({ region: REGION }, async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
+  const uid = req.auth.uid
+  const bucket = getStorage().bucket()
+
+  // Collect customer IDs for Storage cleanup
+  const custSnap = await db.collection('customers').where('user_id', '==', uid).get()
+  for (const cust of custSnap.docs) {
+    await deleteStorageForCustomer(cust.id)
+  }
+  try { await bucket.deleteFiles({ prefix: `logos/${uid}/` }) } catch { /* ok */ }
+
+  const collections = [
+    'customers', 'leads', 'tasks', 'alerts', 'commissions', 'documents',
+    'messages', 'referral_partners', 'mortgages', 'loan_tracks', 'bank_responses',
+    'signatures',
+  ]
+  for (const col of collections) {
+    await deleteWhere(col, 'user_id', uid)
+  }
+
+  return { ok: true }
+})
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -376,5 +500,54 @@ export const generateDocumentAlerts = onSchedule(
       }
     }
     console.log(`generateDocumentAlerts: created ${created} alerts, marked ${marked} expired`)
+  }
+)
+
+export const generateApprovalAlerts = onSchedule(
+  { schedule: 'every day 02:30', timeZone: 'Asia/Jerusalem', region: REGION },
+  async () => {
+    const now = new Date()
+    const cutoff = new Date(now.getTime() + 30 * DAY_MS)
+
+    const mortgages = await db
+      .collection('mortgages')
+      .where('status', '==', 'אושר')
+      .where('approval_expires_at', '>=', now.toISOString())
+      .where('approval_expires_at', '<=', cutoff.toISOString())
+      .get()
+
+    let created = 0
+    for (const mortDoc of mortgages.docs) {
+      const mort = mortDoc.data()
+      const existing = await db
+        .collection('alerts')
+        .where('mortgage_id', '==', mortDoc.id)
+        .where('alert_type', '==', 'approval_expiring')
+        .where('status', '==', 'פתוח')
+        .limit(1)
+        .get()
+      if (!existing.empty) continue
+
+      const daysLeft = Math.round(
+        (new Date(mort.approval_expires_at).getTime() - now.getTime()) / DAY_MS,
+      )
+
+      await db.collection('alerts').add({
+        user_id: mort.user_id,
+        customer_id: mort.customer_id,
+        mortgage_id: mortDoc.id,
+        loan_track_id: null,
+        document_id: null,
+        alert_type: 'approval_expiring',
+        alert_date: now.toISOString(),
+        days_until_end: daysLeft,
+        urgency: daysLeft < 7 ? 'דחוף' : 'אזהרה',
+        status: 'פתוח',
+        snoozed_until: null,
+        created_at: FieldValue.serverTimestamp(),
+      })
+      created++
+    }
+    console.log(`generateApprovalAlerts: created ${created} alerts`)
   }
 )

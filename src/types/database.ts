@@ -127,6 +127,14 @@ export interface Customer {
   questionnaire_token: string | null
   questionnaire_token_expires_at?: string | null
   questionnaire_completed: boolean
+  employment_type?: string | null
+  has_existing_property?: boolean | null
+  existing_property_value?: number | null
+  credit_card_frames?: number | null
+  mortgage_purpose?: string | null
+  requested_amount?: number | null
+  portal_token?: string | null
+  portal_token_expires_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -211,6 +219,8 @@ export interface Mortgage {
   status: MortgageStatus
   compliance_status: Json | null
   notes: string | null
+  approval_date?: string | null
+  approval_expires_at?: string | null
   created_at: string
 }
 
@@ -254,7 +264,7 @@ export interface Alert {
   loan_track_id: string | null
   mortgage_id?: string | null
   document_id?: string | null
-  alert_type?: 'track_ending' | 'document_expiring'
+  alert_type?: 'track_ending' | 'document_expiring' | 'approval_expiring'
   alert_date: string | null
   days_until_end: number | null
   urgency?: 'דחוף' | 'אזהרה' | 'תקין'

@@ -25,9 +25,11 @@ interface DocumentRecord extends Document {
 export const documentService = {
   async getByCustomer(customerId: string): Promise<{ data: Document[] | null; error: FirestoreError | null }> {
     try {
+      const uid = await awaitUserId()
       const snap = await getDocs(
         query(
           collection(db, COL),
+          where('user_id', '==', uid),
           where('customer_id', '==', customerId),
           orderBy('uploaded_at', 'desc')
         )

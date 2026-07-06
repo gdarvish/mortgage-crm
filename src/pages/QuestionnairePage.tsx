@@ -23,6 +23,12 @@ interface QuestionnaireCustomer {
   own_capital: number
   existing_obligations: number
   questionnaire_completed: boolean
+  employment_type?: string | null
+  has_existing_property?: boolean | null
+  existing_property_value?: number | null
+  credit_card_frames?: number | null
+  mortgage_purpose?: string | null
+  requested_amount?: number | null
 }
 
 export default function QuestionnairePage() {
@@ -67,6 +73,12 @@ export default function QuestionnairePage() {
           income2: data.partner_income || 0,
           ownCapital: data.own_capital || 0,
           existingLoans: data.existing_obligations || 0,
+          employmentType: data.employment_type || 'שכיר',
+          hasProperty: data.has_existing_property ?? false,
+          propertyValue: data.existing_property_value || 0,
+          creditCards: data.credit_card_frames || 0,
+          purpose: data.mortgage_purpose || 'דירה ראשונה',
+          requestedAmount: data.requested_amount || 0,
         }))
       })
       .catch((e: { code?: string }) => {
@@ -283,6 +295,12 @@ export default function QuestionnairePage() {
                         partner_income: form.income2,
                         own_capital: form.ownCapital,
                         existing_obligations: form.existingLoans,
+                        employment_type: form.employmentType,
+                        has_existing_property: form.hasProperty,
+                        existing_property_value: form.hasProperty ? form.propertyValue : 0,
+                        credit_card_frames: form.creditCards,
+                        mortgage_purpose: form.purpose,
+                        requested_amount: form.requestedAmount,
                       },
                     })
                     setSubmitted(true)

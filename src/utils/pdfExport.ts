@@ -1,5 +1,13 @@
 import { formatCurrency } from '@/lib/utils'
 
+function esc(s: string | undefined | null): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 export interface MortgagePdfTrack {
   type: string
   amount: number
@@ -35,8 +43,8 @@ const LINE = '#e7e5e4'
 
 function row(label: string, value: string): string {
   return `<tr>
-    <td style="padding:7px 10px;color:${MUTED};font-size:13px;border-bottom:1px solid #f5f4f2;">${label}</td>
-    <td style="padding:7px 10px;color:${INK};font-size:13px;font-weight:700;border-bottom:1px solid #f5f4f2;text-align:left;">${value}</td>
+    <td style="padding:7px 10px;color:${MUTED};font-size:13px;border-bottom:1px solid #f5f4f2;">${esc(label)}</td>
+    <td style="padding:7px 10px;color:${INK};font-size:13px;font-weight:700;border-bottom:1px solid #f5f4f2;text-align:left;">${esc(value)}</td>
   </tr>`
 }
 
@@ -48,7 +56,7 @@ function buildHtml(data: MortgagePdfData): string {
   const trackRows = data.tracks
     .map(
       (t) => `<tr>
-        <td style="${td}">${t.type}</td>
+        <td style="${td}">${esc(t.type)}</td>
         <td style="${td}">${formatCurrency(t.amount)}</td>
         <td style="${td}" dir="ltr">${t.interestRate.toFixed(2)}%</td>
         <td style="${td}">${t.periodMonths} חו'</td>
@@ -60,7 +68,7 @@ function buildHtml(data: MortgagePdfData): string {
   const complianceRows = data.compliance
     .map(
       (c) => `<tr>
-        <td style="${td}">${c.name}</td>
+        <td style="${td}">${esc(c.name)}</td>
         <td style="${td}" dir="ltr">${c.value}%</td>
         <td style="${td}" dir="ltr">${c.limit}%</td>
         <td style="${td}font-weight:700;color:${c.isValid ? GREEN : '#dc2626'};">${c.isValid ? '✓ תקין' : '✗ חריגה'}</td>
@@ -75,7 +83,7 @@ function buildHtml(data: MortgagePdfData): string {
         <div style="font-size:12px;color:${MUTED};margin-top:4px;">MortgageCRM — מערכת ניהול יועץ משכנתאות</div>
       </div>
       <div style="font-size:13px;color:#57534e;text-align:left;">
-        ${data.customerName ? `<div style="font-weight:700;">${data.customerName}</div>` : ''}
+        ${data.customerName ? `<div style="font-weight:700;">${esc(data.customerName)}</div>` : ''}
         <div>תאריך: ${date}</div>
       </div>
     </div>

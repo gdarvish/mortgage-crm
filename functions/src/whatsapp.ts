@@ -1,12 +1,14 @@
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
 import { FieldValue } from 'firebase-admin/firestore'
+import { createHmac, timingSafeEqual } from 'crypto'
 import { db, REGION } from './common'
 
 // Configure with: firebase functions:secrets:set WHATSAPP_TOKEN  (etc.)
 const WHATSAPP_TOKEN = defineSecret('WHATSAPP_TOKEN')
 const WHATSAPP_PHONE_NUMBER_ID = defineSecret('WHATSAPP_PHONE_NUMBER_ID')
 const WHATSAPP_VERIFY_TOKEN = defineSecret('WHATSAPP_VERIFY_TOKEN')
+const WHATSAPP_APP_SECRET = defineSecret('WHATSAPP_APP_SECRET')
 
 const GRAPH_API = 'https://graph.facebook.com/v21.0'
 
@@ -16,6 +18,13 @@ function toInternational(phone: string): string {
   if (digits.startsWith('972')) return digits
   if (digits.startsWith('0')) return '972' + digits.slice(1)
   return digits
+}
+
+function verifyMetaSignature(rawBody: Buffer, signature: string | undefined, secret: string): boolean {
+  if (!signature) return false
+  const expected = 'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex')
+  if (expected.length !== signature.length) return false
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
 }
 
 // ── Outbound: send a WhatsApp message ───────────────────────────────────────
@@ -160,9 +169,8 @@ async function handleStatusUpdate(status: StatusUpdate): Promise<void> {
 }
 
 export const whatsappWebhook = onRequest(
-  { region: REGION, secrets: [WHATSAPP_VERIFY_TOKEN] },
+  { region: REGION, secrets: [WHATSAPP_VERIFY_TOKEN, WHATSAPP_APP_SECRET] },
   async (req, res) => {
-    // Verification handshake — Meta sends a GET when the webhook URL is registered.
     if (req.method === 'GET') {
       const mode = req.query['hub.mode']
       const token = req.query['hub.verify_token']
@@ -176,6 +184,12 @@ export const whatsappWebhook = onRequest(
     }
     if (req.method !== 'POST') {
       res.status(405).send('Method Not Allowed')
+      return
+    }
+
+    const sig = req.headers['x-hub-signature-256'] as string | undefined
+    if (!verifyMetaSignature(req.rawBody, sig, WHATSAPP_APP_SECRET.value())) {
+      res.status(403).send('Invalid signature')
       return
     }
 

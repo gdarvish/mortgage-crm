@@ -19,6 +19,7 @@ import { messageService } from '@/services/messageService'
 import { commissionService } from '@/services/commissionService'
 import { documentService } from '@/services/documentService'
 import { signatureService } from '@/services/signatureService'
+import { mortgageService } from '@/services/mortgageService'
 import type {
   Customer, Document, Mortgage, LoanTrack, Message, Task, Commission, CustomerStatus
 } from '@/types/database'
@@ -388,6 +389,21 @@ export default function CustomerDetailPage() {
     toast.success('קישור השאלון נוצר', 'הקישור בתוקף ל-30 יום')
   }
 
+  const sendPortalLink = async () => {
+    if (!id) return
+    const token = generateToken()
+    const { error } = await customerService.update(id, {
+      portal_token: token,
+      portal_token_expires_at: tokenExpiration(90),
+    })
+    if (error) { toast.error('שגיאה ביצירת קישור', error.message); return }
+    const url = `${window.location.origin}/portal/${token}`
+    setMessageText(`שלום ${customer?.first_name}, כאן ניתן לעקוב אחר סטטוס התיק שלך: ${url}`)
+    setActiveTab('communication')
+    refreshCustomer()
+    toast.success('קישור הפורטל נוצר', 'הקישור בתוקף ל-90 יום')
+  }
+
   const sendSignatureRequest = async () => {
     if (!id || !customer) return
     const { data, error } = await signatureService.createRequest({
@@ -542,6 +558,40 @@ export default function CustomerDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* Questionnaire data */}
+      {(customer.mortgage_purpose || customer.requested_amount || customer.employment_type || customer.has_existing_property != null || customer.credit_card_frames != null) && (
+        <div className="mt-6 pt-4 border-t border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <ClipboardList size={16} className="text-[#059669]" />
+            נתוני שאלון
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-400">מטרת המשכנתא</p>
+              <p className="text-sm font-medium text-gray-900">{customer.mortgage_purpose || '—'}</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-400">סכום מבוקש</p>
+              <p className="text-sm font-medium text-gray-900">{customer.requested_amount ? formatCurrency(customer.requested_amount) : '—'}</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-400">סוג העסקה</p>
+              <p className="text-sm font-medium text-gray-900">{customer.employment_type || '—'}</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-400">נכס קיים</p>
+              <p className="text-sm font-medium text-gray-900">
+                {customer.has_existing_property == null ? '—' : customer.has_existing_property ? `כן — ${customer.existing_property_value ? formatCurrency(customer.existing_property_value) : 'שווי לא צוין'}` : 'לא'}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-400">מסגרות אשראי</p>
+              <p className="text-sm font-medium text-gray-900">{customer.credit_card_frames != null ? formatCurrency(customer.credit_card_frames) : '—'}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -713,6 +763,44 @@ export default function CustomerDetailPage() {
                 <ExternalLink size={14} />מחשבון
               </button>
             </div>
+            {mortgage.status === 'אושר' && (
+              <div className="px-4 py-3 border-t border-gray-100 bg-green-50/50">
+                <div className="grid grid-cols-2 gap-3 max-w-md">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">תאריך אישור</label>
+                    <input
+                      type="date"
+                      value={mortgage.approval_date?.split('T')[0] ?? ''}
+                      onChange={async (e) => {
+                        await mortgageService.update(mortgage.id, { approval_date: e.target.value || null })
+                        qc.invalidateQueries({ queryKey: ['customer', customer.id] })
+                      }}
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">תוקף אישור</label>
+                    <input
+                      type="date"
+                      value={mortgage.approval_expires_at?.split('T')[0] ?? ''}
+                      onChange={async (e) => {
+                        await mortgageService.update(mortgage.id, { approval_expires_at: e.target.value || null })
+                        qc.invalidateQueries({ queryKey: ['customer', customer.id] })
+                      }}
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+                {mortgage.approval_expires_at && (() => {
+                  const daysLeft = Math.round((new Date(mortgage.approval_expires_at).getTime() - Date.now()) / 86400000)
+                  if (daysLeft <= 0) return <p className="text-xs text-red-600 mt-2 font-medium">האישור פג תוקף</p>
+                  if (daysLeft <= 14) return <p className="text-xs text-orange-600 mt-2 font-medium">האישור יפוג בעוד {daysLeft} ימים</p>
+                  return <p className="text-xs text-green-600 mt-2">{daysLeft} ימים עד תפוגת האישור</p>
+                })()}
+              </div>
+            )}
             {tracks.length > 0 && (
               <div className="p-4">
                 <table className="w-full text-sm">
@@ -974,6 +1062,11 @@ export default function CustomerDetailPage() {
               onClick={sendQuestionnaire}
               className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm">
               <ClipboardList size={16} />שלח שאלון
+            </button>
+            <button
+              onClick={sendPortalLink}
+              className="inline-flex items-center gap-2 bg-teal-50 text-teal-700 border border-teal-200 px-3 py-2 rounded-lg hover:bg-teal-100 transition-colors text-sm">
+              <ExternalLink size={16} />שלח קישור פורטל
             </button>
             <button
               onClick={sendSignatureRequest}
