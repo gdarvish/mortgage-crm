@@ -628,3 +628,128 @@ export const generateApprovalAlerts = onSchedule(
     console.log(`generateApprovalAlerts: created ${created} alerts`)
   }
 )
+
+/** Standard monthly payment (annuity). Mirrors the frontend calculation. */
+function monthlyPayment(principal: number, annualRate: number, months: number): number {
+  if (months <= 0) return 0
+  if (annualRate === 0) return principal / months
+  const r = annualRate / 100 / 12
+  return (principal * r * Math.pow(1 + r, months)) / (Math.pow(1 + r, months) - 1)
+}
+
+const REFI_STATION_MONTHS = 60
+const DEFAULT_REFI_GAP = 0.5
+
+/** Weekly scan surfacing refinance opportunities on live loan tracks. */
+export const scanRefinanceOpportunities = onSchedule(
+  { schedule: 'every monday 06:00', timeZone: 'Asia/Jerusalem', region: REGION },
+  async () => {
+    const now = new Date()
+
+    // Latest published rate per track type.
+    const rateSnap = await db.collection('interest_rates').orderBy('effective_date', 'desc').limit(50).get()
+    const currentRate = new Map<string, number>()
+    for (const r of rateSnap.docs) {
+      const d = r.data()
+      if (d.track_type && typeof d.rate === 'number' && !currentRate.has(d.track_type)) {
+        currentRate.set(d.track_type, d.rate)
+      }
+    }
+
+    // Per-advisor rate-gap threshold (cached).
+    const thresholdCache = new Map<string, number>()
+    const gapThreshold = async (uid: string): Promise<number> => {
+      if (thresholdCache.has(uid)) return thresholdCache.get(uid)!
+      let threshold = DEFAULT_REFI_GAP
+      try {
+        const s = await db.doc(`users/${uid}/advisor_settings/profile`).get()
+        const v = s.data()?.refinance_gap_threshold
+        if (typeof v === 'number' && v > 0) threshold = v
+      } catch { /* use default */ }
+      thresholdCache.set(uid, threshold)
+      return threshold
+    }
+
+    const variableTypes = ['משתנה_צמודה', 'משתנה_לא_צמודה']
+    const tracks = await db.collection('loan_tracks').where('is_existing', '==', true).get()
+
+    let created = 0
+    for (const trackDoc of tracks.docs) {
+      const t = trackDoc.data()
+      const amount = t.amount ?? 0
+      const rate = t.interest_rate ?? 0
+      const uid = t.user_id
+      if (!uid || amount < 100000) continue
+
+      const current = currentRate.get(t.type)
+      const threshold = await gapThreshold(uid)
+
+      let reason: 'gap' | 'station' | null = null
+      let stationDate: string | null = null
+      let monthlySaving = 0
+
+      // Rate-gap trigger.
+      if (typeof current === 'number' && rate - current >= threshold) {
+        reason = 'gap'
+        const remaining = t.period_months ?? 240
+        monthlySaving = Math.round(monthlyPayment(amount, rate, remaining) - monthlyPayment(amount, current, remaining))
+      }
+
+      // Exit-station trigger for variable tracks.
+      if (!reason && variableTypes.includes(t.type) && t.start_date) {
+        const start = new Date(t.start_date).getTime()
+        if (!Number.isNaN(start)) {
+          const monthsSinceStart = (now.getTime() - start) / (30.44 * DAY_MS)
+          const nextStation = Math.ceil(monthsSinceStart / REFI_STATION_MONTHS) * REFI_STATION_MONTHS
+          const stationTime = start + nextStation * 30.44 * DAY_MS
+          const daysToStation = (stationTime - now.getTime()) / DAY_MS
+          if (daysToStation >= 0 && daysToStation <= 90) {
+            reason = 'station'
+            stationDate = new Date(stationTime).toISOString()
+          }
+        }
+      }
+
+      if (!reason) continue
+
+      // Dedup: one open refinance alert per track.
+      const existing = await db
+        .collection('alerts')
+        .where('loan_track_id', '==', trackDoc.id)
+        .where('alert_type', '==', 'refinance_opportunity')
+        .where('status', '==', 'פתוח')
+        .limit(1)
+        .get()
+      if (!existing.empty) continue
+
+      const mort = await db.collection('mortgages').doc(t.mortgage_id).get()
+      const customerId = mort.data()?.customer_id ?? null
+
+      await db.collection('alerts').add({
+        user_id: uid,
+        customer_id: customerId,
+        loan_track_id: trackDoc.id,
+        mortgage_id: t.mortgage_id ?? null,
+        document_id: null,
+        alert_type: 'refinance_opportunity',
+        alert_date: now.toISOString(),
+        days_until_end: stationDate ? Math.round((new Date(stationDate).getTime() - now.getTime()) / DAY_MS) : 0,
+        urgency: 'אזהרה',
+        status: 'פתוח',
+        snoozed_until: null,
+        track_type: t.type,
+        track_amount: amount,
+        metadata: {
+          reason,
+          rate_gap: typeof current === 'number' ? Math.round((rate - current) * 100) / 100 : null,
+          current_rate: current ?? null,
+          monthly_saving: monthlySaving,
+          station_date: stationDate,
+        },
+        created_at: FieldValue.serverTimestamp(),
+      })
+      created++
+    }
+    console.log(`scanRefinanceOpportunities: created ${created} alerts (scanned ${tracks.size} tracks)`)
+  }
+)

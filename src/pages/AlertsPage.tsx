@@ -14,6 +14,7 @@ interface AlertItem {
   daysLeft: number
   amount: number
   interestRate: number
+  savingEstimate: number
 }
 
 const cardStyle = {
@@ -46,6 +47,7 @@ export default function AlertsPage() {
       daysLeft: a.days_until_end ?? 0,
       amount: a.track_amount ?? a.loan_track?.amount ?? 0,
       interestRate: a.loan_track?.interest_rate ?? 0,
+      savingEstimate: (a.metadata as { monthly_saving?: number } | null | undefined)?.monthly_saving ?? 0,
     }))
     .sort((x, y) => x.daysLeft - y.daysLeft)
 
@@ -159,7 +161,7 @@ export default function AlertsPage() {
                               : alert.alertType === 'disbursement_due'
                                 ? 'שחרור כספים מתקרב'
                                 : alert.alertType === 'refinance_opportunity'
-                                  ? 'הזדמנות מחזור — פער ריבית'
+                                  ? `הזדמנות מחזור${alert.savingEstimate > 0 ? ` — חיסכון חודשי ~${formatCurrency(alert.savingEstimate)}` : ' — פער ריבית'}`
                                   : `מסלול ${alert.trackType} · ${formatCurrency(alert.amount)} · ${alert.interestRate}%`}
                       </p>
                     </div>
