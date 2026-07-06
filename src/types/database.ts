@@ -78,6 +78,11 @@ export interface Database {
         Insert: Partial<CpiIndex>
         Update: Partial<CpiIndex>
       }
+      obligations: {
+        Row: Obligation
+        Insert: Partial<Obligation>
+        Update: Partial<Obligation>
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -101,6 +106,9 @@ export interface AdvisorSettings {
   logo_position: string
   whatsapp_templates: Json | null
   alert_window_months: number
+  dti_obligation_months_threshold?: number
+  expected_annual_cpi?: number
+  refinance_gap_threshold?: number
   created_at: string
 }
 
@@ -330,6 +338,24 @@ export interface CpiIndex {
   date: string | null
   value: number | null
   change_percent: number | null
+}
+
+export type ObligationType =
+  | 'הלוואה בנקאית' | 'הלוואה חוץ בנקאית' | 'ליסינג'
+  | 'משכנתא קיימת' | 'מזונות' | 'אחר'
+
+export interface Obligation {
+  id: string
+  user_id: string
+  customer_id: string
+  type: ObligationType
+  lender: string | null              // name of the lending bank / institution
+  monthly_payment: number            // monthly repayment — this is what enters DTI
+  balance: number | null             // outstanding balance (display only)
+  end_date: string | null            // ISO — loan end date
+  include_in_dti: boolean            // auto-computed, manually overridable
+  notes: string | null
+  created_at: string
 }
 
 // Extended types with relations

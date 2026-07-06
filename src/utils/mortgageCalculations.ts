@@ -145,7 +145,8 @@ export function checkCompliance(
   tracks: TrackInput[],
   propertyPrice: number,
   propertyType: PropertyType,
-  monthlyIncome: number
+  monthlyIncome: number,
+  monthlyObligations = 0
 ): ComplianceResult {
   const totalLoan = tracks.reduce((sum, t) => sum + t.amount, 0)
   const totalMonthlyPayment = tracks.reduce(
@@ -172,7 +173,8 @@ export function checkCompliance(
 
   const ltv = (totalLoan / propertyPrice) * 100
   const ltvLimit = getLtvLimit(propertyType)
-  const dti = monthlyIncome > 0 ? (totalMonthlyPayment / monthlyIncome) * 100 : 0
+  const combinedPayment = totalMonthlyPayment + monthlyObligations
+  const dti = monthlyIncome > 0 ? (combinedPayment / monthlyIncome) * 100 : 0
 
   const checks: ComplianceCheck[] = [
     {
@@ -231,9 +233,11 @@ export function checkCompliance(
       limit: 40,
       isValid: dti <= 40,
       severity: dti <= 40 ? 'warning' : 'error',
-      message: dti <= 40
-        ? `יחס החזר/הכנסה תקין: ${dti.toFixed(1)}% (מקסימום 40%)`
-        : `יחס החזר/הכנסה חורג: ${dti.toFixed(1)}% (מקסימום 40%)`,
+      message: monthlyObligations > 0
+        ? `יחס החזר כולל התחייבויות: ${dti.toFixed(1)}% (משכנתא ${Math.round(totalMonthlyPayment).toLocaleString('he-IL')} ₪ + התחייבויות ${Math.round(monthlyObligations).toLocaleString('he-IL')} ₪, מקסימום 40%)`
+        : dti <= 40
+          ? `יחס החזר/הכנסה תקין: ${dti.toFixed(1)}% (מקסימום 40%)`
+          : `יחס החזר/הכנסה חורג: ${dti.toFixed(1)}% (מקסימום 40%)`,
     },
   ]
 

@@ -96,6 +96,7 @@ export default function MortgageCalculatorPage() {
   const [ownCapital, setOwnCapital] = useState(300000)
   const [propertyType, setPropertyType] = useState<PropertyType>('דירה_ראשונה')
   const [monthlyIncome, setMonthlyIncome] = useState(25000)
+  const [monthlyObligations, setMonthlyObligations] = useState(0)
   const [tracks, setTracks] = useState<TrackInput[]>([
     { type: 'פריים', amount: 600000, interestRate: 5.0, periodMonths: 240 },
     { type: 'קל"צ',  amount: 600000, interestRate: 3.2, periodMonths: 300 },
@@ -147,8 +148,8 @@ export default function MortgageCalculatorPage() {
   )
 
   const compliance = useMemo(() =>
-    checkCompliance(tracks, propertyPrice, propertyType, monthlyIncome),
-    [tracks, propertyPrice, propertyType, monthlyIncome]
+    checkCompliance(tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations),
+    [tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations]
   )
 
   const recommendations = useMemo(() =>
@@ -309,7 +310,13 @@ export default function MortgageCalculatorPage() {
                   </select>
                 </div>
                 <InputField label="הכנסה חודשית נטו" value={monthlyIncome} onChange={v => setMonthlyIncome(Number(v) || 0)} prefix="₪" />
+                <InputField label="התחייבויות חודשיות" value={monthlyObligations} onChange={v => setMonthlyObligations(Number(v) || 0)} prefix="₪" />
               </div>
+              {monthlyObligations > 0 && (
+                <p className="mt-2 text-[12px]" style={{ color: '#a8a29e' }}>
+                  התחייבויות חודשיות: {formatCurrency(monthlyObligations)} — נכללות ביחס ההחזר
+                </p>
+              )}
             </div>
           </div>
 

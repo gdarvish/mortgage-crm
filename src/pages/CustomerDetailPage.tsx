@@ -4,8 +4,9 @@ import {
   ArrowRight, MessageSquare, ClipboardList, Calculator, Upload,
   Send, Plus, Check, Mail, Phone, MapPin, User, CreditCard,
   FileText, Home, MessagesSquare, ListTodo, Banknote, ExternalLink,
-  Trash2, Loader2, Save, PenTool, Sparkles, ShieldCheck,
+  Trash2, Loader2, Save, PenTool, Sparkles, ShieldCheck, Scale,
 } from 'lucide-react'
+import ObligationsTab from '@/components/customer/ObligationsTab'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
 import { formatCurrency, formatDate, generateToken, tokenExpiration } from '@/lib/utils'
@@ -27,7 +28,7 @@ import type {
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-type TabKey = 'personal' | 'financial' | 'documents' | 'mortgages' | 'communication' | 'tasks' | 'commission'
+type TabKey = 'personal' | 'financial' | 'obligations' | 'documents' | 'mortgages' | 'communication' | 'tasks' | 'commission'
 
 const DELIVERY_LABELS: Record<string, string> = {
   sent: '✓ נשלח',
@@ -48,6 +49,7 @@ interface MortgageWithTracks extends Mortgage {
 const tabs: Tab[] = [
   { key: 'personal', label: 'פרטים אישיים', icon: User },
   { key: 'financial', label: 'פרטים פיננסיים', icon: CreditCard },
+  { key: 'obligations', label: 'התחייבויות', icon: Scale },
   { key: 'documents', label: 'מסמכים', icon: FileText },
   { key: 'mortgages', label: 'משכנתאות', icon: Home },
   { key: 'communication', label: 'תקשורת', icon: MessagesSquare },
@@ -1016,6 +1018,7 @@ export default function CustomerDetailPage() {
   const tabContent: Record<TabKey, () => React.ReactNode> = {
     personal: renderPersonalTab,
     financial: renderFinancialTab,
+    obligations: () => <ObligationsTab customerId={id!} existingObligationsFromQuestionnaire={customer.existing_obligations} />,
     documents: renderDocumentsTab,
     mortgages: renderMortgagesTab,
     communication: renderCommunicationTab,

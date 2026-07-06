@@ -164,8 +164,23 @@ describe('checkCompliance', () => {
 
   it('DTI above 40% fails', () => {
     const result = checkCompliance(compliantTracks, 2000000, 'דירה_ראשונה', 5000)
-    const dtiCheck = result.checks.find(c => c.name.includes('החזר/הכנסה'))!
+    const dtiCheck = result.checks.find(c => c.name.includes('החזר'))!
     expect(dtiCheck.isValid).toBe(false)
+  })
+
+  it('monthly obligations raise the DTI ratio', () => {
+    const withoutObligations = checkCompliance(compliantTracks, 2000000, 'דירה_ראשונה', 30000)
+    const withObligations = checkCompliance(compliantTracks, 2000000, 'דירה_ראשונה', 30000, 6000)
+    const dtiWithout = withoutObligations.checks.find(c => c.name.includes('החזר'))!.value
+    const dtiWith = withObligations.checks.find(c => c.name.includes('החזר'))!.value
+    expect(dtiWith).toBeGreaterThan(dtiWithout)
+  })
+
+  it('large obligations can push a compliant file over 40% DTI', () => {
+    const result = checkCompliance(compliantTracks, 2000000, 'דירה_ראשונה', 15000, 5000)
+    const dtiCheck = result.checks.find(c => c.name.includes('החזר'))!
+    expect(dtiCheck.isValid).toBe(false)
+    expect(dtiCheck.message).toContain('התחייבויות')
   })
 
   it('prime over 66.6% is warning, not error — does not fail isValid alone', () => {
