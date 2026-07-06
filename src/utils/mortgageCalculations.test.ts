@@ -9,6 +9,8 @@ import {
   getLtvLimit,
   checkCompliance,
   generateRecommendedMixes,
+  effectivePropertyValue,
+  additionalEquityRequired,
   type TrackInput,
 } from './mortgageCalculations'
 
@@ -203,6 +205,46 @@ describe('checkCompliance', () => {
     expect(result.isValid).toBe(false)
     const fixedCheck = result.checks.find(c => c.name.includes('קבועה'))!
     expect(fixedCheck.isValid).toBe(false)
+  })
+})
+
+describe('effectivePropertyValue', () => {
+  it('returns purchase price when no appraisal', () => {
+    expect(effectivePropertyValue(2000000)).toBe(2000000)
+    expect(effectivePropertyValue(2000000, null)).toBe(2000000)
+    expect(effectivePropertyValue(2000000, 0)).toBe(2000000)
+  })
+
+  it('returns the lower of purchase and appraised value', () => {
+    expect(effectivePropertyValue(2000000, 1900000)).toBe(1900000)
+    expect(effectivePropertyValue(2000000, 2100000)).toBe(2000000)
+  })
+})
+
+describe('additionalEquityRequired', () => {
+  it('is 0 when appraisal supports the loan', () => {
+    expect(additionalEquityRequired(1400000, 2000000, 2000000, 'דירה_ראשונה')).toBe(0)
+  })
+
+  it('computes extra equity when appraisal is low', () => {
+    // purchase 2M, appraisal 1.9M, first apartment (75%): max loan = 1,425,000
+    // requested 1.5M → 75,000 extra equity
+    expect(additionalEquityRequired(1500000, 2000000, 1900000, 'דירה_ראשונה')).toBe(75000)
+  })
+})
+
+describe('checkCompliance with appraisal', () => {
+  it('low appraisal raises the LTV and can breach the limit', () => {
+    const tracks: TrackInput[] = [
+      { type: 'קל"צ', amount: 700000, interestRate: 4.5, periodMonths: 300 },
+      { type: 'פריים', amount: 500000, interestRate: 5.0, periodMonths: 240 },
+      { type: 'קל"ב', amount: 300000, interestRate: 3.8, periodMonths: 300 },
+    ]
+    const withoutAppraisal = checkCompliance(tracks, 2000000, 'דירה_ראשונה', 40000)
+    const withLowAppraisal = checkCompliance(tracks, 2000000, 'דירה_ראשונה', 40000, 0, 1900000)
+    const ltvWithout = withoutAppraisal.checks.find(c => c.name.includes('LTV'))!
+    const ltvWith = withLowAppraisal.checks.find(c => c.name.includes('LTV'))!
+    expect(ltvWith.value).toBeGreaterThan(ltvWithout.value)
   })
 })
 

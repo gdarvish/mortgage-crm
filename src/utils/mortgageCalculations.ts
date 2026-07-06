@@ -141,12 +141,27 @@ export function getLtvLimit(propertyType: PropertyType): number {
   }
 }
 
+/** The bank finances against the lower of purchase price and appraised value. */
+export function effectivePropertyValue(purchasePrice: number, appraisedValue?: number | null): number {
+  if (!appraisedValue || appraisedValue <= 0) return purchasePrice
+  return Math.min(purchasePrice, appraisedValue)
+}
+
+/** Additional equity the borrower must bring if the appraisal came in low. */
+export function additionalEquityRequired(
+  loanAmount: number, purchasePrice: number, appraisedValue: number, propertyType: PropertyType
+): number {
+  const maxLoan = (getLtvLimit(propertyType) / 100) * effectivePropertyValue(purchasePrice, appraisedValue)
+  return Math.max(0, Math.round(loanAmount - maxLoan))
+}
+
 export function checkCompliance(
   tracks: TrackInput[],
   propertyPrice: number,
   propertyType: PropertyType,
   monthlyIncome: number,
-  monthlyObligations = 0
+  monthlyObligations = 0,
+  appraisedValue?: number | null
 ): ComplianceResult {
   const totalLoan = tracks.reduce((sum, t) => sum + t.amount, 0)
   const totalMonthlyPayment = tracks.reduce(
@@ -171,7 +186,8 @@ export function checkCompliance(
     ? (variableTracks.reduce((s, t) => s + t.amount, 0) / totalLoan) * 100
     : 0
 
-  const ltv = (totalLoan / propertyPrice) * 100
+  const effectiveValue = effectivePropertyValue(propertyPrice, appraisedValue)
+  const ltv = (totalLoan / effectiveValue) * 100
   const ltvLimit = getLtvLimit(propertyType)
   const combinedPayment = totalMonthlyPayment + monthlyObligations
   const dti = monthlyIncome > 0 ? (combinedPayment / monthlyIncome) * 100 : 0

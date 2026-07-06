@@ -443,7 +443,46 @@ export const generateAlerts = onSchedule(
       })
       created++
     }
-    console.log(`generateAlerts: created ${created} alerts (scanned ${tracks.size} tracks)`)
+
+    // Appraisals ordered more than 14 days ago and still not received.
+    const apprCutoff = new Date(now.getTime() - 14 * DAY_MS)
+    const appraisals = await db
+      .collection('appraisals')
+      .where('status', '==', 'הוזמנה')
+      .where('ordered_at', '<=', apprCutoff.toISOString())
+      .get()
+    let apprCreated = 0
+    for (const apprDoc of appraisals.docs) {
+      const appr = apprDoc.data()
+      if (!appr.ordered_at) continue
+      const existing = await db
+        .collection('alerts')
+        .where('appraisal_id', '==', apprDoc.id)
+        .where('status', '==', 'פתוח')
+        .limit(1)
+        .get()
+      if (!existing.empty) continue
+
+      const daysWaiting = Math.round((now.getTime() - new Date(appr.ordered_at).getTime()) / DAY_MS)
+      await db.collection('alerts').add({
+        user_id: appr.user_id,
+        customer_id: appr.customer_id,
+        mortgage_id: appr.mortgage_id ?? null,
+        appraisal_id: apprDoc.id,
+        loan_track_id: null,
+        document_id: null,
+        alert_type: 'appraisal_pending',
+        alert_date: now.toISOString(),
+        days_until_end: daysWaiting,
+        urgency: 'אזהרה',
+        status: 'פתוח',
+        snoozed_until: null,
+        created_at: FieldValue.serverTimestamp(),
+      })
+      apprCreated++
+    }
+
+    console.log(`generateAlerts: created ${created} track alerts, ${apprCreated} appraisal alerts (scanned ${tracks.size} tracks)`)
   }
 )
 

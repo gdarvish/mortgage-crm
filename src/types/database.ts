@@ -83,6 +83,11 @@ export interface Database {
         Insert: Partial<Obligation>
         Update: Partial<Obligation>
       }
+      appraisals: {
+        Row: Appraisal
+        Insert: Partial<Appraisal>
+        Update: Partial<Appraisal>
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -272,7 +277,10 @@ export interface Alert {
   loan_track_id: string | null
   mortgage_id?: string | null
   document_id?: string | null
-  alert_type?: 'track_ending' | 'document_expiring' | 'approval_expiring'
+  appraisal_id?: string | null
+  disbursement_id?: string | null
+  metadata?: Record<string, unknown> | null
+  alert_type?: 'track_ending' | 'document_expiring' | 'approval_expiring' | 'appraisal_pending' | 'disbursement_due' | 'refinance_opportunity'
   alert_date: string | null
   days_until_end: number | null
   urgency?: 'דחוף' | 'אזהרה' | 'תקין'
@@ -354,6 +362,27 @@ export interface Obligation {
   balance: number | null             // outstanding balance (display only)
   end_date: string | null            // ISO — loan end date
   include_in_dti: boolean            // auto-computed, manually overridable
+  notes: string | null
+  created_at: string
+}
+
+export type AppraisalStatus = 'הוזמנה' | 'בוצע ביקור' | 'התקבלה'
+
+export interface Appraisal {
+  id: string
+  user_id: string
+  customer_id: string
+  mortgage_id: string | null
+  property_address: string | null
+  appraiser_name: string | null
+  appraiser_phone: string | null
+  status: AppraisalStatus
+  ordered_at: string | null          // ISO
+  scheduled_at: string | null        // appraiser visit
+  received_at: string | null         // report received
+  purchase_price: number | null      // snapshot of purchase price at order time
+  appraised_value: number | null
+  document_id: string | null         // link to the uploaded appraisal report
   notes: string | null
   created_at: string
 }

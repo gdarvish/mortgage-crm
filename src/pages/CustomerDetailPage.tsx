@@ -7,6 +7,7 @@ import {
   Trash2, Loader2, Save, PenTool, Sparkles, ShieldCheck, Scale,
 } from 'lucide-react'
 import ObligationsTab from '@/components/customer/ObligationsTab'
+import AppraisalSection from '@/components/customer/AppraisalSection'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
 import { formatCurrency, formatDate, generateToken, tokenExpiration } from '@/lib/utils'
@@ -734,6 +735,13 @@ export default function CustomerDetailPage() {
 
   const renderMortgagesTab = () => (
     <div className="space-y-4">
+      <AppraisalSection
+        customerId={id!}
+        mortgageId={mortgages[0]?.id ?? null}
+        loanAmount={mortgages[0]?.loan_amount ?? undefined}
+        propertyPrice={mortgages[0]?.property_price ?? undefined}
+        propertyType={mortgages[0]?.property_type ?? undefined}
+      />
       {mortgages.length === 0 && (
         <div className="text-center py-12 text-gray-400 text-sm">
           <Home size={36} className="mx-auto mb-3 text-gray-300" />

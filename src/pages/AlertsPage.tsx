@@ -154,7 +154,13 @@ export default function AlertsPage() {
                           ? 'אישור עקרוני עומד לפוג'
                           : alert.alertType === 'document_expiring'
                             ? `מסמך ${alert.trackType} עומד לפוג`
-                            : `מסלול ${alert.trackType} · ${formatCurrency(alert.amount)} · ${alert.interestRate}%`}
+                            : alert.alertType === 'appraisal_pending'
+                              ? 'שמאות הוזמנה וטרם התקבלה'
+                              : alert.alertType === 'disbursement_due'
+                                ? 'שחרור כספים מתקרב'
+                                : alert.alertType === 'refinance_opportunity'
+                                  ? 'הזדמנות מחזור — פער ריבית'
+                                  : `מסלול ${alert.trackType} · ${formatCurrency(alert.amount)} · ${alert.interestRate}%`}
                       </p>
                     </div>
                   </div>
