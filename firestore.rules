@@ -65,6 +65,30 @@ service cloud.firestore {
       allow read, update, delete: if isOwner(resource.data.user_id);
       allow create: if isOwner(request.resource.data.user_id);
     }
+    match /obligations/{docId} {
+      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow create: if isOwner(request.resource.data.user_id);
+    }
+    match /appraisals/{docId} {
+      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow create: if isOwner(request.resource.data.user_id);
+    }
+    match /bank_offers/{docId} {
+      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow create: if isOwner(request.resource.data.user_id);
+    }
+    match /borrowers/{docId} {
+      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow create: if isOwner(request.resource.data.user_id);
+    }
+    match /meetings/{docId} {
+      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow create: if isOwner(request.resource.data.user_id);
+    }
+    match /disbursements/{docId} {
+      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow create: if isOwner(request.resource.data.user_id);
+    }
 
     // Activity feed and audit log are written only by Cloud Functions (admin SDK).
     match /activity/{docId} {
@@ -76,14 +100,19 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Public read collections
+    // Public read collections — writes only via admin SDK (Cloud Functions)
     match /interest_rates/{rateId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if false;
     }
     match /cpi_index/{cpiId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if false;
+    }
+
+    // Rate-limit entries — managed by Cloud Functions only
+    match /rate_limits/{docId} {
+      allow read, write: if false;
     }
   }
 }

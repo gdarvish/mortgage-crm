@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { MessageSquare, Send, Phone, Mail, Clock, Loader2, Trash2 } from 'lucide-react'
+import { httpsCallable } from 'firebase/functions'
+import { functions } from '@/lib/firebase'
 import { formatDate } from '@/lib/utils'
 import { customerService } from '@/services/customerService'
 import { messageService } from '@/services/messageService'
@@ -80,26 +82,42 @@ export default function CommunicationPage() {
   const handleSend = async () => {
     if (!messageText.trim() || !selectedCustomerId) return
     setSending(true)
-    const { data, error } = await messageService.create({
-      customer_id: selectedCustomerId,
-      channel,
-      direction: 'נשלח',
-      content: messageText,
-    })
-    if (data) {
-      setMessages(prev => [data, ...prev])
-      setMessageText('')
-    } else if (error) {
-      toast.error('שגיאה בשליחת הודעה', error.message)
-    }
-    if (!error) {
-      const cust = customers.find(c => c.id === selectedCustomerId)
-      if (channel === 'וואטסאפ' && cust?.phone) {
-        messageService.sendWhatsApp(cust.phone, messageText)
-      } else if (channel === 'אימייל' && cust?.email) {
-        window.open(`mailto:${cust.email}?body=${encodeURIComponent(messageText)}`, '_blank')
-      } else if (channel === 'SMS' && cust?.phone) {
-        window.open(`sms:${cust.phone}?body=${encodeURIComponent(messageText)}`, '_blank')
+    const cust = customers.find(c => c.id === selectedCustomerId)
+
+    if (channel === 'וואטסאפ') {
+      try {
+        const fn = httpsCallable<{ customer_id: string; text: string }, { id: string }>(functions, 'sendWhatsAppMessage')
+        const res = await fn({ customer_id: selectedCustomerId, text: messageText })
+        if (res.data?.id) {
+          await fetchMessages(selectedCustomerId)
+          setMessageText('')
+          toast.success('ההודעה נשלחה ב-WhatsApp')
+        }
+      } catch {
+        if (cust?.phone) {
+          messageService.sendWhatsApp(cust.phone, messageText)
+        }
+        toast.error('שליחה אוטומטית נכשלה', 'נפתח WhatsApp Web כגיבוי')
+      }
+    } else {
+      const { data, error } = await messageService.create({
+        customer_id: selectedCustomerId,
+        channel,
+        direction: 'נשלח',
+        content: messageText,
+      })
+      if (data) {
+        setMessages(prev => [data, ...prev])
+        setMessageText('')
+      } else if (error) {
+        toast.error('שגיאה בשליחת הודעה', error.message)
+      }
+      if (!error) {
+        if (channel === 'אימייל' && cust?.email) {
+          window.open(`mailto:${cust.email}?body=${encodeURIComponent(messageText)}`, '_blank')
+        } else if (channel === 'SMS' && cust?.phone) {
+          window.open(`sms:${cust.phone}?body=${encodeURIComponent(messageText)}`, '_blank')
+        }
       }
     }
     setSending(false)

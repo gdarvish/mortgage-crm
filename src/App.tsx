@@ -17,6 +17,7 @@ const MortgageCalculatorPage = lazy(() => import('@/pages/MortgageCalculatorPage
 const RefinanceCalculatorPage = lazy(() => import('@/pages/RefinanceCalculatorPage'))
 const ConsolidationCalculatorPage = lazy(() => import('@/pages/ConsolidationCalculatorPage'))
 const AlertsPage = lazy(() => import('@/pages/AlertsPage'))
+const MeetingsPage = lazy(() => import('@/pages/MeetingsPage'))
 const CommunicationPage = lazy(() => import('@/pages/CommunicationPage'))
 const CommissionsPage = lazy(() => import('@/pages/CommissionsPage'))
 const ReferralsPage = lazy(() => import('@/pages/ReferralsPage'))
@@ -97,6 +98,7 @@ export default function App() {
             <Route path="refinance" element={<RefinanceCalculatorPage />} />
             <Route path="consolidation" element={<ConsolidationCalculatorPage />} />
             <Route path="alerts" element={<AlertsPage />} />
+            <Route path="meetings" element={<MeetingsPage />} />
             <Route path="communication" element={<CommunicationPage />} />
             <Route path="commissions" element={<CommissionsPage />} />
             <Route path="referrals" element={<ReferralsPage />} />

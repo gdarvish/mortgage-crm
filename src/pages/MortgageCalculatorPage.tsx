@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Plus, Sparkles, AlertTriangle, CheckCircle, Download, Save, X, Loader2 } from 'lucide-react'
 import { httpsCallable } from 'firebase/functions'
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -10,11 +11,16 @@ import {
   generateRecommendedMixes,
   calculateGracePayments,
   effectiveMonthlyPayment,
+  isCpiLinked,
+  mixMonthlyPaymentAfterYears,
+  mixTotalCostWithCpi,
   type TrackInput,
   type GraceType,
+  type LiveRates,
 } from '@/utils/mortgageCalculations'
 import type { LoanTrackType, PropertyType } from '@/types/database'
-import { functions } from '@/lib/firebase'
+import { db, functions } from '@/lib/firebase'
+import { settingsService } from '@/services/settingsService'
 import { toast } from '@/components/ui'
 
 const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
@@ -94,6 +100,8 @@ export default function MortgageCalculatorPage() {
   const [ownCapital, setOwnCapital] = useState(300000)
   const [propertyType, setPropertyType] = useState<PropertyType>('דירה_ראשונה')
   const [monthlyIncome, setMonthlyIncome] = useState(25000)
+  const [monthlyObligations, setMonthlyObligations] = useState(0)
+  const [expectedCpi, setExpectedCpi] = useState(2.5)
   const [tracks, setTracks] = useState<TrackInput[]>([
     { type: 'פריים', amount: 600000, interestRate: 5.0, periodMonths: 240 },
     { type: 'קל"צ',  amount: 600000, interestRate: 3.2, periodMonths: 300 },
@@ -103,6 +111,34 @@ export default function MortgageCalculatorPage() {
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [aiAdvising, setAiAdvising] = useState(false)
   const [aiAdvice, setAiAdvice] = useState<{ rationale: string; risk_level: string } | null>(null)
+  const [liveRates, setLiveRates] = useState<LiveRates | undefined>()
+
+  useEffect(() => {
+    const rateMap: Record<string, string> = {
+      'קל"צ': 'fixed_linked',
+      'קל"ב': 'fixed_unlinked',
+      'משתנה_צמודה': 'variable_linked',
+      'זכאות': 'eligibility',
+    }
+    getDocs(query(collection(db, 'interest_rates'), orderBy('effective_date', 'desc'), limit(20)))
+      .then(snap => {
+        const rates: LiveRates = {}
+        const seen = new Set<string>()
+        for (const d of snap.docs) {
+          const data = d.data()
+          const key = rateMap[data.track_type]
+          if (key && !seen.has(key) && typeof data.rate === 'number') {
+            (rates as Record<string, number>)[key] = data.rate
+            seen.add(key)
+          }
+        }
+        if (Object.keys(rates).length > 0) setLiveRates(rates)
+      })
+      .catch(() => {})
+    settingsService.get().then(({ data }) => {
+      if (typeof data?.expected_annual_cpi === 'number') setExpectedCpi(data.expected_annual_cpi)
+    })
+  }, [])
 
   const loanAmount  = Math.max(0, propertyPrice - ownCapital)
   const ltv         = propertyPrice > 0 ? Math.round((loanAmount / propertyPrice) * 100) : 0
@@ -119,14 +155,19 @@ export default function MortgageCalculatorPage() {
     [tracks]
   )
 
+  const hasLinkedTracks = useMemo(() => tracks.some(t => isCpiLinked(t.type)), [tracks])
+  const payment5yr = useMemo(() => mixMonthlyPaymentAfterYears(tracks, expectedCpi, 5), [tracks, expectedCpi])
+  const payment10yr = useMemo(() => mixMonthlyPaymentAfterYears(tracks, expectedCpi, 10), [tracks, expectedCpi])
+  const totalCostWithCpi = useMemo(() => mixTotalCostWithCpi(tracks, expectedCpi), [tracks, expectedCpi])
+
   const compliance = useMemo(() =>
-    checkCompliance(tracks, propertyPrice, propertyType, monthlyIncome),
-    [tracks, propertyPrice, propertyType, monthlyIncome]
+    checkCompliance(tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations),
+    [tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations]
   )
 
   const recommendations = useMemo(() =>
-    generateRecommendedMixes(loanAmount, 300, 6.0),
-    [loanAmount]
+    generateRecommendedMixes(loanAmount, 300, 6.0, liveRates),
+    [loanAmount, liveRates]
   )
 
   const amortizationData = useMemo(() => {
@@ -282,7 +323,14 @@ export default function MortgageCalculatorPage() {
                   </select>
                 </div>
                 <InputField label="הכנסה חודשית נטו" value={monthlyIncome} onChange={v => setMonthlyIncome(Number(v) || 0)} prefix="₪" />
+                <InputField label="התחייבויות חודשיות" value={monthlyObligations} onChange={v => setMonthlyObligations(Number(v) || 0)} prefix="₪" />
+                <InputField label="הנחת מדד שנתי" value={expectedCpi} onChange={v => setExpectedCpi(Number(v) || 0)} suffix="%" />
               </div>
+              {monthlyObligations > 0 && (
+                <p className="mt-2 text-[12px]" style={{ color: '#a8a29e' }}>
+                  התחייבויות חודשיות: {formatCurrency(monthlyObligations)} — נכללות ביחס ההחזר
+                </p>
+              )}
             </div>
           </div>
 
@@ -298,6 +346,11 @@ export default function MortgageCalculatorPage() {
                   note: tracksTotal !== loanAmount ? `פער: ${formatCurrency(Math.abs(loanAmount - tracksTotal))}` : null,
                 },
                 { label: 'עלות כוללת', value: formatCurrency(Math.round(totalCost)) },
+                ...(hasLinkedTracks ? [
+                  { label: 'החזר חודשי צפוי בעוד 5 שנים', value: formatCurrency(Math.round(payment5yr)) },
+                  { label: 'החזר חודשי צפוי בעוד 10 שנים', value: formatCurrency(Math.round(payment10yr)) },
+                  { label: 'עלות כוללת (כולל הצמדה צפויה)', value: formatCurrency(Math.round(totalCostWithCpi)) },
+                ] : []),
               ].map(row => (
                 <div key={row.label} className="flex items-center justify-between py-3">
                   <span className="text-[13px]" style={{ color: '#a8a29e' }}>{row.label}</span>
@@ -319,6 +372,11 @@ export default function MortgageCalculatorPage() {
                 </div>
               ))}
             </div>
+            {hasLinkedTracks && (
+              <p className="text-[11px] mt-3" style={{ color: '#a8a29e' }}>
+                תחזית לפי הנחת מדד {expectedCpi}% — אינה התחייבות.
+              </p>
+            )}
           </div>
 
           {/* Compliance */}
@@ -490,6 +548,11 @@ export default function MortgageCalculatorPage() {
                     >
                       {trackTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
+                    {isCpiLinked(track.type) && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: '#fef3c7', color: '#d97706' }}>
+                        צמוד מדד
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[12px] px-2.5 py-1 rounded-full" style={{ background: '#f5f4f2', color: '#a8a29e' }}>

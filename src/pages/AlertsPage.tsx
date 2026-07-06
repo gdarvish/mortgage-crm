@@ -9,10 +9,12 @@ interface AlertItem {
   id: string
   customerName: string
   customerId: string
+  alertType: string
   trackType: string
   daysLeft: number
   amount: number
   interestRate: number
+  savingEstimate: number
 }
 
 const cardStyle = {
@@ -40,10 +42,12 @@ export default function AlertsPage() {
       id: a.id,
       customerName: a.customer ? `${a.customer.first_name} ${a.customer.last_name}` : 'לקוח לא ידוע',
       customerId: a.customer_id,
+      alertType: a.alert_type ?? 'track_ending',
       trackType: a.track_type || a.loan_track?.type || 'לא ידוע',
       daysLeft: a.days_until_end ?? 0,
       amount: a.track_amount ?? a.loan_track?.amount ?? 0,
       interestRate: a.loan_track?.interest_rate ?? 0,
+      savingEstimate: (a.metadata as { monthly_saving?: number } | null | undefined)?.monthly_saving ?? 0,
     }))
     .sort((x, y) => x.daysLeft - y.daysLeft)
 
@@ -82,7 +86,7 @@ export default function AlertsPage() {
         <div>
           <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
             <Bell size={22} style={{ color: '#059669' }} />
-            התראות מסלולים
+            התראות
           </h1>
           <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>{alerts.length} התראות פעילות</p>
         </div>
@@ -148,7 +152,17 @@ export default function AlertsPage() {
                         </span>
                       </div>
                       <p className="text-[13px] mt-0.5" style={{ color: '#57534e' }}>
-                        מסלול {alert.trackType} · {formatCurrency(alert.amount)} · {alert.interestRate}%
+                        {alert.alertType === 'approval_expiring'
+                          ? 'אישור עקרוני עומד לפוג'
+                          : alert.alertType === 'document_expiring'
+                            ? `מסמך ${alert.trackType} עומד לפוג`
+                            : alert.alertType === 'appraisal_pending'
+                              ? 'שמאות הוזמנה וטרם התקבלה'
+                              : alert.alertType === 'disbursement_due'
+                                ? 'שחרור כספים מתקרב'
+                                : alert.alertType === 'refinance_opportunity'
+                                  ? `הזדמנות מחזור${alert.savingEstimate > 0 ? ` — חיסכון חודשי ~${formatCurrency(alert.savingEstimate)}` : ' — פער ריבית'}`
+                                  : `מסלול ${alert.trackType} · ${formatCurrency(alert.amount)} · ${alert.interestRate}%`}
                       </p>
                     </div>
                   </div>

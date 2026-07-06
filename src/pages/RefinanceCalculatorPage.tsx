@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react'
 import { RefreshCw, Plus, Trash2, TrendingDown, Upload, Loader2, CheckCircle, X } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
-import { calculateMonthlyPayment, calculateRefinanceSavings, type TrackInput } from '@/utils/mortgageCalculations'
+import { calculateMonthlyPayment, calculateRefinanceSavings, estimatePrepaymentFee, type TrackInput } from '@/utils/mortgageCalculations'
 import { customerService } from '@/services/customerService'
 import { documentService } from '@/services/documentService'
 import { toast } from '@/components/ui'
@@ -39,6 +39,26 @@ export default function RefinanceCalculatorPage() {
     { type: 'פריים', amount: 150000, interestRate: 6.0, periodMonths: 240 },
   ])
   const [earlyRepaymentFee, setEarlyRepaymentFee] = useState(15000)
+
+  // Prepayment (capitalization) fee estimator
+  const [feeIsFixed, setFeeIsFixed] = useState(true)
+  const [feeBalance, setFeeBalance] = useState(500000)
+  const [feeContractRate, setFeeContractRate] = useState(5.0)
+  const [feeAvgRate, setFeeAvgRate] = useState(3.5)
+  const [feeRemainingMonths, setFeeRemainingMonths] = useState(120)
+  const [feeYearsSinceStart, setFeeYearsSinceStart] = useState(4)
+
+  const prepaymentFee = useMemo(() => {
+    if (!feeIsFixed) return { capitalizationFee: 0, discount: 0, finalFee: 0 }
+    return estimatePrepaymentFee({
+      balance: feeBalance,
+      contractRate: feeContractRate,
+      avgRate: feeAvgRate,
+      remainingMonths: feeRemainingMonths,
+      yearsSinceStart: feeYearsSinceStart,
+      earlyNoticeGiven: false,
+    })
+  }, [feeIsFixed, feeBalance, feeContractRate, feeAvgRate, feeRemainingMonths, feeYearsSinceStart])
 
   // Balance report upload state
   const [showUploadModal, setShowUploadModal] = useState(false)
@@ -183,6 +203,73 @@ export default function RefinanceCalculatorPage() {
           style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, width: 180, color: '#1c1917' }}
           dir="ltr"
         />
+      </div>
+
+      {/* Prepayment fee estimator */}
+      <div style={cardStyle}>
+        <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>הערכת עמלת פירעון מוקדם (עמלת היוון)</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }}>סוג מסלול</label>
+            <select value={feeIsFixed ? 'fixed' : 'other'} onChange={e => setFeeIsFixed(e.target.value === 'fixed')} className={inputCls} style={inputSt}>
+              <option value="fixed">ריבית קבועה (קל"צ/קל"ב)</option>
+              <option value="other">פריים / משתנה</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }}>יתרת המסלול</label>
+            <input type="number" value={feeBalance} onChange={e => setFeeBalance(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={!feeIsFixed} />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }}>ריבית החוזה %</label>
+            <input type="number" step="0.1" value={feeContractRate} onChange={e => setFeeContractRate(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={!feeIsFixed} />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }} title="לפי פרסום בנק ישראל לתקופה הממוצעת הנותרת">הריבית הממוצעת (בנק ישראל) %</label>
+            <input type="number" step="0.1" value={feeAvgRate} onChange={e => setFeeAvgRate(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={!feeIsFixed} />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }}>חודשים שנותרו</label>
+            <input type="number" value={feeRemainingMonths} onChange={e => setFeeRemainingMonths(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={!feeIsFixed} />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }}>ותק המסלול (שנים)</label>
+            <input type="number" value={feeYearsSinceStart} onChange={e => setFeeYearsSinceStart(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={!feeIsFixed} />
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-4 flex-wrap">
+          {feeIsFixed ? (
+            <>
+              <div className="text-center px-4 py-2 rounded-xl" style={{ background: '#f5f4f2' }}>
+                <p className="text-[11px]" style={{ color: '#a8a29e' }}>עמלת היוון</p>
+                <p className="text-[16px] font-black tabular-nums" style={{ color: '#57534e' }}>{formatCurrency(prepaymentFee.capitalizationFee)}</p>
+              </div>
+              <div className="text-center px-4 py-2 rounded-xl" style={{ background: '#d1fae5' }}>
+                <p className="text-[11px]" style={{ color: '#065f46' }}>הנחת ותק</p>
+                <p className="text-[16px] font-black tabular-nums" style={{ color: '#059669' }}>−{formatCurrency(prepaymentFee.discount)}</p>
+              </div>
+              <div className="text-center px-4 py-2 rounded-xl" style={{ background: '#059669' }}>
+                <p className="text-[11px]" style={{ color: '#d1fae5' }}>עמלה משוערת</p>
+                <p className="text-[18px] font-black tabular-nums text-white">{formatCurrency(prepaymentFee.finalFee)}</p>
+              </div>
+              <button
+                onClick={() => setEarlyRepaymentFee(prepaymentFee.finalFee)}
+                className="px-4 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90"
+                style={{ borderRadius: 12, background: '#057857' }}
+              >
+                החל על עמלת הפירעון
+              </button>
+            </>
+          ) : (
+            <div className="text-center px-4 py-2 rounded-xl" style={{ background: '#d1fae5' }}>
+              <p className="text-[16px] font-black" style={{ color: '#059669' }}>0 ₪ — מסלול פריים / משתנה (אין עמלת היוון)</p>
+            </div>
+          )}
+        </div>
+        <p className="text-[11px] mt-3" style={{ color: '#a8a29e' }}>
+          הערכה בלבד — העמלה הסופית נקבעת ע"י הבנק ביום הפירעון.
+        </p>
       </div>
 
       {/* Comparison */}

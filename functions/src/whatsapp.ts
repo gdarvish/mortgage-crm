@@ -1,12 +1,15 @@
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https'
+import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { defineSecret } from 'firebase-functions/params'
 import { FieldValue } from 'firebase-admin/firestore'
+import { createHmac, timingSafeEqual } from 'crypto'
 import { db, REGION } from './common'
 
 // Configure with: firebase functions:secrets:set WHATSAPP_TOKEN  (etc.)
 const WHATSAPP_TOKEN = defineSecret('WHATSAPP_TOKEN')
 const WHATSAPP_PHONE_NUMBER_ID = defineSecret('WHATSAPP_PHONE_NUMBER_ID')
 const WHATSAPP_VERIFY_TOKEN = defineSecret('WHATSAPP_VERIFY_TOKEN')
+const WHATSAPP_APP_SECRET = defineSecret('WHATSAPP_APP_SECRET')
 
 const GRAPH_API = 'https://graph.facebook.com/v21.0'
 
@@ -16,6 +19,38 @@ function toInternational(phone: string): string {
   if (digits.startsWith('972')) return digits
   if (digits.startsWith('0')) return '972' + digits.slice(1)
   return digits
+}
+
+/**
+ * Sends a plain-text WhatsApp message via the Graph API and returns the
+ * provider message id. Callers must declare WHATSAPP_TOKEN and
+ * WHATSAPP_PHONE_NUMBER_ID in their function's `secrets`.
+ */
+async function sendWaText(phone: string, text: string): Promise<string | null> {
+  const intlPhone = toInternational(phone)
+  const res = await fetch(`${GRAPH_API}/${WHATSAPP_PHONE_NUMBER_ID.value()}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${WHATSAPP_TOKEN.value()}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: intlPhone,
+      type: 'text',
+      text: { body: text },
+    }),
+  })
+  const body = (await res.json()) as { messages?: { id: string }[]; error?: { message?: string } }
+  if (!res.ok) throw new Error(body.error?.message || 'שליחת ההודעה נכשלה')
+  return body.messages?.[0]?.id ?? null
+}
+
+function verifyMetaSignature(rawBody: Buffer, signature: string | undefined, secret: string): boolean {
+  if (!signature) return false
+  const expected = 'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex')
+  if (expected.length !== signature.length) return false
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
 }
 
 // ── Outbound: send a WhatsApp message ───────────────────────────────────────
@@ -47,27 +82,7 @@ export const sendWhatsAppMessage = onCall(
 
     let providerMessageId: string | null = null
     try {
-      const res = await fetch(`${GRAPH_API}/${WHATSAPP_PHONE_NUMBER_ID.value()}/messages`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${WHATSAPP_TOKEN.value()}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: intlPhone,
-          type: 'text',
-          text: { body: text },
-        }),
-      })
-      const body = (await res.json()) as {
-        messages?: { id: string }[]
-        error?: { message?: string }
-      }
-      if (!res.ok) {
-        throw new HttpsError('internal', body.error?.message || 'שליחת ההודעה נכשלה')
-      }
-      providerMessageId = body.messages?.[0]?.id ?? null
+      providerMessageId = await sendWaText(phone, text)
     } catch (e) {
       if (e instanceof HttpsError) throw e
       console.error('sendWhatsAppMessage: provider error', e)
@@ -160,9 +175,8 @@ async function handleStatusUpdate(status: StatusUpdate): Promise<void> {
 }
 
 export const whatsappWebhook = onRequest(
-  { region: REGION, secrets: [WHATSAPP_VERIFY_TOKEN] },
+  { region: REGION, secrets: [WHATSAPP_VERIFY_TOKEN, WHATSAPP_APP_SECRET] },
   async (req, res) => {
-    // Verification handshake — Meta sends a GET when the webhook URL is registered.
     if (req.method === 'GET') {
       const mode = req.query['hub.mode']
       const token = req.query['hub.verify_token']
@@ -176,6 +190,12 @@ export const whatsappWebhook = onRequest(
     }
     if (req.method !== 'POST') {
       res.status(405).send('Method Not Allowed')
+      return
+    }
+
+    const sig = req.headers['x-hub-signature-256'] as string | undefined
+    if (!verifyMetaSignature(req.rawBody, sig, WHATSAPP_APP_SECRET.value())) {
+      res.status(403).send('Invalid signature')
       return
     }
 
@@ -196,5 +216,71 @@ export const whatsappWebhook = onRequest(
     }
     // Always acknowledge with 200 so Meta does not retry indefinitely.
     res.status(200).send('OK')
+  }
+)
+
+// ── Meeting reminders ────────────────────────────────────────────────────────
+
+/** Daily scan that sends a WhatsApp reminder for tomorrow's planned meetings. */
+export const sendMeetingReminders = onSchedule(
+  {
+    schedule: 'every day 09:00',
+    timeZone: 'Asia/Jerusalem',
+    region: REGION,
+    secrets: [WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID],
+  },
+  async () => {
+    const now = new Date()
+    const tomorrowStart = new Date(now)
+    tomorrowStart.setDate(now.getDate() + 1)
+    tomorrowStart.setHours(0, 0, 0, 0)
+    const tomorrowEnd = new Date(tomorrowStart)
+    tomorrowEnd.setHours(23, 59, 59, 999)
+
+    const snap = await db
+      .collection('meetings')
+      .where('status', '==', 'מתוכננת')
+      .where('reminder_sent', '==', false)
+      .where('starts_at', '>=', tomorrowStart.toISOString())
+      .where('starts_at', '<=', tomorrowEnd.toISOString())
+      .get()
+
+    let sent = 0
+    for (const mdoc of snap.docs) {
+      const m = mdoc.data()
+      try {
+        if (m.customer_id) {
+          const cust = await db.collection('customers').doc(m.customer_id).get()
+          const c = cust.data()
+          const phone = c?.phone
+          if (phone && typeof phone === 'string') {
+            const time = new Date(m.starts_at).toLocaleTimeString('he-IL', {
+              hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem',
+            })
+            const locationPart = m.location ? `, ב${m.location}` : ''
+            const text = `שלום ${c?.first_name ?? ''}, תזכורת לפגישתנו מחר בשעה ${time}${locationPart}. נתראה!`
+            const providerMessageId = await sendWaText(phone, text)
+            await db.collection('messages').add({
+              user_id: m.user_id,
+              customer_id: m.customer_id,
+              channel: 'וואטסאפ',
+              direction: 'נשלח',
+              content: text,
+              provider_message_id: providerMessageId,
+              delivery_status: 'sent',
+              read_at: null,
+              template_id: null,
+              sent_at: FieldValue.serverTimestamp(),
+            })
+          }
+        }
+      } catch (e) {
+        // Mark as sent even on partial failure so we do not spam on retries.
+        console.error('sendMeetingReminders: failed for', mdoc.id, e)
+      }
+      await mdoc.ref.update({ reminder_sent: true })
+      sent++
+    }
+    console.log(`sendMeetingReminders: processed ${sent} meetings`)
   }
 )

@@ -4,8 +4,15 @@ import {
   ArrowRight, MessageSquare, ClipboardList, Calculator, Upload,
   Send, Plus, Check, Mail, Phone, MapPin, User, CreditCard,
   FileText, Home, MessagesSquare, ListTodo, Banknote, ExternalLink,
-  Trash2, Loader2, Save, PenTool, Sparkles, ShieldCheck,
+  Trash2, Loader2, Save, PenTool, Sparkles, ShieldCheck, Scale, Download,
 } from 'lucide-react'
+import ObligationsTab from '@/components/customer/ObligationsTab'
+import AppraisalSection from '@/components/customer/AppraisalSection'
+import BankOffersSection from '@/components/customer/BankOffersSection'
+import { BorrowersSection, BorrowerChecklist } from '@/components/customer/Borrowers'
+import ScheduleMeetingButton from '@/components/customer/ScheduleMeetingButton'
+import ExecutionSection from '@/components/customer/ExecutionSection'
+import InsuranceSection from '@/components/customer/InsuranceSection'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
 import { formatCurrency, formatDate, generateToken, tokenExpiration } from '@/lib/utils'
@@ -19,6 +26,7 @@ import { messageService } from '@/services/messageService'
 import { commissionService } from '@/services/commissionService'
 import { documentService } from '@/services/documentService'
 import { signatureService } from '@/services/signatureService'
+import { mortgageService } from '@/services/mortgageService'
 import type {
   Customer, Document, Mortgage, LoanTrack, Message, Task, Commission, CustomerStatus
 } from '@/types/database'
@@ -26,7 +34,7 @@ import type {
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-type TabKey = 'personal' | 'financial' | 'documents' | 'mortgages' | 'communication' | 'tasks' | 'commission'
+type TabKey = 'personal' | 'financial' | 'obligations' | 'documents' | 'mortgages' | 'communication' | 'tasks' | 'commission'
 
 const DELIVERY_LABELS: Record<string, string> = {
   sent: '✓ נשלח',
@@ -47,6 +55,7 @@ interface MortgageWithTracks extends Mortgage {
 const tabs: Tab[] = [
   { key: 'personal', label: 'פרטים אישיים', icon: User },
   { key: 'financial', label: 'פרטים פיננסיים', icon: CreditCard },
+  { key: 'obligations', label: 'התחייבויות', icon: Scale },
   { key: 'documents', label: 'מסמכים', icon: FileText },
   { key: 'mortgages', label: 'משכנתאות', icon: Home },
   { key: 'communication', label: 'תקשורת', icon: MessagesSquare },
@@ -60,6 +69,7 @@ const statusColors: Record<string, string> = {
   'מסמכים': 'bg-orange-100 text-orange-700',
   'הגשה': 'bg-purple-100 text-purple-700',
   'אישור': 'bg-green-100 text-green-700',
+  'ביצוע': 'bg-teal-100 text-teal-700',
   'סגירה': 'bg-emerald-100 text-emerald-700',
 }
 
@@ -70,7 +80,7 @@ const priorityColors: Record<string, string> = {
   'דחופה': 'bg-red-100 text-red-700',
 }
 
-const statuses: CustomerStatus[] = ['ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'סגירה']
+const statuses: CustomerStatus[] = ['ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'ביצוע', 'סגירה']
 
 const messageTemplates = [
   'שלום {שם}, רציתי לעדכן אותך לגבי סטטוס התיק.',
@@ -120,6 +130,7 @@ export default function CustomerDetailPage() {
   const [statusValue, setStatusValue] = useState<CustomerStatus>('ליד')
   const [formErrors, setFormErrors] = useState<FormErrors>({})
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showCloseWarn, setShowCloseWarn] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   // Task form
@@ -132,6 +143,7 @@ export default function CustomerDetailPage() {
   // Documents upload
   const docFileInputRef = useRef<HTMLInputElement>(null)
   const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [downloadingZip, setDownloadingZip] = useState(false)
   const [docUploadType, setDocUploadType] = useState('תעודת זהות + ספח')
   const [ocrDocId, setOcrDocId] = useState<string | null>(null)
   const [validateDocId, setValidateDocId] = useState<string | null>(null)
@@ -185,14 +197,14 @@ export default function CustomerDetailPage() {
   // -------------------------------------------------------------------------
   // Save handlers
   // -------------------------------------------------------------------------
-  const savePersonal = async () => {
+  const insuranceIncomplete = () =>
+    mortgages.length > 0 && mortgages.some(m =>
+      m.life_insurance_status !== 'הופק' || m.property_insurance_status !== 'הופק'
+    )
+
+  const doSavePersonal = async () => {
     if (!id) return
-    const errors = validatePersonalForm(personal)
-    setFormErrors(errors)
-    if (Object.keys(errors).length > 0) {
-      toast.error('יש שגיאות בטופס', 'אנא תקן את השדות המסומנים ונסה שוב')
-      return
-    }
+    setShowCloseWarn(false)
     setSaving(true)
     const { error } = await customerService.update(id, { ...personal, status: statusValue })
     if (!error) {
@@ -203,6 +215,22 @@ export default function CustomerDetailPage() {
       toast.error('שגיאה בשמירה', error.message)
     }
     setSaving(false)
+  }
+
+  const savePersonal = async () => {
+    if (!id) return
+    const errors = validatePersonalForm(personal)
+    setFormErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      toast.error('יש שגיאות בטופס', 'אנא תקן את השדות המסומנים ונסה שוב')
+      return
+    }
+    // Soft block: closing the case while insurance is not yet issued.
+    if (statusValue === 'סגירה' && insuranceIncomplete()) {
+      setShowCloseWarn(true)
+      return
+    }
+    doSavePersonal()
   }
 
   const saveFinancial = async () => {
@@ -388,6 +416,21 @@ export default function CustomerDetailPage() {
     toast.success('קישור השאלון נוצר', 'הקישור בתוקף ל-30 יום')
   }
 
+  const sendPortalLink = async () => {
+    if (!id) return
+    const token = generateToken()
+    const { error } = await customerService.update(id, {
+      portal_token: token,
+      portal_token_expires_at: tokenExpiration(90),
+    })
+    if (error) { toast.error('שגיאה ביצירת קישור', error.message); return }
+    const url = `${window.location.origin}/portal/${token}`
+    setMessageText(`שלום ${customer?.first_name}, כאן ניתן לעקוב אחר סטטוס התיק שלך: ${url}`)
+    setActiveTab('communication')
+    refreshCustomer()
+    toast.success('קישור הפורטל נוצר', 'הקישור בתוקף ל-90 יום')
+  }
+
   const sendSignatureRequest = async () => {
     if (!id || !customer) return
     const { data, error } = await signatureService.createRequest({
@@ -542,6 +585,46 @@ export default function CustomerDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* Questionnaire data */}
+      {(customer.mortgage_purpose || customer.requested_amount || customer.employment_type || customer.has_existing_property != null || customer.credit_card_frames != null) && (
+        <div className="mt-6 pt-4 border-t border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <ClipboardList size={16} className="text-[#059669]" />
+            נתוני שאלון
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-400">מטרת המשכנתא</p>
+              <p className="text-sm font-medium text-gray-900">{customer.mortgage_purpose || '—'}</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-400">סכום מבוקש</p>
+              <p className="text-sm font-medium text-gray-900">{customer.requested_amount ? formatCurrency(customer.requested_amount) : '—'}</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-400">סוג העסקה</p>
+              <p className="text-sm font-medium text-gray-900">{customer.employment_type || '—'}</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-400">נכס קיים</p>
+              <p className="text-sm font-medium text-gray-900">
+                {customer.has_existing_property == null ? '—' : customer.has_existing_property ? `כן — ${customer.existing_property_value ? formatCurrency(customer.existing_property_value) : 'שווי לא צוין'}` : 'לא'}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-400">מסגרות אשראי</p>
+              <p className="text-sm font-medium text-gray-900">{customer.credit_card_frames != null ? formatCurrency(customer.credit_card_frames) : '—'}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <BorrowersSection
+        customerId={id!}
+        primaryIncome={customer.monthly_income}
+        partnerIncome={customer.partner_income}
+      />
     </div>
   )
 
@@ -604,13 +687,45 @@ export default function CustomerDetailPage() {
     </div>
   )
 
+  const downloadCaseZip = async () => {
+    if (!id) return
+    setDownloadingZip(true)
+    try {
+      const fn = httpsCallable<{ customer_id: string }, { url: string; file_count: number }>(functions, 'exportCustomerZip')
+      const res = await fn({ customer_id: id })
+      if (res.data?.url) {
+        window.open(res.data.url, '_blank')
+        toast.success(`התיק נארז — ${res.data.file_count} קבצים`)
+      }
+    } catch (e) {
+      const err = e as { message?: string }
+      toast.error('שגיאה בייצוא התיק', err.message)
+    } finally {
+      setDownloadingZip(false)
+    }
+  }
+
   const renderDocumentsTab = () => (
     <div className="space-y-3">
+      <BorrowerChecklist
+        customerId={id!}
+        primaryName={`${customer.first_name} ${customer.last_name}`}
+        primaryEmployment={customer.employment_type === 'עצמאי' ? 'עצמאי' : 'שכיר'}
+      />
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">
           {documents.filter(d => d.status === 'תקין').length} / {documents.length} מסמכים תקינים
         </p>
         <div className="flex items-center gap-2">
+          <button
+            onClick={downloadCaseZip}
+            disabled={downloadingZip || documents.length === 0}
+            title={documents.length === 0 ? 'אין מסמכים לייצוא' : 'הורד את כל המסמכים כ-ZIP'}
+            className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+          >
+            {downloadingZip ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            הורד תיק מלא (ZIP)
+          </button>
           <select
             value={docUploadType}
             onChange={e => setDocUploadType(e.target.value)}
@@ -682,6 +797,13 @@ export default function CustomerDetailPage() {
 
   const renderMortgagesTab = () => (
     <div className="space-y-4">
+      <AppraisalSection
+        customerId={id!}
+        mortgageId={mortgages[0]?.id ?? null}
+        loanAmount={mortgages[0]?.loan_amount ?? undefined}
+        propertyPrice={mortgages[0]?.property_price ?? undefined}
+        propertyType={mortgages[0]?.property_type ?? undefined}
+      />
       {mortgages.length === 0 && (
         <div className="text-center py-12 text-gray-400 text-sm">
           <Home size={36} className="mx-auto mb-3 text-gray-300" />
@@ -713,6 +835,44 @@ export default function CustomerDetailPage() {
                 <ExternalLink size={14} />מחשבון
               </button>
             </div>
+            {mortgage.status === 'אושר' && (
+              <div className="px-4 py-3 border-t border-gray-100 bg-green-50/50">
+                <div className="grid grid-cols-2 gap-3 max-w-md">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">תאריך אישור</label>
+                    <input
+                      type="date"
+                      value={mortgage.approval_date?.split('T')[0] ?? ''}
+                      onChange={async (e) => {
+                        await mortgageService.update(mortgage.id, { approval_date: e.target.value || null })
+                        qc.invalidateQueries({ queryKey: ['customer', customer.id] })
+                      }}
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">תוקף אישור</label>
+                    <input
+                      type="date"
+                      value={mortgage.approval_expires_at?.split('T')[0] ?? ''}
+                      onChange={async (e) => {
+                        await mortgageService.update(mortgage.id, { approval_expires_at: e.target.value || null })
+                        qc.invalidateQueries({ queryKey: ['customer', customer.id] })
+                      }}
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+                {mortgage.approval_expires_at && (() => {
+                  const daysLeft = Math.round((new Date(mortgage.approval_expires_at).getTime() - Date.now()) / 86400000)
+                  if (daysLeft <= 0) return <p className="text-xs text-red-600 mt-2 font-medium">האישור פג תוקף</p>
+                  if (daysLeft <= 14) return <p className="text-xs text-orange-600 mt-2 font-medium">האישור יפוג בעוד {daysLeft} ימים</p>
+                  return <p className="text-xs text-green-600 mt-2">{daysLeft} ימים עד תפוגת האישור</p>
+                })()}
+              </div>
+            )}
             {tracks.length > 0 && (
               <div className="p-4">
                 <table className="w-full text-sm">
@@ -747,9 +907,21 @@ export default function CustomerDetailPage() {
                 </table>
               </div>
             )}
+            <InsuranceSection mortgage={mortgage} onUpdated={refreshCustomer} />
+            <div className="p-4 border-t border-gray-100">
+              <BankOffersSection
+                customerId={id!}
+                mortgage={mortgage}
+                customerName={`${customer.first_name} ${customer.last_name}`}
+                onChosen={refreshCustomer}
+              />
+            </div>
           </div>
         )
       })}
+      {(customer.status === 'ביצוע' || customer.status === 'סגירה') && (
+        <ExecutionSection customerId={id!} mortgageId={mortgages[0]?.id ?? null} />
+      )}
     </div>
   )
 
@@ -928,6 +1100,7 @@ export default function CustomerDetailPage() {
   const tabContent: Record<TabKey, () => React.ReactNode> = {
     personal: renderPersonalTab,
     financial: renderFinancialTab,
+    obligations: () => <ObligationsTab customerId={id!} existingObligationsFromQuestionnaire={customer.existing_obligations} />,
     documents: renderDocumentsTab,
     mortgages: renderMortgagesTab,
     communication: renderCommunicationTab,
@@ -976,10 +1149,21 @@ export default function CustomerDetailPage() {
               <ClipboardList size={16} />שלח שאלון
             </button>
             <button
+              onClick={sendPortalLink}
+              className="inline-flex items-center gap-2 bg-teal-50 text-teal-700 border border-teal-200 px-3 py-2 rounded-lg hover:bg-teal-100 transition-colors text-sm">
+              <ExternalLink size={16} />שלח קישור פורטל
+            </button>
+            <button
               onClick={sendSignatureRequest}
               className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 border border-amber-200 px-3 py-2 rounded-lg hover:bg-amber-100 transition-colors text-sm">
               <PenTool size={16} />שלח לחתימה
             </button>
+            <ScheduleMeetingButton
+              customerId={id!}
+              customerName={`${customer.first_name} ${customer.last_name}`}
+              currentStatus={customer.status}
+              onDone={refreshCustomer}
+            />
             <button onClick={() => navigate('/calculator')}
               className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg hover:bg-purple-100 transition-colors text-sm">
               <Calculator size={16} />צור תמהיל
@@ -1011,6 +1195,15 @@ export default function CustomerDetailPage() {
         </div>
         <div className="p-5">{tabContent[activeTab]()}</div>
       </div>
+
+      <ConfirmDialog
+        open={showCloseWarn}
+        title="סגירת תיק"
+        message="הביטוחים טרם הופקו — להמשיך בכל זאת ולסגור את התיק?"
+        confirmText="סגור בכל זאת"
+        onConfirm={doSavePersonal}
+        onCancel={() => setShowCloseWarn(false)}
+      />
 
       <ConfirmDialog
         open={showDeleteConfirm}

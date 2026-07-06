@@ -17,5 +17,11 @@ service firebase.storage {
       allow read, write: if request.auth != null &&
         firestore.get(/databases/(default)/documents/customers/$(customerId)).data.user_id == request.auth.uid;
     }
+
+    // Case ZIP exports — readable by the owning advisor, written only by Admin SDK.
+    match /exports/{uid}/{file=**} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
   }
 }

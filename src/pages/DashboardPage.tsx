@@ -10,9 +10,11 @@ import {
 } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
 import { useDashboardData, useCompleteTask } from '@/hooks/queries/useDashboard'
+import TodayMeetingsWidget from '@/components/TodayMeetingsWidget'
+import RefinanceOpportunitiesWidget from '@/components/RefinanceOpportunitiesWidget'
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
 
-const statusOrder = ['ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'סגירה']
+const statusOrder = ['ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'ביצוע', 'סגירה']
 const hebrewMonths = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ']
 const hebrewDays = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת']
 
@@ -22,6 +24,7 @@ const PIPELINE_COLORS: Record<string, string> = {
   'מסמכים': '#f97316',
   'הגשה': '#8b5cf6',
   'אישור': '#10b981',
+  'ביצוע': '#14b8a6',
   'סגירה': '#059669',
 }
 
@@ -227,6 +230,10 @@ export default function DashboardPage() {
           <KpiCard key={card.label} {...card} index={i} isCurrency={card.isCurrency ?? false} />
         ))}
       </div>
+
+      <RefinanceOpportunitiesWidget />
+
+      <TodayMeetingsWidget />
 
       {/* Pipeline Bar */}
       <div

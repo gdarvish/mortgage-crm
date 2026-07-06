@@ -78,6 +78,36 @@ export interface Database {
         Insert: Partial<CpiIndex>
         Update: Partial<CpiIndex>
       }
+      obligations: {
+        Row: Obligation
+        Insert: Partial<Obligation>
+        Update: Partial<Obligation>
+      }
+      appraisals: {
+        Row: Appraisal
+        Insert: Partial<Appraisal>
+        Update: Partial<Appraisal>
+      }
+      bank_offers: {
+        Row: BankOffer
+        Insert: Partial<BankOffer>
+        Update: Partial<BankOffer>
+      }
+      borrowers: {
+        Row: Borrower
+        Insert: Partial<Borrower>
+        Update: Partial<Borrower>
+      }
+      meetings: {
+        Row: Meeting
+        Insert: Partial<Meeting>
+        Update: Partial<Meeting>
+      }
+      disbursements: {
+        Row: Disbursement
+        Insert: Partial<Disbursement>
+        Update: Partial<Disbursement>
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -101,6 +131,9 @@ export interface AdvisorSettings {
   logo_position: string
   whatsapp_templates: Json | null
   alert_window_months: number
+  dti_obligation_months_threshold?: number
+  expected_annual_cpi?: number
+  refinance_gap_threshold?: number
   created_at: string
 }
 
@@ -127,11 +160,19 @@ export interface Customer {
   questionnaire_token: string | null
   questionnaire_token_expires_at?: string | null
   questionnaire_completed: boolean
+  employment_type?: string | null
+  has_existing_property?: boolean | null
+  existing_property_value?: number | null
+  credit_card_frames?: number | null
+  mortgage_purpose?: string | null
+  requested_amount?: number | null
+  portal_token?: string | null
+  portal_token_expires_at?: string | null
   created_at: string
   updated_at: string
 }
 
-export type CustomerStatus = 'ליד' | 'פגישה' | 'מסמכים' | 'הגשה' | 'אישור' | 'סגירה'
+export type CustomerStatus = 'ליד' | 'פגישה' | 'מסמכים' | 'הגשה' | 'אישור' | 'ביצוע' | 'סגירה'
 
 export interface Lead {
   id: string
@@ -211,6 +252,25 @@ export interface Mortgage {
   status: MortgageStatus
   compliance_status: Json | null
   notes: string | null
+  approval_date?: string | null
+  approval_expires_at?: string | null
+  life_insurance_status?: 'נדרש' | 'בתהליך' | 'הופק' | null
+  property_insurance_status?: 'נדרש' | 'בתהליך' | 'הופק' | null
+  insurance_referral_partner_id?: string | null
+  created_at: string
+}
+
+export interface Disbursement {
+  id: string
+  user_id: string
+  customer_id: string
+  mortgage_id: string | null
+  payee: string                      // contractor / seller / lawyer / land registry
+  amount: number
+  due_date: string | null
+  status: 'מתוכנן' | 'שוחרר'
+  released_at: string | null
+  notes: string | null
   created_at: string
 }
 
@@ -254,7 +314,10 @@ export interface Alert {
   loan_track_id: string | null
   mortgage_id?: string | null
   document_id?: string | null
-  alert_type?: 'track_ending' | 'document_expiring'
+  appraisal_id?: string | null
+  disbursement_id?: string | null
+  metadata?: Record<string, unknown> | null
+  alert_type?: 'track_ending' | 'document_expiring' | 'approval_expiring' | 'appraisal_pending' | 'disbursement_due' | 'refinance_opportunity'
   alert_date: string | null
   days_until_end: number | null
   urgency?: 'דחוף' | 'אזהרה' | 'תקין'
@@ -320,6 +383,98 @@ export interface CpiIndex {
   date: string | null
   value: number | null
   change_percent: number | null
+}
+
+export interface Meeting {
+  id: string
+  user_id: string
+  customer_id: string | null         // meeting without a customer is allowed (phone lead)
+  title: string
+  starts_at: string                  // ISO
+  duration_minutes: number           // default 60
+  location: string | null            // address / 'זום' / 'טלפון'
+  status: 'מתוכננת' | 'התקיימה' | 'בוטלה'
+  reminder_sent: boolean             // guards against duplicate reminders
+  notes: string | null
+  created_at: string
+}
+
+export interface Borrower {
+  id: string
+  user_id: string
+  customer_id: string
+  role: 'לווה שני' | 'ערב'
+  first_name: string
+  last_name: string
+  id_number: string | null
+  phone: string | null
+  email: string | null
+  birth_date: string | null          // ISO — for age-vs-term check
+  employment_type: 'שכיר' | 'עצמאי' | 'שכיר + עצמאי' | null
+  monthly_income: number | null
+  created_at: string
+}
+
+export type ObligationType =
+  | 'הלוואה בנקאית' | 'הלוואה חוץ בנקאית' | 'ליסינג'
+  | 'משכנתא קיימת' | 'מזונות' | 'אחר'
+
+export interface Obligation {
+  id: string
+  user_id: string
+  customer_id: string
+  type: ObligationType
+  lender: string | null              // name of the lending bank / institution
+  monthly_payment: number            // monthly repayment — this is what enters DTI
+  balance: number | null             // outstanding balance (display only)
+  end_date: string | null            // ISO — loan end date
+  include_in_dti: boolean            // auto-computed, manually overridable
+  notes: string | null
+  created_at: string
+}
+
+export interface BankOfferTrack {
+  type: LoanTrackType
+  amount: number
+  interest_rate: number
+  period_months: number
+}
+
+export interface BankOffer {
+  id: string
+  user_id: string
+  customer_id: string
+  mortgage_id: string
+  bank_name: string
+  round: number                      // negotiation round: 1 = first offer, 2 = improved...
+  offer_date: string | null
+  valid_until: string | null
+  tracks: BankOfferTrack[]           // embedded array — stored together
+  status: 'התקבלה' | 'נבחרה' | 'נדחתה'
+  bank_response_id: string | null    // optional link to a file in bank_responses
+  notes: string | null
+  created_at: string
+}
+
+export type AppraisalStatus = 'הוזמנה' | 'בוצע ביקור' | 'התקבלה'
+
+export interface Appraisal {
+  id: string
+  user_id: string
+  customer_id: string
+  mortgage_id: string | null
+  property_address: string | null
+  appraiser_name: string | null
+  appraiser_phone: string | null
+  status: AppraisalStatus
+  ordered_at: string | null          // ISO
+  scheduled_at: string | null        // appraiser visit
+  received_at: string | null         // report received
+  purchase_price: number | null      // snapshot of purchase price at order time
+  appraised_value: number | null
+  document_id: string | null         // link to the uploaded appraisal report
+  notes: string | null
+  created_at: string
 }
 
 // Extended types with relations
