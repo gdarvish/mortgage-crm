@@ -4,7 +4,13 @@ import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { FieldValue } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { randomUUID } from 'node:crypto'
+import type { Archiver } from 'archiver'
 import { db, REGION } from './common'
+
+// archiver's CommonJS entry is a factory function, which the bundled types do
+// not expose as callable — require it and type the factory explicitly.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const createArchive: (format: string, options?: { zlib?: { level?: number } }) => Archiver = require('archiver')
 
 // Feature functions live in separate modules.
 export * from './activity'
@@ -751,5 +757,95 @@ export const scanRefinanceOpportunities = onSchedule(
       created++
     }
     console.log(`scanRefinanceOpportunities: created ${created} alerts (scanned ${tracks.size} tracks)`)
+  }
+)
+
+// ── Full-case ZIP export ─────────────────────────────────────────────────────
+
+/** Removes filesystem-illegal characters from an archive entry name. */
+function sanitizeName(name: string): string {
+  return name.replace(/[/\\?%*:|"<>]/g, '_').trim() || 'file'
+}
+
+export const exportCustomerZip = onCall(
+  { region: REGION, timeoutSeconds: 300, memory: '1GiB' },
+  async (req) => {
+    if (!req.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
+    const uid = req.auth.uid
+    const customerId = req.data?.customer_id
+    if (!customerId || typeof customerId !== 'string') {
+      throw new HttpsError('invalid-argument', 'חסר מזהה לקוח')
+    }
+
+    const custSnap = await db.collection('customers').doc(customerId).get()
+    if (!custSnap.exists) throw new HttpsError('not-found', 'הלקוח לא נמצא')
+    if (custSnap.data()!.user_id !== uid) throw new HttpsError('permission-denied', 'אין הרשאה ללקוח זה')
+
+    const docsSnap = await db
+      .collection('documents')
+      .where('user_id', '==', uid)
+      .where('customer_id', '==', customerId)
+      .get()
+    const files = docsSnap.docs.map((d) => d.data()).filter((d) => d.storage_path)
+    if (files.length === 0) throw new HttpsError('failed-precondition', 'אין מסמכים לייצוא')
+
+    const bucket = getStorage().bucket()
+    const downloadToken = randomUUID()
+    const zipPath = `exports/${uid}/${customerId}-${Date.now()}.zip`
+    const zipFile = bucket.file(zipPath)
+    const writeStream = zipFile.createWriteStream({
+      contentType: 'application/zip',
+      metadata: { metadata: { firebaseStorageDownloadTokens: downloadToken } },
+    })
+
+    const archive = createArchive('zip', { zlib: { level: 9 } })
+    archive.pipe(writeStream)
+
+    let count = 0
+    const usedNames = new Set<string>()
+    for (const d of files) {
+      try {
+        const [buf] = await bucket.file(d.storage_path).download()
+        const fallback = String(d.storage_path).split('/').pop() ?? 'file'
+        let name = sanitizeName(`${d.type ?? 'מסמך'} - ${d.file_name ?? fallback}`)
+        // De-duplicate identical archive entry names.
+        if (usedNames.has(name)) name = `${count + 1} - ${name}`
+        usedNames.add(name)
+        archive.append(buf, { name })
+        count++
+      } catch (e) {
+        console.error('exportCustomerZip: skipping', d.storage_path, e)
+      }
+    }
+
+    await archive.finalize()
+    await new Promise<void>((resolve, reject) => {
+      writeStream.on('finish', () => resolve())
+      writeStream.on('error', reject)
+    })
+
+    const [meta] = await zipFile.getMetadata()
+    const url =
+      `https://firebasestorage.googleapis.com/v0/b/${bucket.name}` +
+      `/o/${encodeURIComponent(zipPath)}?alt=media&token=${downloadToken}`
+    return { url, file_count: count, total_size: Number(meta.size ?? 0) }
+  }
+)
+
+/** Deletes ZIP exports older than 7 days. */
+export const cleanupOldExports = onSchedule(
+  { schedule: 'every day 04:00', timeZone: 'Asia/Jerusalem', region: REGION },
+  async () => {
+    const bucket = getStorage().bucket()
+    const [files] = await bucket.getFiles({ prefix: 'exports/' })
+    const cutoff = Date.now() - 7 * DAY_MS
+    let deleted = 0
+    for (const f of files) {
+      const created = new Date(f.metadata.timeCreated ?? 0).getTime()
+      if (created < cutoff) {
+        try { await f.delete(); deleted++ } catch { /* already gone */ }
+      }
+    }
+    console.log(`cleanupOldExports: deleted ${deleted} old exports`)
   }
 )

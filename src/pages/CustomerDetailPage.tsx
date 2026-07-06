@@ -4,7 +4,7 @@ import {
   ArrowRight, MessageSquare, ClipboardList, Calculator, Upload,
   Send, Plus, Check, Mail, Phone, MapPin, User, CreditCard,
   FileText, Home, MessagesSquare, ListTodo, Banknote, ExternalLink,
-  Trash2, Loader2, Save, PenTool, Sparkles, ShieldCheck, Scale,
+  Trash2, Loader2, Save, PenTool, Sparkles, ShieldCheck, Scale, Download,
 } from 'lucide-react'
 import ObligationsTab from '@/components/customer/ObligationsTab'
 import AppraisalSection from '@/components/customer/AppraisalSection'
@@ -143,6 +143,7 @@ export default function CustomerDetailPage() {
   // Documents upload
   const docFileInputRef = useRef<HTMLInputElement>(null)
   const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [downloadingZip, setDownloadingZip] = useState(false)
   const [docUploadType, setDocUploadType] = useState('תעודת זהות + ספח')
   const [ocrDocId, setOcrDocId] = useState<string | null>(null)
   const [validateDocId, setValidateDocId] = useState<string | null>(null)
@@ -686,6 +687,24 @@ export default function CustomerDetailPage() {
     </div>
   )
 
+  const downloadCaseZip = async () => {
+    if (!id) return
+    setDownloadingZip(true)
+    try {
+      const fn = httpsCallable<{ customer_id: string }, { url: string; file_count: number }>(functions, 'exportCustomerZip')
+      const res = await fn({ customer_id: id })
+      if (res.data?.url) {
+        window.open(res.data.url, '_blank')
+        toast.success(`התיק נארז — ${res.data.file_count} קבצים`)
+      }
+    } catch (e) {
+      const err = e as { message?: string }
+      toast.error('שגיאה בייצוא התיק', err.message)
+    } finally {
+      setDownloadingZip(false)
+    }
+  }
+
   const renderDocumentsTab = () => (
     <div className="space-y-3">
       <BorrowerChecklist
@@ -698,6 +717,15 @@ export default function CustomerDetailPage() {
           {documents.filter(d => d.status === 'תקין').length} / {documents.length} מסמכים תקינים
         </p>
         <div className="flex items-center gap-2">
+          <button
+            onClick={downloadCaseZip}
+            disabled={downloadingZip || documents.length === 0}
+            title={documents.length === 0 ? 'אין מסמכים לייצוא' : 'הורד את כל המסמכים כ-ZIP'}
+            className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+          >
+            {downloadingZip ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            הורד תיק מלא (ZIP)
+          </button>
           <select
             value={docUploadType}
             onChange={e => setDocUploadType(e.target.value)}
