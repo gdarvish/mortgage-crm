@@ -103,6 +103,11 @@ export interface Database {
         Insert: Partial<Meeting>
         Update: Partial<Meeting>
       }
+      disbursements: {
+        Row: Disbursement
+        Insert: Partial<Disbursement>
+        Update: Partial<Disbursement>
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -167,7 +172,7 @@ export interface Customer {
   updated_at: string
 }
 
-export type CustomerStatus = 'ליד' | 'פגישה' | 'מסמכים' | 'הגשה' | 'אישור' | 'סגירה'
+export type CustomerStatus = 'ליד' | 'פגישה' | 'מסמכים' | 'הגשה' | 'אישור' | 'ביצוע' | 'סגירה'
 
 export interface Lead {
   id: string
@@ -249,6 +254,23 @@ export interface Mortgage {
   notes: string | null
   approval_date?: string | null
   approval_expires_at?: string | null
+  life_insurance_status?: 'נדרש' | 'בתהליך' | 'הופק' | null
+  property_insurance_status?: 'נדרש' | 'בתהליך' | 'הופק' | null
+  insurance_referral_partner_id?: string | null
+  created_at: string
+}
+
+export interface Disbursement {
+  id: string
+  user_id: string
+  customer_id: string
+  mortgage_id: string | null
+  payee: string                      // contractor / seller / lawyer / land registry
+  amount: number
+  due_date: string | null
+  status: 'מתוכנן' | 'שוחרר'
+  released_at: string | null
+  notes: string | null
   created_at: string
 }
 

@@ -16,10 +16,11 @@ const statusColors: Record<string, { bg: string; color: string }> = {
   'מסמכים': { bg: '#ffedd5', color: '#c2410c' },
   'הגשה':   { bg: '#f3e8ff', color: '#9333ea' },
   'אישור':  { bg: '#d1fae5', color: '#065f46' },
+  'ביצוע':  { bg: '#ccfbf1', color: '#0f766e' },
   'סגירה':  { bg: '#a7f3d0', color: '#064e3b' },
 }
 
-const statuses = ['הכל', 'ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'סגירה']
+const statuses = ['הכל', 'ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'ביצוע', 'סגירה']
 
 const cardStyle = {
   background: '#ffffff',

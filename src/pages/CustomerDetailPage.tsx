@@ -11,6 +11,8 @@ import AppraisalSection from '@/components/customer/AppraisalSection'
 import BankOffersSection from '@/components/customer/BankOffersSection'
 import { BorrowersSection, BorrowerChecklist } from '@/components/customer/Borrowers'
 import ScheduleMeetingButton from '@/components/customer/ScheduleMeetingButton'
+import ExecutionSection from '@/components/customer/ExecutionSection'
+import InsuranceSection from '@/components/customer/InsuranceSection'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
 import { formatCurrency, formatDate, generateToken, tokenExpiration } from '@/lib/utils'
@@ -67,6 +69,7 @@ const statusColors: Record<string, string> = {
   'מסמכים': 'bg-orange-100 text-orange-700',
   'הגשה': 'bg-purple-100 text-purple-700',
   'אישור': 'bg-green-100 text-green-700',
+  'ביצוע': 'bg-teal-100 text-teal-700',
   'סגירה': 'bg-emerald-100 text-emerald-700',
 }
 
@@ -77,7 +80,7 @@ const priorityColors: Record<string, string> = {
   'דחופה': 'bg-red-100 text-red-700',
 }
 
-const statuses: CustomerStatus[] = ['ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'סגירה']
+const statuses: CustomerStatus[] = ['ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'ביצוע', 'סגירה']
 
 const messageTemplates = [
   'שלום {שם}, רציתי לעדכן אותך לגבי סטטוס התיק.',
@@ -127,6 +130,7 @@ export default function CustomerDetailPage() {
   const [statusValue, setStatusValue] = useState<CustomerStatus>('ליד')
   const [formErrors, setFormErrors] = useState<FormErrors>({})
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showCloseWarn, setShowCloseWarn] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   // Task form
@@ -192,14 +196,14 @@ export default function CustomerDetailPage() {
   // -------------------------------------------------------------------------
   // Save handlers
   // -------------------------------------------------------------------------
-  const savePersonal = async () => {
+  const insuranceIncomplete = () =>
+    mortgages.length > 0 && mortgages.some(m =>
+      m.life_insurance_status !== 'הופק' || m.property_insurance_status !== 'הופק'
+    )
+
+  const doSavePersonal = async () => {
     if (!id) return
-    const errors = validatePersonalForm(personal)
-    setFormErrors(errors)
-    if (Object.keys(errors).length > 0) {
-      toast.error('יש שגיאות בטופס', 'אנא תקן את השדות המסומנים ונסה שוב')
-      return
-    }
+    setShowCloseWarn(false)
     setSaving(true)
     const { error } = await customerService.update(id, { ...personal, status: statusValue })
     if (!error) {
@@ -210,6 +214,22 @@ export default function CustomerDetailPage() {
       toast.error('שגיאה בשמירה', error.message)
     }
     setSaving(false)
+  }
+
+  const savePersonal = async () => {
+    if (!id) return
+    const errors = validatePersonalForm(personal)
+    setFormErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      toast.error('יש שגיאות בטופס', 'אנא תקן את השדות המסומנים ונסה שוב')
+      return
+    }
+    // Soft block: closing the case while insurance is not yet issued.
+    if (statusValue === 'סגירה' && insuranceIncomplete()) {
+      setShowCloseWarn(true)
+      return
+    }
+    doSavePersonal()
   }
 
   const saveFinancial = async () => {
@@ -859,6 +879,7 @@ export default function CustomerDetailPage() {
                 </table>
               </div>
             )}
+            <InsuranceSection mortgage={mortgage} onUpdated={refreshCustomer} />
             <div className="p-4 border-t border-gray-100">
               <BankOffersSection
                 customerId={id!}
@@ -870,6 +891,9 @@ export default function CustomerDetailPage() {
           </div>
         )
       })}
+      {(customer.status === 'ביצוע' || customer.status === 'סגירה') && (
+        <ExecutionSection customerId={id!} mortgageId={mortgages[0]?.id ?? null} />
+      )}
     </div>
   )
 
@@ -1143,6 +1167,15 @@ export default function CustomerDetailPage() {
         </div>
         <div className="p-5">{tabContent[activeTab]()}</div>
       </div>
+
+      <ConfirmDialog
+        open={showCloseWarn}
+        title="סגירת תיק"
+        message="הביטוחים טרם הופקו — להמשיך בכל זאת ולסגור את התיק?"
+        confirmText="סגור בכל זאת"
+        onConfirm={doSavePersonal}
+        onCancel={() => setShowCloseWarn(false)}
+      />
 
       <ConfirmDialog
         open={showDeleteConfirm}

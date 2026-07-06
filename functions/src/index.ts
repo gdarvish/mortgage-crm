@@ -482,7 +482,45 @@ export const generateAlerts = onSchedule(
       apprCreated++
     }
 
-    console.log(`generateAlerts: created ${created} track alerts, ${apprCreated} appraisal alerts (scanned ${tracks.size} tracks)`)
+    // Disbursements planned to be released within 3 days.
+    const disbCutoff = new Date(now.getTime() + 3 * DAY_MS)
+    const disbursements = await db
+      .collection('disbursements')
+      .where('status', '==', 'מתוכנן')
+      .where('due_date', '<=', disbCutoff.toISOString())
+      .get()
+    let disbCreated = 0
+    for (const dDoc of disbursements.docs) {
+      const d = dDoc.data()
+      if (!d.due_date) continue
+      const existing = await db
+        .collection('alerts')
+        .where('disbursement_id', '==', dDoc.id)
+        .where('status', '==', 'פתוח')
+        .limit(1)
+        .get()
+      if (!existing.empty) continue
+
+      const daysLeft = Math.round((new Date(d.due_date).getTime() - now.getTime()) / DAY_MS)
+      await db.collection('alerts').add({
+        user_id: d.user_id,
+        customer_id: d.customer_id,
+        mortgage_id: d.mortgage_id ?? null,
+        disbursement_id: dDoc.id,
+        loan_track_id: null,
+        document_id: null,
+        alert_type: 'disbursement_due',
+        alert_date: now.toISOString(),
+        days_until_end: daysLeft,
+        urgency: daysLeft <= 1 ? 'דחוף' : 'אזהרה',
+        status: 'פתוח',
+        snoozed_until: null,
+        created_at: FieldValue.serverTimestamp(),
+      })
+      disbCreated++
+    }
+
+    console.log(`generateAlerts: created ${created} track alerts, ${apprCreated} appraisal alerts, ${disbCreated} disbursement alerts (scanned ${tracks.size} tracks)`)
   }
 )
 
