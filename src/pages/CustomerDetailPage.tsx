@@ -10,6 +10,7 @@ import ObligationsTab from '@/components/customer/ObligationsTab'
 import AppraisalSection from '@/components/customer/AppraisalSection'
 import BankOffersSection from '@/components/customer/BankOffersSection'
 import { BorrowersSection, BorrowerChecklist } from '@/components/customer/Borrowers'
+import ScheduleMeetingButton from '@/components/customer/ScheduleMeetingButton'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
 import { formatCurrency, formatDate, generateToken, tokenExpiration } from '@/lib/utils'
@@ -1105,6 +1106,12 @@ export default function CustomerDetailPage() {
               className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 border border-amber-200 px-3 py-2 rounded-lg hover:bg-amber-100 transition-colors text-sm">
               <PenTool size={16} />שלח לחתימה
             </button>
+            <ScheduleMeetingButton
+              customerId={id!}
+              customerName={`${customer.first_name} ${customer.last_name}`}
+              currentStatus={customer.status}
+              onDone={refreshCustomer}
+            />
             <button onClick={() => navigate('/calculator')}
               className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg hover:bg-purple-100 transition-colors text-sm">
               <Calculator size={16} />צור תמהיל

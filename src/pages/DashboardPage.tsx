@@ -10,6 +10,7 @@ import {
 } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
 import { useDashboardData, useCompleteTask } from '@/hooks/queries/useDashboard'
+import TodayMeetingsWidget from '@/components/TodayMeetingsWidget'
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
 
 const statusOrder = ['ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'סגירה']
@@ -227,6 +228,8 @@ export default function DashboardPage() {
           <KpiCard key={card.label} {...card} index={i} isCurrency={card.isCurrency ?? false} />
         ))}
       </div>
+
+      <TodayMeetingsWidget />
 
       {/* Pipeline Bar */}
       <div

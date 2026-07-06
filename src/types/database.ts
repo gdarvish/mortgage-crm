@@ -98,6 +98,11 @@ export interface Database {
         Insert: Partial<Borrower>
         Update: Partial<Borrower>
       }
+      meetings: {
+        Row: Meeting
+        Insert: Partial<Meeting>
+        Update: Partial<Meeting>
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -356,6 +361,20 @@ export interface CpiIndex {
   date: string | null
   value: number | null
   change_percent: number | null
+}
+
+export interface Meeting {
+  id: string
+  user_id: string
+  customer_id: string | null         // meeting without a customer is allowed (phone lead)
+  title: string
+  starts_at: string                  // ISO
+  duration_minutes: number           // default 60
+  location: string | null            // address / 'זום' / 'טלפון'
+  status: 'מתוכננת' | 'התקיימה' | 'בוטלה'
+  reminder_sent: boolean             // guards against duplicate reminders
+  notes: string | null
+  created_at: string
 }
 
 export interface Borrower {
