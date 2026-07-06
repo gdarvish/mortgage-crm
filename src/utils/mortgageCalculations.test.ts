@@ -11,6 +11,10 @@ import {
   generateRecommendedMixes,
   effectivePropertyValue,
   additionalEquityRequired,
+  isCpiLinked,
+  linkedPaymentAtMonth,
+  totalPaymentWithCpi,
+  estimatePrepaymentFee,
   type TrackInput,
 } from './mortgageCalculations'
 
@@ -270,6 +274,62 @@ describe('checkCompliance age-at-term warning', () => {
     born.setFullYear(born.getFullYear() - 35) // 35 + 30 = 65
     const result = checkCompliance(tracks, 2000000, 'דירה_ראשונה', 40000, 0, null, [born.toISOString()])
     expect(result.checks.find(c => c.name.includes('גיל'))).toBeUndefined()
+  })
+})
+
+describe('CPI linkage', () => {
+  it('flags linked track types', () => {
+    expect(isCpiLinked('קל"ב')).toBe(true)
+    expect(isCpiLinked('משתנה_צמודה')).toBe(true)
+    expect(isCpiLinked('זכאות')).toBe(true)
+    expect(isCpiLinked('קל"צ')).toBe(false)
+    expect(isCpiLinked('פריים')).toBe(false)
+  })
+
+  it('linkedPaymentAtMonth grows with the index', () => {
+    const base = 3000
+    expect(linkedPaymentAtMonth(base, 2.5, 0)).toBeCloseTo(3000, 0)
+    expect(linkedPaymentAtMonth(base, 2.5, 12)).toBeGreaterThan(3000)
+    expect(linkedPaymentAtMonth(base, 2.5, 24)).toBeGreaterThan(linkedPaymentAtMonth(base, 2.5, 12))
+  })
+
+  it('linked track total cost exceeds nominal; fixed track equals nominal', () => {
+    const linked: TrackInput = { type: 'קל"ב', amount: 500000, interestRate: 3.8, periodMonths: 300 }
+    const fixed: TrackInput = { type: 'קל"צ', amount: 500000, interestRate: 4.5, periodMonths: 300 }
+    const linkedNominal = calculateMonthlyPayment(500000, 3.8, 300) * 300
+    expect(totalPaymentWithCpi(linked, 2.5)).toBeGreaterThan(linkedNominal)
+    const fixedNominal = calculateMonthlyPayment(500000, 4.5, 300) * 300
+    expect(totalPaymentWithCpi(fixed, 2.5)).toBeCloseTo(fixedNominal, 0)
+  })
+
+  it('no index growth when cpi is 0', () => {
+    const linked: TrackInput = { type: 'קל"ב', amount: 500000, interestRate: 3.8, periodMonths: 300 }
+    const nominal = calculateMonthlyPayment(500000, 3.8, 300) * 300
+    expect(totalPaymentWithCpi(linked, 0)).toBeCloseTo(nominal, 0)
+  })
+})
+
+describe('estimatePrepaymentFee', () => {
+  it('returns 0 when average rate >= contract rate', () => {
+    const fee = estimatePrepaymentFee({ balance: 500000, contractRate: 5, avgRate: 5.5, remainingMonths: 120, yearsSinceStart: 4, earlyNoticeGiven: false })
+    expect(fee.finalFee).toBe(0)
+  })
+
+  it('computes a positive fee with seniority discount when rate dropped', () => {
+    const fee = estimatePrepaymentFee({ balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 4, earlyNoticeGiven: false })
+    expect(fee.capitalizationFee).toBeGreaterThan(0)
+    expect(fee.discount).toBeCloseTo(fee.capitalizationFee * 0.2, 0) // 4 years => 20%
+    expect(fee.finalFee).toBe(fee.capitalizationFee - fee.discount)
+  })
+
+  it('applies 30% discount after 5 years', () => {
+    const fee = estimatePrepaymentFee({ balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 6, earlyNoticeGiven: false })
+    expect(fee.discount).toBeCloseTo(fee.capitalizationFee * 0.3, 0)
+  })
+
+  it('no discount before 3 years', () => {
+    const fee = estimatePrepaymentFee({ balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 2, earlyNoticeGiven: false })
+    expect(fee.discount).toBe(0)
   })
 })
 

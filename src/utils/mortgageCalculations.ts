@@ -344,6 +344,77 @@ export function generateRecommendedMixes(
   ]
 }
 
+// ── CPI (index) linkage ──────────────────────────────────────────────────────
+
+export function isCpiLinked(type: LoanTrackType): boolean {
+  return type === 'קל"ב' || type === 'משתנה_צמודה' || type === 'זכאות'
+}
+
+/**
+ * Projected monthly payment on a linked track in month `month` — a simplified
+ * model where the payment grows with the index (not a full balance simulation).
+ */
+export function linkedPaymentAtMonth(basePayment: number, annualCpi: number, month: number): number {
+  return basePayment * Math.pow(1 + annualCpi / 100, month / 12)
+}
+
+/** Total cost of a track, applying index growth when the track is CPI-linked. */
+export function totalPaymentWithCpi(track: TrackInput, annualCpi: number): number {
+  const base = calculateMonthlyPayment(track.amount, track.interestRate, track.periodMonths)
+  if (!isCpiLinked(track.type) || annualCpi <= 0) return base * track.periodMonths
+  let total = 0
+  for (let m = 1; m <= track.periodMonths; m++) total += linkedPaymentAtMonth(base, annualCpi, m)
+  return total
+}
+
+/** Projected monthly payment of a whole mix after `years`, applying index growth. */
+export function mixMonthlyPaymentAfterYears(tracks: TrackInput[], annualCpi: number, years: number): number {
+  return tracks.reduce((sum, t) => {
+    const base = calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths)
+    if (t.periodMonths < years * 12) return sum // track already paid off
+    if (!isCpiLinked(t.type) || annualCpi <= 0) return sum + base
+    return sum + linkedPaymentAtMonth(base, annualCpi, years * 12)
+  }, 0)
+}
+
+/** Total cost of a whole mix, applying index growth to linked tracks. */
+export function mixTotalCostWithCpi(tracks: TrackInput[], annualCpi: number): number {
+  return tracks.reduce((sum, t) => sum + totalPaymentWithCpi(t, annualCpi), 0)
+}
+
+// ── Early-repayment (capitalization) fee ─────────────────────────────────────
+
+export interface PrepaymentFeeInput {
+  balance: number               // track balance
+  contractRate: number          // the rate in the contract (%)
+  avgRate: number               // Bank of Israel average rate for the remaining term (%)
+  remainingMonths: number
+  yearsSinceStart: number       // seniority — for the seniority discount
+  earlyNoticeGiven: boolean     // early notice (10–45 days) — 10% discount (not applied by default)
+}
+
+export function estimatePrepaymentFee(input: PrepaymentFeeInput) {
+  const { balance, contractRate, avgRate, remainingMonths, yearsSinceStart } = input
+  // No capitalization fee when the average rate is at or above the contract rate.
+  if (avgRate >= contractRate || balance <= 0 || remainingMonths <= 0) {
+    return { capitalizationFee: 0, discount: 0, finalFee: 0 }
+  }
+  // Capitalization: present value of the future payments (at the contract rate),
+  // discounted at the average rate — versus the current balance.
+  const payment = calculateMonthlyPayment(balance, contractRate, remainingMonths)
+  const rAvg = avgRate / 100 / 12
+  const pvAtAvg = payment * (1 - Math.pow(1 + rAvg, -remainingMonths)) / rAvg
+  const capitalizationFee = Math.max(0, pvAtAvg - balance)
+  // Seniority discount per the regulations: 20% after 3 years, 30% after 5 years.
+  const discountRate = yearsSinceStart >= 5 ? 0.3 : yearsSinceStart >= 3 ? 0.2 : 0
+  const discount = capitalizationFee * discountRate
+  return {
+    capitalizationFee: Math.round(capitalizationFee),
+    discount: Math.round(discount),
+    finalFee: Math.round(capitalizationFee - discount),
+  }
+}
+
 export function calculateRefinanceSavings(
   existingTracks: TrackInput[],
   newTracks: TrackInput[],

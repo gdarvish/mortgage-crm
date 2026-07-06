@@ -11,12 +11,16 @@ import {
   generateRecommendedMixes,
   calculateGracePayments,
   effectiveMonthlyPayment,
+  isCpiLinked,
+  mixMonthlyPaymentAfterYears,
+  mixTotalCostWithCpi,
   type TrackInput,
   type GraceType,
   type LiveRates,
 } from '@/utils/mortgageCalculations'
 import type { LoanTrackType, PropertyType } from '@/types/database'
 import { db, functions } from '@/lib/firebase'
+import { settingsService } from '@/services/settingsService'
 import { toast } from '@/components/ui'
 
 const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
@@ -97,6 +101,7 @@ export default function MortgageCalculatorPage() {
   const [propertyType, setPropertyType] = useState<PropertyType>('דירה_ראשונה')
   const [monthlyIncome, setMonthlyIncome] = useState(25000)
   const [monthlyObligations, setMonthlyObligations] = useState(0)
+  const [expectedCpi, setExpectedCpi] = useState(2.5)
   const [tracks, setTracks] = useState<TrackInput[]>([
     { type: 'פריים', amount: 600000, interestRate: 5.0, periodMonths: 240 },
     { type: 'קל"צ',  amount: 600000, interestRate: 3.2, periodMonths: 300 },
@@ -130,6 +135,9 @@ export default function MortgageCalculatorPage() {
         if (Object.keys(rates).length > 0) setLiveRates(rates)
       })
       .catch(() => {})
+    settingsService.get().then(({ data }) => {
+      if (typeof data?.expected_annual_cpi === 'number') setExpectedCpi(data.expected_annual_cpi)
+    })
   }, [])
 
   const loanAmount  = Math.max(0, propertyPrice - ownCapital)
@@ -146,6 +154,11 @@ export default function MortgageCalculatorPage() {
     tracks.reduce((s, t) => s + effectiveMonthlyPayment(t) * t.periodMonths, 0),
     [tracks]
   )
+
+  const hasLinkedTracks = useMemo(() => tracks.some(t => isCpiLinked(t.type)), [tracks])
+  const payment5yr = useMemo(() => mixMonthlyPaymentAfterYears(tracks, expectedCpi, 5), [tracks, expectedCpi])
+  const payment10yr = useMemo(() => mixMonthlyPaymentAfterYears(tracks, expectedCpi, 10), [tracks, expectedCpi])
+  const totalCostWithCpi = useMemo(() => mixTotalCostWithCpi(tracks, expectedCpi), [tracks, expectedCpi])
 
   const compliance = useMemo(() =>
     checkCompliance(tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations),
@@ -311,6 +324,7 @@ export default function MortgageCalculatorPage() {
                 </div>
                 <InputField label="הכנסה חודשית נטו" value={monthlyIncome} onChange={v => setMonthlyIncome(Number(v) || 0)} prefix="₪" />
                 <InputField label="התחייבויות חודשיות" value={monthlyObligations} onChange={v => setMonthlyObligations(Number(v) || 0)} prefix="₪" />
+                <InputField label="הנחת מדד שנתי" value={expectedCpi} onChange={v => setExpectedCpi(Number(v) || 0)} suffix="%" />
               </div>
               {monthlyObligations > 0 && (
                 <p className="mt-2 text-[12px]" style={{ color: '#a8a29e' }}>
@@ -332,6 +346,11 @@ export default function MortgageCalculatorPage() {
                   note: tracksTotal !== loanAmount ? `פער: ${formatCurrency(Math.abs(loanAmount - tracksTotal))}` : null,
                 },
                 { label: 'עלות כוללת', value: formatCurrency(Math.round(totalCost)) },
+                ...(hasLinkedTracks ? [
+                  { label: 'החזר חודשי צפוי בעוד 5 שנים', value: formatCurrency(Math.round(payment5yr)) },
+                  { label: 'החזר חודשי צפוי בעוד 10 שנים', value: formatCurrency(Math.round(payment10yr)) },
+                  { label: 'עלות כוללת (כולל הצמדה צפויה)', value: formatCurrency(Math.round(totalCostWithCpi)) },
+                ] : []),
               ].map(row => (
                 <div key={row.label} className="flex items-center justify-between py-3">
                   <span className="text-[13px]" style={{ color: '#a8a29e' }}>{row.label}</span>
@@ -353,6 +372,11 @@ export default function MortgageCalculatorPage() {
                 </div>
               ))}
             </div>
+            {hasLinkedTracks && (
+              <p className="text-[11px] mt-3" style={{ color: '#a8a29e' }}>
+                תחזית לפי הנחת מדד {expectedCpi}% — אינה התחייבות.
+              </p>
+            )}
           </div>
 
           {/* Compliance */}
@@ -524,6 +548,11 @@ export default function MortgageCalculatorPage() {
                     >
                       {trackTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
+                    {isCpiLinked(track.type) && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: '#fef3c7', color: '#d97706' }}>
+                        צמוד מדד
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[12px] px-2.5 py-1 rounded-full" style={{ background: '#f5f4f2', color: '#a8a29e' }}>
