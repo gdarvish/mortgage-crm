@@ -119,6 +119,7 @@ export default function MortgageCalculatorPage() {
       'קל"ב': 'fixed_unlinked',
       'משתנה_צמודה': 'variable_linked',
       'זכאות': 'eligibility',
+      'פריים': 'prime',
     }
     getDocs(query(collection(db, 'interest_rates'), orderBy('effective_date', 'desc'), limit(20)))
       .then(snap => {
@@ -166,7 +167,7 @@ export default function MortgageCalculatorPage() {
   )
 
   const recommendations = useMemo(() =>
-    generateRecommendedMixes(loanAmount, 300, 6.0, liveRates),
+    generateRecommendedMixes(loanAmount, 300, liveRates?.prime ?? 6.0, liveRates),
     [loanAmount, liveRates]
   )
 
@@ -650,6 +651,11 @@ export default function MortgageCalculatorPage() {
                 )
               })}
             </div>
+            {(!liveRates || liveRates.prime == null) && (
+              <p className="text-[11px] mt-3" style={{ color: '#a8a29e' }}>
+                ריביות להמחשה בלבד — לא נטענו ריביות מערכת עדכניות לכל המסלולים (כולל פריים).
+              </p>
+            )}
           </div>
 
           {/* Amortization chart */}

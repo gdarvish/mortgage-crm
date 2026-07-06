@@ -293,6 +293,7 @@ export interface LiveRates {
   fixed_unlinked?: number
   variable_linked?: number
   eligibility?: number
+  prime?: number
 }
 
 export function generateRecommendedMixes(

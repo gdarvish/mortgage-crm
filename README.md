@@ -71,3 +71,33 @@ export default defineConfig([
   },
 ])
 ```
+
+## תפעול (Operations)
+
+### ניהול ריביות מערכת
+
+הריביות שמזינות את מחשבון המשכנתא ואת מנוע זיהוי הזדמנויות המחזור נשמרות באוסף
+`interest_rates`. כתיבה ישירה מה-client חסומה ב-Firestore Rules; העדכון עובר דרך
+פונקציית ה-Cloud `updateInterestRate`, שמוגבלת למשתמשים עם custom claim `admin: true`.
+
+הענקת הרשאת מנהל למשתמש:
+
+```bash
+# דורש GOOGLE_APPLICATION_CREDENTIALS מכוון ל-service account key
+cd functions
+node scripts/grant-admin.mjs <UID>
+```
+
+ה-claim נטען רק לאחר שהמשתמש **מתנתק ומתחבר מחדש**. לאחר מכן, בעמוד "שוק הריביות"
+יופיעו כפתורי עריכה ליד כל סוג מסלול, ועדכון יוצר רשומה חדשה ב-`interest_rates`
+שהמחשבון והמנוע קוראים כ-`liveRate` העדכני.
+
+### TTL על אוסף rate_limits
+
+מסמכי הגבלת הקצב (`rate_limits`) נכתבים עם שדה `expireAt` (Timestamp). כדי ש-Firestore
+ימחק אותם אוטומטית, יש להפעיל TTL policy פעם אחת:
+
+```bash
+gcloud firestore fields ttls update expireAt \
+  --collection-group=rate_limits --enable-ttl
+```
