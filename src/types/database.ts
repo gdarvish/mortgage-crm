@@ -88,6 +88,11 @@ export interface Database {
         Insert: Partial<Appraisal>
         Update: Partial<Appraisal>
       }
+      bank_offers: {
+        Row: BankOffer
+        Insert: Partial<BankOffer>
+        Update: Partial<BankOffer>
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -362,6 +367,29 @@ export interface Obligation {
   balance: number | null             // outstanding balance (display only)
   end_date: string | null            // ISO — loan end date
   include_in_dti: boolean            // auto-computed, manually overridable
+  notes: string | null
+  created_at: string
+}
+
+export interface BankOfferTrack {
+  type: LoanTrackType
+  amount: number
+  interest_rate: number
+  period_months: number
+}
+
+export interface BankOffer {
+  id: string
+  user_id: string
+  customer_id: string
+  mortgage_id: string
+  bank_name: string
+  round: number                      // negotiation round: 1 = first offer, 2 = improved...
+  offer_date: string | null
+  valid_until: string | null
+  tracks: BankOfferTrack[]           // embedded array — stored together
+  status: 'התקבלה' | 'נבחרה' | 'נדחתה'
+  bank_response_id: string | null    // optional link to a file in bank_responses
   notes: string | null
   created_at: string
 }

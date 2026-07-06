@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import ObligationsTab from '@/components/customer/ObligationsTab'
 import AppraisalSection from '@/components/customer/AppraisalSection'
+import BankOffersSection from '@/components/customer/BankOffersSection'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
 import { formatCurrency, formatDate, generateToken, tokenExpiration } from '@/lib/utils'
@@ -845,6 +846,14 @@ export default function CustomerDetailPage() {
                 </table>
               </div>
             )}
+            <div className="p-4 border-t border-gray-100">
+              <BankOffersSection
+                customerId={id!}
+                mortgage={mortgage}
+                customerName={`${customer.first_name} ${customer.last_name}`}
+                onChosen={refreshCustomer}
+              />
+            </div>
           </div>
         )
       })}
