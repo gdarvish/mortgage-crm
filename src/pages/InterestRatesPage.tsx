@@ -1,6 +1,10 @@
-import { useState, useEffect } from 'react'
-import { TrendingUp, RefreshCw, Loader2 } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { TrendingUp, RefreshCw, Loader2, Pencil, X, Check } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
+import { auth, db, functions } from '@/lib/firebase'
+import { toast } from '@/components/ui'
 
 const CACHE_KEY = 'boi_rates_cache'
 const CACHE_TS_KEY = 'boi_rates_ts'
@@ -128,6 +132,8 @@ export default function InterestRatesPage() {
         </div>
       </div>
 
+      <AdminLiveRatesSection />
+
       <div style={{ ...cardStyle, padding: 20 }}>
         <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>מגמת ריבית פריים</h2>
         <ResponsiveContainer width="100%" height={280}>
@@ -168,6 +174,124 @@ export default function InterestRatesPage() {
           </table>
         </div>
       </div>
+    </div>
+  )
+}
+
+const LIVE_TRACK_TYPES: { key: string; label: string }[] = [
+  { key: 'קל"צ', label: 'קל"צ (קבועה לא צמודה)' },
+  { key: 'קל"ב', label: 'קל"ב (קבועה צמודה)' },
+  { key: 'משתנה_צמודה', label: 'משתנה צמודה' },
+  { key: 'משתנה_לא_צמודה', label: 'משתנה לא צמודה' },
+  { key: 'פריים', label: 'פריים' },
+  { key: 'זכאות', label: 'זכאות' },
+]
+
+/**
+ * Live rates stored in the interest_rates collection — the source consumed by the
+ * mortgage calculator and the refinance engine. Read-only for everyone; admins
+ * (custom claim) can push updates via the updateInterestRate Cloud Function.
+ */
+function AdminLiveRatesSection() {
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [rates, setRates] = useState<Record<string, number>>({})
+  const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const snap = await getDocs(query(collection(db, 'interest_rates'), orderBy('effective_date', 'desc'), limit(50)))
+      const map: Record<string, number> = {}
+      for (const d of snap.docs) {
+        const data = d.data()
+        if (data.track_type && !(data.track_type in map) && typeof data.rate === 'number') {
+          map[data.track_type] = data.rate
+        }
+      }
+      setRates(map)
+    } catch {
+      // read may be blocked before any rates exist — leave empty
+    }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    load()
+    auth.currentUser?.getIdTokenResult().then(r => setIsAdmin(r.claims.admin === true)).catch(() => {})
+  }, [load])
+
+  const startEdit = (key: string) => {
+    setEditing(key)
+    setDraft(rates[key] != null ? String(rates[key]) : '')
+  }
+
+  const save = async (key: string) => {
+    const rate = parseFloat(draft)
+    if (!Number.isFinite(rate) || rate < 0 || rate > 30) {
+      toast.error('ריבית אינה תקינה')
+      return
+    }
+    setSaving(true)
+    try {
+      const fn = httpsCallable(functions, 'updateInterestRate')
+      await fn({ track_type: key, rate })
+      toast.success('הריבית עודכנה')
+      setEditing(null)
+      await load()
+    } catch (e) {
+      const err = e as { message?: string }
+      toast.error('שגיאה בעדכון הריבית', err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ ...cardStyle, overflow: 'hidden' }}>
+      <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid #f5f4f2' }}>
+        <h2 className="text-[15px] font-bold" style={{ color: '#1c1917' }}>ריביות מערכת (מחשבון ומנוע מחזור)</h2>
+        {isAdmin && <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: '#d1fae5', color: '#065f46' }}>מנהל</span>}
+      </div>
+      <div className="divide-y" style={{ borderColor: '#f5f4f2' }}>
+        {LIVE_TRACK_TYPES.map(t => (
+          <div key={t.key} className="flex items-center justify-between px-5 py-3">
+            <span className="text-[13px] font-medium" style={{ color: '#1c1917' }}>{t.label}</span>
+            {editing === t.key ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="number" step="0.01" dir="ltr" autoFocus value={draft}
+                  onChange={e => setDraft(e.target.value)}
+                  className="w-24 px-2 py-1 text-[13px] outline-none rounded-lg"
+                  style={{ border: '1.5px solid #e7e5e4' }}
+                />
+                <button onClick={() => save(t.key)} disabled={saving} className="p-1.5 rounded-lg text-white disabled:opacity-50" style={{ background: '#059669' }}>
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                </button>
+                <button onClick={() => setEditing(null)} className="p-1.5 rounded-lg" style={{ background: '#f5f4f2', color: '#57534e' }}><X size={14} /></button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <span className="text-[15px] font-black tabular-nums" style={{ color: rates[t.key] != null ? '#059669' : '#d6d3d1' }} dir="ltr">
+                  {loading ? '…' : rates[t.key] != null ? `${rates[t.key].toFixed(2)}%` : '—'}
+                </span>
+                {isAdmin && (
+                  <button onClick={() => startEdit(t.key)} className="p-1.5 rounded-lg hover:bg-gray-100" style={{ color: '#a8a29e' }} aria-label="עדכן ריבית">
+                    <Pencil size={14} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {!isAdmin && (
+        <p className="px-5 py-3 text-[11px]" style={{ color: '#a8a29e', borderTop: '1px solid #f5f4f2' }}>
+          עדכון ריביות מתאפשר למנהלי מערכת בלבד.
+        </p>
+      )}
     </div>
   )
 }

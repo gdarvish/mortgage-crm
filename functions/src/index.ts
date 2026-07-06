@@ -1,7 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { onDocumentDeleted } from 'firebase-functions/v2/firestore'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
-import { FieldValue } from 'firebase-admin/firestore'
+import { FieldValue, Timestamp } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { randomUUID } from 'node:crypto'
 import type { Archiver } from 'archiver'
@@ -49,7 +49,8 @@ async function checkRateLimit(qualifier: string, maxCalls = 10, windowSec = 60):
     if (count > maxCalls) {
       throw new HttpsError('resource-exhausted', 'יותר מדי בקשות. נסה שוב בעוד דקה.')
     }
-    tx.set(ref, { count, windowStart })
+    // expireAt drives the Firestore TTL policy so stale limiter docs self-delete.
+    tx.set(ref, { count, windowStart, expireAt: Timestamp.fromMillis(now + 60 * 60 * 1000) })
   })
 }
 
@@ -355,6 +356,13 @@ export const onCustomerDeleted = onDocumentDeleted(
       deleteWhere('tasks', 'customer_id', customerId),
       deleteWhere('commissions', 'customer_id', customerId),
       deleteWhere('messages', 'customer_id', customerId),
+      // Feature collections (PR-10–PR-18).
+      deleteWhere('obligations', 'customer_id', customerId),
+      deleteWhere('appraisals', 'customer_id', customerId),
+      deleteWhere('bank_offers', 'customer_id', customerId),
+      deleteWhere('borrowers', 'customer_id', customerId),
+      deleteWhere('meetings', 'customer_id', customerId),
+      deleteWhere('disbursements', 'customer_id', customerId),
     ])
   }
 )
@@ -366,6 +374,7 @@ export const onMortgageDeleted = onDocumentDeleted(
     await Promise.all([
       deleteWhere('loan_tracks', 'mortgage_id', mortgageId),
       deleteWhere('bank_responses', 'mortgage_id', mortgageId),
+      deleteWhere('bank_offers', 'mortgage_id', mortgageId),
     ])
   }
 )
@@ -386,11 +395,38 @@ export const deleteAllUserData = onCall({ region: REGION }, async (req) => {
     'customers', 'leads', 'tasks', 'alerts', 'commissions', 'documents',
     'messages', 'referral_partners', 'mortgages', 'loan_tracks', 'bank_responses',
     'signatures',
+    // Feature collections (PR-10–PR-18).
+    'obligations', 'appraisals', 'bank_offers', 'borrowers', 'meetings', 'disbursements',
   ]
   for (const col of collections) {
     await deleteWhere(col, 'user_id', uid)
   }
 
+  return { ok: true }
+})
+
+const VALID_TRACK_TYPES = ['קל"צ', 'קל"ב', 'משתנה_צמודה', 'משתנה_לא_צמודה', 'פריים', 'זכאות']
+
+/** Admin-only write path for the shared interest_rates collection (client writes are blocked by rules). */
+export const updateInterestRate = onCall({ region: REGION }, async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
+  if (req.auth.token.admin !== true) {
+    throw new HttpsError('permission-denied', 'נדרשות הרשאות מנהל לעדכון ריביות')
+  }
+  const { track_type, rate } = req.data ?? {}
+  if (!VALID_TRACK_TYPES.includes(track_type)) {
+    throw new HttpsError('invalid-argument', 'סוג מסלול אינו תקין')
+  }
+  if (typeof rate !== 'number' || !Number.isFinite(rate) || rate < 0 || rate > 30) {
+    throw new HttpsError('invalid-argument', 'ריבית אינה תקינה')
+  }
+  await db.collection('interest_rates').add({
+    track_type,
+    rate,
+    effective_date: new Date().toISOString(),
+    updated_by: req.auth.uid,
+    created_at: FieldValue.serverTimestamp(),
+  })
   return { ok: true }
 })
 

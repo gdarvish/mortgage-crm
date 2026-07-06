@@ -363,7 +363,7 @@ export interface InterestRate {
   created_at: string
 }
 
-export type MessageDeliveryStatus = 'sent' | 'delivered' | 'read' | 'failed' | 'received'
+export type MessageDeliveryStatus = 'sent' | 'delivered' | 'read' | 'failed' | 'received' | 'manual'
 
 export interface Message {
   id: string

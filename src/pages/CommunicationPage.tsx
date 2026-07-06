@@ -94,6 +94,16 @@ export default function CommunicationPage() {
           toast.success('ההודעה נשלחה ב-WhatsApp')
         }
       } catch {
+        // API unavailable — record the message as manually opened, then fall back to wa.me.
+        await messageService.create({
+          customer_id: selectedCustomerId,
+          channel: 'וואטסאפ',
+          direction: 'נשלח',
+          content: messageText,
+          delivery_status: 'manual',
+        })
+        await fetchMessages(selectedCustomerId)
+        setMessageText('')
         if (cust?.phone) {
           messageService.sendWhatsApp(cust.phone, messageText)
         }
@@ -105,6 +115,7 @@ export default function CommunicationPage() {
         channel,
         direction: 'נשלח',
         content: messageText,
+        delivery_status: 'manual',
       })
       if (data) {
         setMessages(prev => [data, ...prev])
@@ -262,6 +273,11 @@ export default function CommunicationPage() {
                           className="text-[11px] font-semibold"
                           style={{ color: msg.direction === 'נשלח' ? '#059669' : '#d97706' }}
                         >{msg.direction}</span>
+                        {msg.delivery_status === 'manual' && (
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: '#f5f4f2', color: '#a8a29e' }}>
+                            נפתח באפליקציה
+                          </span>
+                        )}
                       </div>
                       <p className="text-[13px] mt-1" style={{ color: '#57534e' }}>{msg.content}</p>
                       <p className="text-[11px] mt-1 flex items-center gap-1" style={{ color: '#a8a29e' }}>

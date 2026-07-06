@@ -41,6 +41,7 @@ const DELIVERY_LABELS: Record<string, string> = {
   delivered: '✓✓ נמסר',
   read: '✓✓ נקרא',
   failed: '✗ נכשל',
+  manual: 'נפתח באפליקציה',
 }
 
 interface Tab { key: TabKey; label: string; icon: React.ElementType }
