@@ -93,6 +93,11 @@ export interface Database {
         Insert: Partial<BankOffer>
         Update: Partial<BankOffer>
       }
+      borrowers: {
+        Row: Borrower
+        Insert: Partial<Borrower>
+        Update: Partial<Borrower>
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -351,6 +356,22 @@ export interface CpiIndex {
   date: string | null
   value: number | null
   change_percent: number | null
+}
+
+export interface Borrower {
+  id: string
+  user_id: string
+  customer_id: string
+  role: 'לווה שני' | 'ערב'
+  first_name: string
+  last_name: string
+  id_number: string | null
+  phone: string | null
+  email: string | null
+  birth_date: string | null          // ISO — for age-vs-term check
+  employment_type: 'שכיר' | 'עצמאי' | 'שכיר + עצמאי' | null
+  monthly_income: number | null
+  created_at: string
 }
 
 export type ObligationType =

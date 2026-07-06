@@ -248,6 +248,31 @@ describe('checkCompliance with appraisal', () => {
   })
 })
 
+describe('checkCompliance age-at-term warning', () => {
+  const tracks: TrackInput[] = [
+    { type: 'קל"צ', amount: 400000, interestRate: 4.5, periodMonths: 360 },
+    { type: 'פריים', amount: 300000, interestRate: 5.0, periodMonths: 240 },
+    { type: 'קל"ב', amount: 300000, interestRate: 3.8, periodMonths: 300 },
+  ]
+
+  it('warns when a borrower would exceed 85 at term end', () => {
+    const born = new Date()
+    born.setFullYear(born.getFullYear() - 60) // 60 now + 30yr term = 90
+    const result = checkCompliance(tracks, 2000000, 'דירה_ראשונה', 40000, 0, null, [born.toISOString()])
+    const ageCheck = result.checks.find(c => c.name.includes('גיל'))
+    expect(ageCheck).toBeDefined()
+    expect(ageCheck!.severity).toBe('warning')
+    expect(result.isValid).toBe(true) // warning does not fail the file
+  })
+
+  it('does not warn for a young borrower', () => {
+    const born = new Date()
+    born.setFullYear(born.getFullYear() - 35) // 35 + 30 = 65
+    const result = checkCompliance(tracks, 2000000, 'דירה_ראשונה', 40000, 0, null, [born.toISOString()])
+    expect(result.checks.find(c => c.name.includes('גיל'))).toBeUndefined()
+  })
+})
+
 describe('generateRecommendedMixes', () => {
   it('returns 4 mix recommendations', () => {
     const mixes = generateRecommendedMixes(1000000, 300, 6.0)

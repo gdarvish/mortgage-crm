@@ -9,6 +9,7 @@ import {
 import ObligationsTab from '@/components/customer/ObligationsTab'
 import AppraisalSection from '@/components/customer/AppraisalSection'
 import BankOffersSection from '@/components/customer/BankOffersSection'
+import { BorrowersSection, BorrowerChecklist } from '@/components/customer/Borrowers'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
 import { formatCurrency, formatDate, generateToken, tokenExpiration } from '@/lib/utils'
@@ -596,6 +597,12 @@ export default function CustomerDetailPage() {
           </div>
         </div>
       )}
+
+      <BorrowersSection
+        customerId={id!}
+        primaryIncome={customer.monthly_income}
+        partnerIncome={customer.partner_income}
+      />
     </div>
   )
 
@@ -660,6 +667,11 @@ export default function CustomerDetailPage() {
 
   const renderDocumentsTab = () => (
     <div className="space-y-3">
+      <BorrowerChecklist
+        customerId={id!}
+        primaryName={`${customer.first_name} ${customer.last_name}`}
+        primaryEmployment={customer.employment_type === 'עצמאי' ? 'עצמאי' : 'שכיר'}
+      />
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">
           {documents.filter(d => d.status === 'תקין').length} / {documents.length} מסמכים תקינים

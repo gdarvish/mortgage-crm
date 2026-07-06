@@ -77,6 +77,10 @@ service cloud.firestore {
       allow read, update, delete: if isOwner(resource.data.user_id);
       allow create: if isOwner(request.resource.data.user_id);
     }
+    match /borrowers/{docId} {
+      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow create: if isOwner(request.resource.data.user_id);
+    }
 
     // Activity feed and audit log are written only by Cloud Functions (admin SDK).
     match /activity/{docId} {

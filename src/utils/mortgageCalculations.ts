@@ -161,7 +161,8 @@ export function checkCompliance(
   propertyType: PropertyType,
   monthlyIncome: number,
   monthlyObligations = 0,
-  appraisedValue?: number | null
+  appraisedValue?: number | null,
+  borrowerBirthDates?: (string | null | undefined)[]
 ): ComplianceResult {
   const totalLoan = tracks.reduce((sum, t) => sum + t.amount, 0)
   const totalMonthlyPayment = tracks.reduce(
@@ -256,6 +257,30 @@ export function checkCompliance(
           : `יחס החזר/הכנסה חורג: ${dti.toFixed(1)}% (מקסימום 40%)`,
     },
   ]
+
+  // Age-at-term warning (professional guidance, non-blocking). Many banks cap
+  // the borrower's age at the end of the term around 85.
+  const oldestAgeAtEnd = (borrowerBirthDates ?? [])
+    .map(bd => {
+      if (!bd) return null
+      const born = new Date(bd).getTime()
+      if (Number.isNaN(born)) return null
+      const ageNow = (Date.now() - born) / (365.25 * 24 * 60 * 60 * 1000)
+      return ageNow + maxPeriod / 12
+    })
+    .filter((v): v is number => v !== null)
+    .reduce((max, v) => Math.max(max, v), 0)
+
+  if (oldestAgeAtEnd > 85) {
+    checks.push({
+      name: 'גיל בתום התקופה',
+      value: Math.round(oldestAgeAtEnd),
+      limit: 85,
+      isValid: false,
+      severity: 'warning',
+      message: `גיל הלווה בתום התקופה: ${Math.round(oldestAgeAtEnd)} — בנקים רבים מגבילים ל-~85`,
+    })
+  }
 
   return {
     isValid: checks.filter(c => c.severity === 'error').every(c => c.isValid),
