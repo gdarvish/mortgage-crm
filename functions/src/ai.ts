@@ -2,7 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
 import { getStorage } from 'firebase-admin/storage'
 import Anthropic from '@anthropic-ai/sdk'
-import { db, REGION, imageMediaType } from './common'
+import { db, REGION, imageMediaType, checkAiRateLimit } from './common'
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
 
@@ -35,6 +35,9 @@ export const composeMessage = onCall(
   { region: REGION, cors: true, secrets: [ANTHROPIC_API_KEY] },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
+    // Auth and ownership were enforced; call volume was not. Each Claude call
+    // costs money and latency, so cap them per advisor per hour.
+    await checkAiRateLimit(request.auth.uid)
     const customerId = request.data?.customer_id
     const purpose = typeof request.data?.purpose === 'string' ? request.data.purpose : 'עדכון ללקוח'
     const tone = typeof request.data?.tone === 'string' ? request.data.tone : 'מקצועי וידידותי'
@@ -104,6 +107,9 @@ export const validateDocument = onCall(
   { region: REGION, cors: true, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 120 },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
+    // Auth and ownership were enforced; call volume was not. Each Claude call
+    // costs money and latency, so cap them per advisor per hour.
+    await checkAiRateLimit(request.auth.uid)
     const documentId = request.data?.document_id
     if (!documentId || typeof documentId !== 'string') {
       throw new HttpsError('invalid-argument', 'חסר מזהה מסמך')
@@ -192,6 +198,9 @@ export const adviseMortgageMix = onCall(
   { region: REGION, cors: true, secrets: [ANTHROPIC_API_KEY] },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
+    // Auth and ownership were enforced; call volume was not. Each Claude call
+    // costs money and latency, so cap them per advisor per hour.
+    await checkAiRateLimit(request.auth.uid)
     const loanAmount = request.data?.loan_amount
     if (typeof loanAmount !== 'number' || loanAmount <= 0) {
       throw new HttpsError('invalid-argument', 'סכום הלוואה לא תקין')

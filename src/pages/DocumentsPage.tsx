@@ -3,6 +3,7 @@ import { FileText, Upload, Download, Search, CheckCircle, Clock, XCircle, AlertC
 import { formatDate } from '@/lib/utils'
 import { useDocuments, useUploadDocument, useDeleteDocument, type DocumentWithCustomer } from '@/hooks/queries/useDocuments'
 import { useCustomers } from '@/hooks/queries/useCustomers'
+import { documentService } from '@/services/documentService'
 import { toast, ConfirmDialog } from '@/components/ui'
 
 // react-pdf pulls in pdf.js (~370KB) — load it only when a preview opens.
@@ -36,7 +37,10 @@ export default function DocumentsPage() {
   const [uploadType, setUploadType] = useState(docTypes[0])
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [docToDelete, setDocToDelete] = useState<DocRow | null>(null)
-  const [previewDoc, setPreviewDoc] = useState<DocRow | null>(null)
+  // A document is opened through a short-lived signed URL minted per request,
+  // so the row holds no durable link to hand around.
+  const [previewDoc, setPreviewDoc] = useState<{ row: DocRow; url: string } | null>(null)
+  const [busyDocId, setBusyDocId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: docs = [], isLoading: loading } = useDocuments()
@@ -55,6 +59,25 @@ export default function DocumentsPage() {
       }
     )
     e.target.value = ''
+  }
+
+  /** Mints a fresh signed URL for one document, or reports why it could not. */
+  const documentUrl = async (d: DocRow): Promise<string | null> => {
+    setBusyDocId(d.id)
+    const { url, error } = await documentService.getUrl(d.id)
+    setBusyDocId(null)
+    if (!url) toast.error('שגיאה בפתיחת המסמך', error?.message)
+    return url
+  }
+
+  const openPreview = async (d: DocRow) => {
+    const url = await documentUrl(d)
+    if (url) setPreviewDoc({ row: d, url })
+  }
+
+  const openInNewTab = async (d: DocRow) => {
+    const url = await documentUrl(d)
+    if (url) window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   const handleDeleteDoc = () => {
@@ -222,26 +245,22 @@ export default function DocumentsPage() {
                     <td className="p-3 text-[12px]" style={{ color: '#a8a29e' }}>{d.uploaded_at ? formatDate(d.uploaded_at) : '—'}</td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        {d.file_url && (
-                          <button
-                            onClick={() => setPreviewDoc(d)}
-                            className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-lg"
-                            style={{ background: '#f5f4f2', color: '#57534e' }}
-                          >
-                            <Eye size={12} /> תצוגה
-                          </button>
-                        )}
-                        {d.file_url && (
-                          <a
-                            href={d.file_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-lg"
-                            style={{ background: '#d1fae5', color: '#065f46' }}
-                          >
-                            <Download size={12} /> הורד
-                          </a>
-                        )}
+                        <button
+                          onClick={() => openPreview(d)}
+                          disabled={busyDocId === d.id}
+                          className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-lg disabled:opacity-50"
+                          style={{ background: '#f5f4f2', color: '#57534e' }}
+                        >
+                          <Eye size={12} /> תצוגה
+                        </button>
+                        <button
+                          onClick={() => openInNewTab(d)}
+                          disabled={busyDocId === d.id}
+                          className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-lg disabled:opacity-50"
+                          style={{ background: '#d1fae5', color: '#065f46' }}
+                        >
+                          <Download size={12} /> הורד
+                        </button>
                         <button
                           onClick={() => setDocToDelete(d)}
                           className="inline-flex items-center justify-center transition-colors hover:text-red-600"
@@ -271,11 +290,11 @@ export default function DocumentsPage() {
         onCancel={() => setDocToDelete(null)}
       />
 
-      {previewDoc?.file_url && (
+      {previewDoc && (
         <Suspense fallback={null}>
           <DocumentPreview
-            url={previewDoc.file_url}
-            filename={previewDoc.file_name ?? 'מסמך'}
+            url={previewDoc.url}
+            filename={previewDoc.row.file_name ?? 'מסמך'}
             onClose={() => setPreviewDoc(null)}
           />
         </Suspense>

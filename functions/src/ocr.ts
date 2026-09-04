@@ -3,7 +3,7 @@ import { defineSecret } from 'firebase-functions/params'
 import { FieldValue } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import Anthropic from '@anthropic-ai/sdk'
-import { db, REGION, imageMediaType } from './common'
+import { db, REGION, imageMediaType, checkAiRateLimit } from './common'
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
 
@@ -35,6 +35,9 @@ export const ocrPayslip = onCall(
   { region: REGION, cors: true, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 120 },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
+    // Auth and ownership were enforced; call volume was not. Each Claude call
+    // costs money and latency, so cap them per advisor per hour.
+    await checkAiRateLimit(request.auth.uid)
     const documentId = request.data?.document_id
     if (!documentId || typeof documentId !== 'string') {
       throw new HttpsError('invalid-argument', 'חסר מזהה מסמך')

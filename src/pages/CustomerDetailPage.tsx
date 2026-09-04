@@ -141,6 +141,7 @@ export default function CustomerDetailPage() {
   const [pendingOcrIncome, setPendingOcrIncome] = useState<number | null>(null)
   const [commissionMortgageId, setCommissionMortgageId] = useState<string>('')
   const [duplicateCustomer, setDuplicateCustomer] = useState<Customer | null>(null)
+  const [openingDocId, setOpeningDocId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   // Task form
@@ -399,6 +400,21 @@ export default function CustomerDetailPage() {
     setCustomer(prev => prev ? { ...prev, monthly_income: income } : prev)
     refreshCustomer()
     toast.success('ההכנסה עודכנה בתיק')
+  }
+
+  /**
+   * Documents are opened through a freshly minted, short-lived signed URL —
+   * nothing durable is stored on the record or handed around.
+   */
+  const openDocument = async (docId: string) => {
+    setOpeningDocId(docId)
+    const { url, error } = await documentService.getUrl(docId)
+    setOpeningDocId(null)
+    if (!url) {
+      toast.error('שגיאה בפתיחת המסמך', error?.message)
+      return
+    }
+    window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   const handleValidateDoc = async (docId: string) => {
@@ -873,10 +889,13 @@ export default function CustomerDetailPage() {
               doc.status === 'תקין' ? 'bg-green-100 text-green-700' :
               doc.status === 'ממתין' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
             }`}>{doc.status}</span>
-            {doc.file_url && (
-              <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-[#059669] hover:underline">צפה</a>
-            )}
+            <button
+              onClick={() => openDocument(doc.id)}
+              disabled={openingDocId === doc.id}
+              className="text-xs text-[#059669] hover:underline disabled:opacity-50"
+            >
+              {openingDocId === doc.id ? 'פותח...' : 'צפה'}
+            </button>
             <button
               onClick={() => handleOcr(doc.id)}
               disabled={ocrDocId === doc.id}

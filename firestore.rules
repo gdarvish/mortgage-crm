@@ -11,6 +11,14 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    // An update must not hand the document to somebody else. Without this,
+    // `allow update: if isOwner(resource.data.user_id)` lets the current owner
+    // rewrite user_id and move the record out of their own reach — or into
+    // another advisor's.
+    function ownerUnchanged() {
+      return request.resource.data.user_id == resource.data.user_id;
+    }
+
     // Per-user single docs (advisor settings)
     match /users/{uid}/{document=**} {
       allow read, write: if isOwner(uid);
@@ -18,75 +26,93 @@ service cloud.firestore {
 
     // User-scoped flat collections — every doc carries user_id
     match /customers/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /leads/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /referral_partners/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /tasks/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /documents/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /mortgages/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /loan_tracks/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /bank_responses/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /alerts/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /commissions/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /messages/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /signatures/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /obligations/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /appraisals/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /bank_offers/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /borrowers/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /meetings/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
     match /disbursements/{docId} {
-      allow read, update, delete: if isOwner(resource.data.user_id);
+      allow read, delete: if isOwner(resource.data.user_id);
+      allow update: if isOwner(resource.data.user_id) && ownerUnchanged();
       allow create: if isOwner(request.resource.data.user_id);
     }
 

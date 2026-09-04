@@ -1,11 +1,11 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { onDocumentDeleted } from 'firebase-functions/v2/firestore'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
-import { FieldValue, Timestamp } from 'firebase-admin/firestore'
+import { FieldValue } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { randomUUID } from 'node:crypto'
 import type { Archiver } from 'archiver'
-import { db, REGION } from './common'
+import { db, REGION, checkRateLimit } from './common'
 import { monthlyPayment, estimatePrepaymentFee } from './mortgageMath'
 
 // archiver's CommonJS entry is a factory function, which the bundled types do
@@ -33,26 +33,6 @@ async function findCustomerByToken(token: string) {
 function isExpired(expiresAt: unknown): boolean {
   if (!expiresAt || typeof expiresAt !== 'string') return false
   return new Date(expiresAt).getTime() < Date.now()
-}
-
-/** Rate limiter פשוט מבוסס Firestore — חלון קבוע פר מזהה (IP). */
-async function checkRateLimit(qualifier: string, maxCalls = 10, windowSec = 60): Promise<void> {
-  const ref = db.collection('rate_limits').doc(qualifier.replace(/\//g, '_'))
-  const now = Date.now()
-  await db.runTransaction(async (tx) => {
-    const data = (await tx.get(ref)).data()
-    let count = 1
-    let windowStart = now
-    if (data && typeof data.windowStart === 'number' && now - data.windowStart < windowSec * 1000) {
-      count = (data.count ?? 0) + 1
-      windowStart = data.windowStart
-    }
-    if (count > maxCalls) {
-      throw new HttpsError('resource-exhausted', 'יותר מדי בקשות. נסה שוב בעוד דקה.')
-    }
-    // expireAt drives the Firestore TTL policy so stale limiter docs self-delete.
-    tx.set(ref, { count, windowStart, expireAt: Timestamp.fromMillis(now + 60 * 60 * 1000) })
-  })
 }
 
 /** אימות reCAPTCHA v3. אם RECAPTCHA_SECRET_KEY לא מוגדר — מדלגים על הבדיקה. */
@@ -851,6 +831,47 @@ export const scanRefinanceOpportunities = onSchedule(
   }
 )
 
+// ── Document access ──────────────────────────────────────────────────────────
+
+/** How long a document link stays valid. */
+const DOCUMENT_URL_TTL_MS = 15 * 60 * 1000
+
+/**
+ * Hands back a short-lived signed URL for one document.
+ *
+ * getDownloadURL bakes a permanent `?token=` into the URL that bypasses
+ * storage.rules entirely: anyone who ever sees that link — forwarded by
+ * mistake, left in browser history, captured in a log — can read the payslip
+ * or ID behind it forever. A signed URL expires, and every request goes
+ * through this ownership check first.
+ */
+export const getDocumentUrl = onCall({ region: REGION }, async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
+  await checkRateLimit(`doc_url:${req.auth.uid}`, 120, 60)
+
+  const documentId = req.data?.document_id
+  if (!documentId || typeof documentId !== 'string') {
+    throw new HttpsError('invalid-argument', 'חסר מזהה מסמך')
+  }
+
+  const docSnap = await db.collection('documents').doc(documentId).get()
+  const data = docSnap.data()
+  if (!docSnap.exists || !data) throw new HttpsError('not-found', 'המסמך לא נמצא')
+  if (data.user_id !== req.auth.uid) {
+    throw new HttpsError('permission-denied', 'אין הרשאה למסמך זה')
+  }
+  if (!data.storage_path) {
+    throw new HttpsError('failed-precondition', 'למסמך אין קובץ מאוחסן')
+  }
+
+  const [url] = await getStorage()
+    .bucket()
+    .file(data.storage_path)
+    .getSignedUrl({ action: 'read', expires: Date.now() + DOCUMENT_URL_TTL_MS })
+
+  return { url, expires_at: new Date(Date.now() + DOCUMENT_URL_TTL_MS).toISOString() }
+})
+
 // ── Full-case ZIP export ─────────────────────────────────────────────────────
 
 /** Removes filesystem-illegal characters from an archive entry name. */
@@ -905,7 +926,8 @@ export const exportCustomerZip = onCall(
         archive.append(buf, { name })
         count++
       } catch (e) {
-        console.error('exportCustomerZip: skipping', d.storage_path, e)
+        // The storage path embeds the customer id — log the document id only.
+        console.error('exportCustomerZip: skipping document', d.id, e)
       }
     }
 
