@@ -23,7 +23,8 @@ jobs:
       - run: npm ci
       - run: npx tsc -b
       - run: npx eslint .
-      # Unit tests, then the rules and service suites under the emulator.
+      # Unit, project and component tests, then the rules and service suites
+      # under the Firebase emulator.
       - run: npm run test:all
 
   functions:

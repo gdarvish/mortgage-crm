@@ -863,6 +863,7 @@ export default function MortgageCalculatorPage() {
                     </span>
                     <button
                       onClick={() => removeTrack(idx)}
+                      aria-label="הסר מסלול"
                       className="transition-colors hover:text-red-500"
                       style={{ color: '#a8a29e' }}
                     >

@@ -6,6 +6,7 @@ import { getStorage } from 'firebase-admin/storage'
 import { randomUUID } from 'node:crypto'
 import type { Archiver } from 'archiver'
 import { db, REGION, checkRateLimit } from './common'
+import { requireAuth, requireAdmin, requireString, requireOwnedDoc } from './guards'
 import { monthlyPayment, estimatePrepaymentFee } from './mortgageMath'
 
 // archiver's CommonJS entry is a factory function, which the bundled types do
@@ -361,8 +362,7 @@ export const onMortgageDeleted = onDocumentDeleted(
 )
 
 export const deleteAllUserData = onCall({ region: REGION }, async (req) => {
-  if (!req.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
-  const uid = req.auth.uid
+  const uid = requireAuth(req)
   const bucket = getStorage().bucket()
 
   // Collect customer IDs for Storage cleanup
@@ -390,10 +390,7 @@ const VALID_TRACK_TYPES = ['קל"צ', 'קל"ב', 'משתנה_צמודה', 'מש�
 
 /** Admin-only write path for the shared interest_rates collection (client writes are blocked by rules). */
 export const updateInterestRate = onCall({ region: REGION }, async (req) => {
-  if (!req.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
-  if (req.auth.token.admin !== true) {
-    throw new HttpsError('permission-denied', 'נדרשות הרשאות מנהל לעדכון ריביות')
-  }
+  const uid = requireAdmin(req, 'לעדכון ריביות')
   const { track_type, rate } = req.data ?? {}
   if (!VALID_TRACK_TYPES.includes(track_type)) {
     throw new HttpsError('invalid-argument', 'סוג מסלול אינו תקין')
@@ -405,7 +402,7 @@ export const updateInterestRate = onCall({ region: REGION }, async (req) => {
     track_type,
     rate,
     effective_date: new Date().toISOString(),
-    updated_by: req.auth.uid,
+    updated_by: uid,
     created_at: FieldValue.serverTimestamp(),
   })
   return { ok: true }
@@ -439,10 +436,7 @@ const REGULATORY_FIELDS: Record<string, { min: number; max: number }> = {
  * can still be judged by them.
  */
 export const updateRegulatoryParams = onCall({ region: REGION }, async (req) => {
-  if (!req.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
-  if (req.auth.token.admin !== true) {
-    throw new HttpsError('permission-denied', 'נדרשות הרשאות מנהל לעדכון פרמטרים רגולטוריים')
-  }
+  const uid = requireAdmin(req, 'לעדכון פרמטרים רגולטוריים')
 
   const data = req.data ?? {}
   const record: Record<string, unknown> = {}
@@ -481,7 +475,7 @@ export const updateRegulatoryParams = onCall({ region: REGION }, async (req) => 
   }
   record.effective_from = new Date(effectiveFrom).toISOString()
   record.source_note = typeof data.source_note === 'string' ? data.source_note : null
-  record.updated_by = req.auth.uid
+  record.updated_by = uid
   record.created_at = FieldValue.serverTimestamp()
 
   const ref = await db.collection('regulatory_params').add(record)
@@ -923,27 +917,18 @@ const DOCUMENT_URL_TTL_MS = 15 * 60 * 1000
  * through this ownership check first.
  */
 export const getDocumentUrl = onCall({ region: REGION }, async (req) => {
-  if (!req.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
-  await checkRateLimit(`doc_url:${req.auth.uid}`, 120, 60)
+  const uid = requireAuth(req)
+  await checkRateLimit(`doc_url:${uid}`, 120, 60)
 
-  const documentId = req.data?.document_id
-  if (!documentId || typeof documentId !== 'string') {
-    throw new HttpsError('invalid-argument', 'חסר מזהה מסמך')
-  }
-
-  const docSnap = await db.collection('documents').doc(documentId).get()
-  const data = docSnap.data()
-  if (!docSnap.exists || !data) throw new HttpsError('not-found', 'המסמך לא נמצא')
-  if (data.user_id !== req.auth.uid) {
-    throw new HttpsError('permission-denied', 'אין הרשאה למסמך זה')
-  }
+  const documentId = requireString(req.data?.document_id, 'חסר מזהה מסמך')
+  const data = await requireOwnedDoc('documents', documentId, uid, 'המסמך לא נמצא')
   if (!data.storage_path) {
     throw new HttpsError('failed-precondition', 'למסמך אין קובץ מאוחסן')
   }
 
   const [url] = await getStorage()
     .bucket()
-    .file(data.storage_path)
+    .file(data.storage_path as string)
     .getSignedUrl({ action: 'read', expires: Date.now() + DOCUMENT_URL_TTL_MS })
 
   return { url, expires_at: new Date(Date.now() + DOCUMENT_URL_TTL_MS).toISOString() }
@@ -959,16 +944,9 @@ function sanitizeName(name: string): string {
 export const exportCustomerZip = onCall(
   { region: REGION, timeoutSeconds: 300, memory: '1GiB' },
   async (req) => {
-    if (!req.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
-    const uid = req.auth.uid
-    const customerId = req.data?.customer_id
-    if (!customerId || typeof customerId !== 'string') {
-      throw new HttpsError('invalid-argument', 'חסר מזהה לקוח')
-    }
-
-    const custSnap = await db.collection('customers').doc(customerId).get()
-    if (!custSnap.exists) throw new HttpsError('not-found', 'הלקוח לא נמצא')
-    if (custSnap.data()!.user_id !== uid) throw new HttpsError('permission-denied', 'אין הרשאה ללקוח זה')
+    const uid = requireAuth(req)
+    const customerId = requireString(req.data?.customer_id, 'חסר מזהה לקוח')
+    await requireOwnedDoc('customers', customerId, uid, 'הלקוח לא נמצא')
 
     const docsSnap = await db
       .collection('documents')

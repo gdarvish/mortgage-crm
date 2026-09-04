@@ -3,6 +3,7 @@ import { defineSecret } from 'firebase-functions/params'
 import { getStorage } from 'firebase-admin/storage'
 import Anthropic from '@anthropic-ai/sdk'
 import { db, REGION, imageMediaType, checkAiRateLimit } from './common'
+import { requireAuth, requireOwnedDoc } from './guards'
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
 
@@ -17,27 +18,15 @@ function textFrom(response: Anthropic.Message): string {
   return block && block.type === 'text' ? block.text : ''
 }
 
-async function requireOwnedDoc(
-  collectionName: string,
-  id: string,
-  uid: string
-): Promise<Record<string, unknown>> {
-  const snap = await db.collection(collectionName).doc(id).get()
-  if (!snap.exists) throw new HttpsError('not-found', 'הרשומה לא נמצאה')
-  const data = snap.data()!
-  if (data.user_id !== uid) throw new HttpsError('permission-denied', 'אין הרשאה לרשומה זו')
-  return data
-}
-
 // ── C.1 — Smart Composer ────────────────────────────────────────────────────
 
 export const composeMessage = onCall(
   { region: REGION, cors: true, secrets: [ANTHROPIC_API_KEY] },
   async (request) => {
-    if (!request.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
+    const uid = requireAuth(request)
     // Auth and ownership were enforced; call volume was not. Each Claude call
     // costs money and latency, so cap them per advisor per hour.
-    await checkAiRateLimit(request.auth.uid)
+    await checkAiRateLimit(uid)
     const customerId = request.data?.customer_id
     const purpose = typeof request.data?.purpose === 'string' ? request.data.purpose : 'עדכון ללקוח'
     const tone = typeof request.data?.tone === 'string' ? request.data.tone : 'מקצועי וידידותי'
@@ -45,11 +34,11 @@ export const composeMessage = onCall(
       throw new HttpsError('invalid-argument', 'חסר מזהה לקוח')
     }
 
-    const customer = await requireOwnedDoc('customers', customerId, request.auth.uid)
+    const customer = await requireOwnedDoc('customers', customerId, uid)
 
     const msgSnap = await db
       .collection('messages')
-      .where('user_id', '==', request.auth.uid)
+      .where('user_id', '==', uid)
       .where('customer_id', '==', customerId)
       .get()
     const recent = msgSnap.docs
@@ -106,16 +95,16 @@ const VALIDATE_SCHEMA = {
 export const validateDocument = onCall(
   { region: REGION, cors: true, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 120 },
   async (request) => {
-    if (!request.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
+    const uid = requireAuth(request)
     // Auth and ownership were enforced; call volume was not. Each Claude call
     // costs money and latency, so cap them per advisor per hour.
-    await checkAiRateLimit(request.auth.uid)
+    await checkAiRateLimit(uid)
     const documentId = request.data?.document_id
     if (!documentId || typeof documentId !== 'string') {
       throw new HttpsError('invalid-argument', 'חסר מזהה מסמך')
     }
 
-    const docData = await requireOwnedDoc('documents', documentId, request.auth.uid)
+    const docData = await requireOwnedDoc('documents', documentId, uid)
     const storagePath = docData.storage_path
     if (!storagePath || typeof storagePath !== 'string') {
       throw new HttpsError('failed-precondition', 'למסמך אין קובץ מצורף')
@@ -197,10 +186,10 @@ const MIX_SCHEMA = {
 export const adviseMortgageMix = onCall(
   { region: REGION, cors: true, secrets: [ANTHROPIC_API_KEY] },
   async (request) => {
-    if (!request.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
+    const uid = requireAuth(request)
     // Auth and ownership were enforced; call volume was not. Each Claude call
     // costs money and latency, so cap them per advisor per hour.
-    await checkAiRateLimit(request.auth.uid)
+    await checkAiRateLimit(uid)
     const loanAmount = request.data?.loan_amount
     if (typeof loanAmount !== 'number' || loanAmount <= 0) {
       throw new HttpsError('invalid-argument', 'סכום הלוואה לא תקין')

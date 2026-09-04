@@ -74,12 +74,13 @@ function KanbanColumn({ col, count, children }: { col: ColumnMeta; count: number
   )
 }
 
-function KanbanCard({ lead, col, index, onUpdateStatus, onConvert }: {
+function KanbanCard({ lead, col, index, onUpdateStatus, onConvert, onOpenCase }: {
   lead: Lead
   col: ColumnMeta
   index: number
   onUpdateStatus: (id: string, status: LeadStatus) => void
   onConvert: (lead: Lead) => void
+  onOpenCase: (customerId: string) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: lead.id })
   return (
@@ -152,7 +153,18 @@ function KanbanCard({ lead, col, index, onUpdateStatus, onConvert }: {
           >
             {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          {lead.status !== 'הפך ללקוח' && lead.status !== 'נסגר' && (
+          {lead.converted_to_customer_id ? (
+            // Already converted: the case exists, so offer it rather than a
+            // second conversion.
+            <button
+              onClick={() => onOpenCase(lead.converted_to_customer_id!)}
+              onPointerDown={e => e.stopPropagation()}
+              className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg"
+              style={{ background: '#d1fae5', color: '#065f46' }}
+            >
+              <ArrowLeftRight size={10} /> לתיק הלקוח
+            </button>
+          ) : lead.status !== 'הפך ללקוח' && lead.status !== 'נסגר' && (
             <button
               onClick={() => onConvert(lead)}
               onPointerDown={e => e.stopPropagation()}
@@ -338,6 +350,7 @@ export default function LeadsPage() {
                       index={i}
                       onUpdateStatus={updateStatus}
                       onConvert={setLeadToConvert}
+                      onOpenCase={(customerId) => navigate(`/customers/${customerId}`)}
                     />
                   ))}
                 </KanbanColumn>
