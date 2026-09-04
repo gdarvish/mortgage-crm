@@ -78,6 +78,22 @@ export interface ComplianceCheck {
   message: string
 }
 
+/**
+ * DTI thresholds. `warn` is where the case stops being comfortable and `hard`
+ * is where it stops being fundable; between them the advisor gets an amber
+ * flag rather than a red one, because a case at 43% is a conversation, not a
+ * rejection.
+ *
+ * NOTE: verify both numbers against the current הוראת ניהול בנקאי תקין before
+ * relying on them — they are defaults, and every caller may override them.
+ */
+export interface DtiLimits {
+  warn: number
+  hard: number
+}
+
+export const DEFAULT_DTI_LIMITS: DtiLimits = { warn: 40, hard: 50 }
+
 export function calculateMonthlyPayment(
   principal: number,
   annualRate: number,
@@ -155,6 +171,25 @@ export function additionalEquityRequired(
   return Math.max(0, Math.round(loanAmount - maxLoan))
 }
 
+function dtiBreakdown(
+  dti: number,
+  limits: DtiLimits,
+  mortgagePayment: number,
+  obligations: number,
+): string {
+  const nis = (v: number) => Math.round(v).toLocaleString('he-IL')
+  const parts = obligations > 0
+    ? ` (משכנתא ${nis(mortgagePayment)} ₪ + התחייבויות ${nis(obligations)} ₪)`
+    : ''
+  if (dti <= limits.warn) {
+    return `יחס החזר/הכנסה תקין: ${dti.toFixed(1)}%${parts} (סף אזהרה ${limits.warn}%)`
+  }
+  if (dti <= limits.hard) {
+    return `יחס החזר/הכנסה מעל סף האזהרה: ${dti.toFixed(1)}%${parts} (אזהרה ${limits.warn}%, מקסימום ${limits.hard}%)`
+  }
+  return `יחס החזר/הכנסה חורג: ${dti.toFixed(1)}%${parts} (מקסימום ${limits.hard}%)`
+}
+
 export function checkCompliance(
   tracks: TrackInput[],
   propertyPrice: number,
@@ -162,16 +197,22 @@ export function checkCompliance(
   monthlyIncome: number,
   monthlyObligations = 0,
   appraisedValue?: number | null,
-  borrowerBirthDates?: (string | null | undefined)[]
+  borrowerBirthDates?: (string | null | undefined)[],
+  dtiLimits: DtiLimits = DEFAULT_DTI_LIMITS,
 ): ComplianceResult {
   const totalLoan = tracks.reduce((sum, t) => sum + t.amount, 0)
   const totalMonthlyPayment = tracks.reduce(
     (sum, t) => sum + effectiveMonthlyPayment(t),
     0
   )
-  const maxPeriod = Math.max(...tracks.map(t => t.periodMonths))
+  // Math.max of an empty list is -Infinity, which used to surface verbatim in
+  // the "תקופה" row of an untouched calculator.
+  const maxPeriod = tracks.length ? Math.max(...tracks.map(t => t.periodMonths)) : 0
 
-  const fixedTracks = tracks.filter(t => t.type === 'קל"צ' || t.type === 'קל"ב')
+  // זכאות is a fixed, index-linked rate, so it counts toward the fixed-third
+  // floor exactly like קל"צ and קל"ב. (isCpiLinked already treats it as linked;
+  // that stays as it is.)
+  const fixedTracks = tracks.filter(t => t.type === 'קל"צ' || t.type === 'קל"ב' || t.type === 'זכאות')
   const primeTracks = tracks.filter(t => t.type === 'פריים')
   const variableTracks = tracks.filter(t =>
     t.type === 'פריים' || t.type === 'משתנה_צמודה' || t.type === 'משתנה_לא_צמודה'
@@ -188,7 +229,8 @@ export function checkCompliance(
     : 0
 
   const effectiveValue = effectivePropertyValue(propertyPrice, appraisedValue)
-  const ltv = (totalLoan / effectiveValue) * 100
+  const ltvApplicable = effectiveValue > 0
+  const ltv = ltvApplicable ? (totalLoan / effectiveValue) * 100 : 0
   const ltvLimit = getLtvLimit(propertyType)
   const combinedPayment = totalMonthlyPayment + monthlyObligations
   const dti = monthlyIncome > 0 ? (combinedPayment / monthlyIncome) * 100 : 0
@@ -198,11 +240,15 @@ export function checkCompliance(
       name: 'LTV - יחס הלוואה לשווי',
       value: Math.round(ltv * 10) / 10,
       limit: ltvLimit,
-      isValid: ltv <= ltvLimit,
+      // With no property value there is nothing to divide by; reporting the
+      // check as failed would be a false alarm, so it is reported as N/A.
+      isValid: !ltvApplicable || ltv <= ltvLimit,
       severity: 'error',
-      message: ltv <= ltvLimit
-        ? `LTV תקין: ${ltv.toFixed(1)}% (מקסימום ${ltvLimit}%)`
-        : `LTV חורג: ${ltv.toFixed(1)}% (מקסימום ${ltvLimit}%)`,
+      message: !ltvApplicable
+        ? 'לא ניתן לחשב LTV — חסר שווי נכס'
+        : ltv <= ltvLimit
+          ? `LTV תקין: ${ltv.toFixed(1)}% (מקסימום ${ltvLimit}%)`
+          : `LTV חורג: ${ltv.toFixed(1)}% (מקסימום ${ltvLimit}%)`,
     },
     {
       name: 'ריבית קבועה (מינימום)',
@@ -247,14 +293,14 @@ export function checkCompliance(
     {
       name: 'יחס החזר/הכנסה',
       value: Math.round(dti * 10) / 10,
-      limit: 40,
-      isValid: dti <= 40,
-      severity: dti <= 40 ? 'warning' : 'error',
-      message: monthlyObligations > 0
-        ? `יחס החזר כולל התחייבויות: ${dti.toFixed(1)}% (משכנתא ${Math.round(totalMonthlyPayment).toLocaleString('he-IL')} ₪ + התחייבויות ${Math.round(monthlyObligations).toLocaleString('he-IL')} ₪, מקסימום 40%)`
-        : dti <= 40
-          ? `יחס החזר/הכנסה תקין: ${dti.toFixed(1)}% (מקסימום 40%)`
-          : `יחס החזר/הכנסה חורג: ${dti.toFixed(1)}% (מקסימום 40%)`,
+      limit: dtiLimits.hard,
+      // Three states, not two. Up to `warn` the case is clean; between `warn`
+      // and `hard` it is flagged but still fundable, so the check reads as
+      // not-clean at warning severity and does not fail overall compliance;
+      // only above `hard` is it an error.
+      isValid: dti <= dtiLimits.warn,
+      severity: dti <= dtiLimits.hard ? 'warning' : 'error',
+      message: dtiBreakdown(dti, dtiLimits, totalMonthlyPayment, monthlyObligations),
     },
   ]
 

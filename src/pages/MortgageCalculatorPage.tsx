@@ -12,12 +12,15 @@ import {
   generateRecommendedMixes,
   calculateGracePayments,
   effectiveMonthlyPayment,
+  additionalEquityRequired,
+  DEFAULT_DTI_LIMITS,
   isCpiLinked,
   mixMonthlyPaymentAfterYears,
   mixTotalCostWithCpi,
   type TrackInput,
   type GraceType,
   type LiveRates,
+  type DtiLimits,
 } from '@/utils/mortgageCalculations'
 import type { LoanTrackType, Mortgage, PropertyType } from '@/types/database'
 import { db, functions } from '@/lib/firebase'
@@ -26,6 +29,7 @@ import { customerService } from '@/services/customerService'
 import { mortgageService } from '@/services/mortgageService'
 import { obligationService, totalMonthlyObligations } from '@/services/obligationService'
 import { borrowerService, totalHouseholdIncome } from '@/services/borrowerService'
+import { appraisalService } from '@/services/appraisalService'
 import { toast, ConfirmDialog } from '@/components/ui'
 
 const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
@@ -129,6 +133,9 @@ export default function MortgageCalculatorPage() {
   const [caseName, setCaseName] = useState<string | null>(null)
   const [caseLoading, setCaseLoading] = useState(Boolean(customerId))
   const [obligationCount, setObligationCount] = useState(0)
+  const [appraisedValue, setAppraisedValue] = useState<number | null>(null)
+  const [borrowerBirthDates, setBorrowerBirthDates] = useState<(string | null)[]>([])
+  const [dtiLimits, setDtiLimits] = useState<DtiLimits>(DEFAULT_DTI_LIMITS)
   const [savingMix, setSavingMix] = useState(false)
   const [mismatchConfirm, setMismatchConfirm] = useState(false)
 
@@ -140,11 +147,13 @@ export default function MortgageCalculatorPage() {
     let cancelled = false
     setCaseLoading(true)
     ;(async () => {
-      const [{ data: customer }, { data: obligations }, { data: borrowers }] = await Promise.all([
-        customerService.getById(customerId),
-        obligationService.getByCustomer(customerId),
-        borrowerService.getByCustomer(customerId),
-      ])
+      const [{ data: customer }, { data: obligations }, { data: borrowers }, { data: appraisals }] =
+        await Promise.all([
+          customerService.getById(customerId),
+          obligationService.getByCustomer(customerId),
+          borrowerService.getByCustomer(customerId),
+          appraisalService.getByCustomer(customerId),
+        ])
       if (cancelled) return
       if (!customer) {
         toast.error('התיק לא נמצא')
@@ -161,6 +170,15 @@ export default function MortgageCalculatorPage() {
       setOwnCapital(mortgage?.own_capital ?? customer.own_capital ?? 0)
       if (mortgage?.property_type) setPropertyType(mortgage.property_type)
       setMonthlyIncome(totalHouseholdIncome(customer.monthly_income, customer.partner_income, borrowers ?? []))
+      setBorrowerBirthDates((borrowers ?? []).map(b => b.birth_date))
+
+      // The bank finances against the lower of purchase price and appraisal, so
+      // a received appraisal — the most recent one — drives LTV from here on.
+      const latestAppraised = (appraisals ?? [])
+        .filter(a => a.status === 'התקבלה' && a.appraised_value)
+        .sort((a, b) => (b.received_at ?? '').localeCompare(a.received_at ?? ''))[0]
+        ?.appraised_value ?? null
+      setAppraisedValue(latestAppraised)
 
       // Detailed obligations are the source of truth; the questionnaire's single
       // number is only a fallback for cases that have none recorded yet.
@@ -217,6 +235,10 @@ export default function MortgageCalculatorPage() {
       .catch(() => {})
     settingsService.get().then(({ data }) => {
       if (typeof data?.expected_annual_cpi === 'number') setExpectedCpi(data.expected_annual_cpi)
+      setDtiLimits({
+        warn: data?.dti_warn_threshold ?? DEFAULT_DTI_LIMITS.warn,
+        hard: data?.dti_hard_threshold ?? DEFAULT_DTI_LIMITS.hard,
+      })
     })
   }, [])
 
@@ -241,9 +263,20 @@ export default function MortgageCalculatorPage() {
   const totalCostWithCpi = useMemo(() => mixTotalCostWithCpi(tracks, expectedCpi), [tracks, expectedCpi])
 
   const compliance = useMemo(() =>
-    checkCompliance(tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations),
-    [tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations]
+    checkCompliance(
+      tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations,
+      appraisedValue, borrowerBirthDates, dtiLimits,
+    ),
+    [tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations,
+     appraisedValue, borrowerBirthDates, dtiLimits]
   )
+
+  // A low appraisal caps the loan below what the purchase price would allow;
+  // the gap is equity the borrower has to find.
+  const extraEquityNeeded = useMemo(() => {
+    if (!appraisedValue || appraisedValue >= propertyPrice) return 0
+    return additionalEquityRequired(tracksTotal, propertyPrice, appraisedValue, propertyType)
+  }, [appraisedValue, propertyPrice, tracksTotal, propertyType])
 
   const recommendations = useMemo(() =>
     generateRecommendedMixes(loanAmount, 300, liveRates?.prime ?? 6.0, liveRates),
@@ -525,12 +558,18 @@ export default function MortgageCalculatorPage() {
                   note: tracksTotal !== loanAmount ? `פער: ${formatCurrency(Math.abs(loanAmount - tracksTotal))}` : null,
                 },
                 { label: 'עלות כוללת', value: formatCurrency(Math.round(totalCost)) },
+                ...(appraisedValue && appraisedValue < propertyPrice ? [
+                  { label: 'שווי לפי שמאות', value: formatCurrency(appraisedValue) },
+                ] : []),
+                ...(extraEquityNeeded > 0 ? [
+                  { label: 'הון עצמי נוסף נדרש', value: formatCurrency(extraEquityNeeded), warn: true },
+                ] : []),
                 ...(hasLinkedTracks ? [
                   { label: 'החזר חודשי צפוי בעוד 5 שנים', value: formatCurrency(Math.round(payment5yr)) },
                   { label: 'החזר חודשי צפוי בעוד 10 שנים', value: formatCurrency(Math.round(payment10yr)) },
                   { label: 'עלות כוללת (כולל הצמדה צפויה)', value: formatCurrency(Math.round(totalCostWithCpi)) },
                 ] : []),
-              ].map(row => (
+              ].map((row: { label: string; value: string; highlight?: boolean; note?: string | null; warn?: boolean }) => (
                 <div key={row.label} className="flex items-center justify-between py-3">
                   <span className="text-[13px]" style={{ color: '#a8a29e' }}>{row.label}</span>
                   <div className="flex items-center gap-2">
@@ -541,7 +580,7 @@ export default function MortgageCalculatorPage() {
                       className="font-black tabular-nums"
                       style={{
                         fontSize: row.highlight ? 22 : 15,
-                        color: row.highlight ? '#059669' : '#1c1917',
+                        color: row.highlight ? '#059669' : row.warn ? '#d97706' : '#1c1917',
                         fontFamily: 'var(--font-heebo)',
                       }}
                     >
@@ -568,26 +607,31 @@ export default function MortgageCalculatorPage() {
               בדיקת Compliance
             </h3>
             <div className="space-y-3">
-              {compliance.checks.map((check, idx) => (
-                <div key={idx}>
-                  <div className="flex items-center justify-between text-[13px] mb-1">
-                    <span style={{ color: '#57534e' }}>{check.name}</span>
-                    <span className="font-semibold" style={{ color: check.isValid ? '#059669' : '#dc2626' }}>{check.value}%</span>
+              {compliance.checks.map((check, idx) => {
+                // Green when clean; amber for a warning-severity breach (a case
+                // to discuss); red only for a hard breach.
+                const color = check.isValid ? '#059669' : check.severity === 'warning' ? '#d97706' : '#dc2626'
+                return (
+                  <div key={idx}>
+                    <div className="flex items-center justify-between text-[13px] mb-1">
+                      <span style={{ color: '#57534e' }}>{check.name}</span>
+                      <span className="font-semibold" style={{ color }}>{check.value}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#f5f4f2' }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min((check.value / check.limit) * 100, 100)}%`,
+                          background: color,
+                        }}
+                      />
+                    </div>
+                    <p className="text-[11px] mt-0.5" style={{ color }}>
+                      {check.message}
+                    </p>
                   </div>
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#f5f4f2' }}>
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${Math.min((check.value / check.limit) * 100, 100)}%`,
-                        background: check.isValid ? '#059669' : '#dc2626',
-                      }}
-                    />
-                  </div>
-                  <p className="text-[11px] mt-0.5" style={{ color: check.isValid ? '#059669' : '#dc2626' }}>
-                    {check.message}
-                  </p>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 

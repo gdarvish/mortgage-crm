@@ -132,6 +132,10 @@ export interface AdvisorSettings {
   whatsapp_templates: Json | null
   alert_window_months: number
   dti_obligation_months_threshold?: number
+  /** Amber above this, still fundable. Verify against הוראת ניהול בנקאי תקין. */
+  dti_warn_threshold?: number
+  /** Red above this — the case is outside what the banks will approve. */
+  dti_hard_threshold?: number
   expected_annual_cpi?: number
   refinance_gap_threshold?: number
   created_at: string

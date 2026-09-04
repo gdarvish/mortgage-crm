@@ -3,6 +3,7 @@ import { Settings, Upload, Save, Eye, Trash2, Loader2, CheckCircle } from 'lucid
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
 import { settingsService } from '@/services/settingsService'
+import { DEFAULT_DTI_LIMITS } from '@/utils/mortgageCalculations'
 import { toast } from '@/components/ui'
 
 export default function SettingsPage() {
@@ -19,6 +20,8 @@ export default function SettingsPage() {
     logoSize: 'medium',
     logoPosition: 'right',
     alertWindowMonths: 6,
+    dtiWarnThreshold: DEFAULT_DTI_LIMITS.warn,
+    dtiHardThreshold: DEFAULT_DTI_LIMITS.hard,
     logo_url: '',
   })
   const [saving, setSaving] = useState(false)
@@ -43,6 +46,8 @@ export default function SettingsPage() {
           logoSize: data.logo_size ?? 'medium',
           logoPosition: data.logo_position ?? 'right',
           alertWindowMonths: data.alert_window_months ?? 6,
+          dtiWarnThreshold: data.dti_warn_threshold ?? DEFAULT_DTI_LIMITS.warn,
+          dtiHardThreshold: data.dti_hard_threshold ?? DEFAULT_DTI_LIMITS.hard,
           logo_url: data.logo_url ?? '',
         }))
       }
@@ -68,6 +73,8 @@ export default function SettingsPage() {
       logo_size: settings.logoSize,
       logo_position: settings.logoPosition,
       alert_window_months: settings.alertWindowMonths,
+      dti_warn_threshold: settings.dtiWarnThreshold,
+      dti_hard_threshold: settings.dtiHardThreshold,
       logo_url: settings.logo_url,
     })
     setSaving(false)
@@ -192,6 +199,37 @@ export default function SettingsPage() {
             <input type="number" value={settings.alertWindowMonths} onChange={e => updateField('alertWindowMonths', +e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
             <p className="text-xs text-gray-400 mt-1">מסלולים שמסתיימים בתוך {settings.alertWindowMonths} חודשים יוצגו בהתראות</p>
           </div>
+        </div>
+
+        {/* Compliance thresholds */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+          <h2 className="font-semibold text-gray-900 mb-4">ספי יחס החזר (DTI)</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">סף אזהרה (%)</label>
+              <input
+                type="number"
+                value={settings.dtiWarnThreshold}
+                onChange={e => updateField('dtiWarnThreshold', +e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                dir="ltr"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">סף חריגה (%)</label>
+              <input
+                type="number"
+                value={settings.dtiHardThreshold}
+                onChange={e => updateField('dtiHardThreshold', +e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                dir="ltr"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            מעל {settings.dtiWarnThreshold}% התיק מסומן באזהרה כתומה; מעל {settings.dtiHardThreshold}% כחריגה אדומה.
+            יש לוודא את הערכים מול הוראת ניהול בנקאי תקין העדכנית.
+          </p>
         </div>
       </div>
 

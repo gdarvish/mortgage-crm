@@ -200,6 +200,111 @@ describe('checkCompliance', () => {
     expect(primeCheck.isValid).toBe(false)
   })
 
+  // ── PR-E regressions ──────────────────────────────────────────────────────
+
+  it('E.1 — זכאות counts toward the fixed-rate floor', () => {
+    // 40% זכאות + 30% קל"ב = 70% fixed. Before the fix only the קל"ב counted
+    // and the mix was reported as "ריבית קבועה חסרה: 30%".
+    const withEligibility: TrackInput[] = [
+      { type: 'זכאות', amount: 400000, interestRate: 3.0, periodMonths: 240 },
+      { type: 'קל"ב', amount: 300000, interestRate: 3.8, periodMonths: 300 },
+      { type: 'פריים', amount: 300000, interestRate: 5.0, periodMonths: 240 },
+    ]
+    const result = checkCompliance(withEligibility, 2000000, 'דירה_ראשונה', 30000)
+    const fixedCheck = result.checks.find(c => c.name.includes('קבועה'))!
+    expect(fixedCheck.value).toBeCloseTo(70, 1)
+    expect(fixedCheck.isValid).toBe(true)
+  })
+
+  it('E.2 — an empty track list never yields -Infinity', () => {
+    const result = checkCompliance([], 2000000, 'דירה_ראשונה', 30000)
+    for (const check of result.checks) {
+      expect(Number.isFinite(check.value)).toBe(true)
+    }
+    const periodCheck = result.checks.find(c => c.name.includes('תקופה'))!
+    expect(periodCheck.value).toBe(0)
+  })
+
+  it('E.3 — a zero property price never yields Infinity%', () => {
+    const result = checkCompliance(compliantTracks, 0, 'דירה_ראשונה', 30000)
+    const ltvCheck = result.checks.find(c => c.name.includes('LTV'))!
+    expect(Number.isFinite(ltvCheck.value)).toBe(true)
+    expect(ltvCheck.isValid).toBe(true)
+    expect(ltvCheck.message).toContain('חסר שווי נכס')
+  })
+
+  it('E.4 — DTI between the warn and hard thresholds warns rather than fails', () => {
+    // Payment + obligations tuned to land at ~43% of income.
+    const single: TrackInput[] = [
+      { type: 'קל"צ', amount: 1000000, interestRate: 4.5, periodMonths: 300 },
+    ]
+    const payment = effectiveMonthlyPayment(single[0])
+    const income = payment / 0.43
+    const result = checkCompliance(single, 3000000, 'דירה_ראשונה', income)
+    const dtiCheck = result.checks.find(c => c.name.includes('החזר'))!
+    expect(dtiCheck.value).toBeCloseTo(43, 0)
+    expect(dtiCheck.severity).toBe('warning')
+    expect(dtiCheck.isValid).toBe(false)
+    expect(dtiCheck.message).toContain('מעל סף האזהרה')
+    // A warning must not fail the file overall.
+    expect(result.isValid).toBe(true)
+  })
+
+  it('E.4 — DTI above the hard threshold is a red error', () => {
+    const single: TrackInput[] = [
+      { type: 'קל"צ', amount: 1000000, interestRate: 4.5, periodMonths: 300 },
+    ]
+    const payment = effectiveMonthlyPayment(single[0])
+    const result = checkCompliance(single, 3000000, 'דירה_ראשונה', payment / 0.55)
+    const dtiCheck = result.checks.find(c => c.name.includes('החזר'))!
+    expect(dtiCheck.severity).toBe('error')
+    expect(dtiCheck.isValid).toBe(false)
+  })
+
+  it('E.4 — thresholds are overridable', () => {
+    const single: TrackInput[] = [
+      { type: 'קל"צ', amount: 1000000, interestRate: 4.5, periodMonths: 300 },
+    ]
+    const payment = effectiveMonthlyPayment(single[0])
+    const income = payment / 0.43
+    const strict = checkCompliance(
+      single, 3000000, 'דירה_ראשונה', income, 0, null, undefined, { warn: 35, hard: 40 },
+    )
+    const dtiCheck = strict.checks.find(c => c.name.includes('החזר'))!
+    expect(dtiCheck.severity).toBe('error')
+    expect(dtiCheck.isValid).toBe(false)
+  })
+
+  it('E.5 — a low appraisal drives LTV instead of the purchase price', () => {
+    const tracks: TrackInput[] = [
+      { type: 'קל"צ', amount: 700000, interestRate: 4.5, periodMonths: 300 },
+      { type: 'פריים', amount: 300000, interestRate: 5.0, periodMonths: 240 },
+    ]
+    const atPrice = checkCompliance(tracks, 1400000, 'דירה_ראשונה', 30000)
+    const atAppraisal = checkCompliance(tracks, 1400000, 'דירה_ראשונה', 30000, 0, 1200000)
+    const ltvAtPrice = atPrice.checks.find(c => c.name.includes('LTV'))!
+    const ltvAtAppraisal = atAppraisal.checks.find(c => c.name.includes('LTV'))!
+    expect(ltvAtPrice.isValid).toBe(true)
+    expect(ltvAtAppraisal.value).toBeGreaterThan(ltvAtPrice.value)
+    expect(ltvAtAppraisal.isValid).toBe(false)
+  })
+
+  it('E.5 — a borrower who ages past 85 by term end raises the age check', () => {
+    const born = new Date()
+    born.setFullYear(born.getFullYear() - 62)
+    const tracks: TrackInput[] = [
+      { type: 'קל"צ', amount: 700000, interestRate: 4.5, periodMonths: 300 },
+      { type: 'פריים', amount: 300000, interestRate: 5.0, periodMonths: 240 },
+    ]
+    const result = checkCompliance(
+      tracks, 2000000, 'דירה_ראשונה', 30000, 0, null, [born.toISOString()],
+    )
+    const ageCheck = result.checks.find(c => c.name.includes('גיל'))
+    expect(ageCheck).toBeDefined()
+    expect(ageCheck!.value).toBe(87)
+    expect(ageCheck!.severity).toBe('warning')
+  })
+
   it('insufficient fixed rate fails compliance', () => {
     const noFixed: TrackInput[] = [
       { type: 'פריים', amount: 500000, interestRate: 5.0, periodMonths: 240 },
