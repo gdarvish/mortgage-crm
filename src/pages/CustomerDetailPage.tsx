@@ -5,6 +5,7 @@ import {
   Send, Plus, Check, Mail, Phone, MapPin, User, CreditCard,
   FileText, Home, MessagesSquare, ListTodo, Banknote, ExternalLink,
   Trash2, Loader2, Save, PenTool, Sparkles, ShieldCheck, Scale, Download,
+  AlertTriangle,
 } from 'lucide-react'
 import ObligationsTab from '@/components/customer/ObligationsTab'
 import AppraisalSection from '@/components/customer/AppraisalSection'
@@ -27,6 +28,7 @@ import { commissionService } from '@/services/commissionService'
 import { documentService } from '@/services/documentService'
 import { signatureService } from '@/services/signatureService'
 import { mortgageService } from '@/services/mortgageService'
+import { obligationService } from '@/services/obligationService'
 import type {
   Customer, Document, Mortgage, LoanTrack, Message, Task, Commission, CustomerStatus
 } from '@/types/database'
@@ -120,6 +122,7 @@ export default function CustomerDetailPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [commission, setCommission] = useState<Commission | null>(null)
+  const [obligationCount, setObligationCount] = useState(0)
 
   // Local edit state
   const [personal, setPersonal] = useState({
@@ -168,6 +171,18 @@ export default function CustomerDetailPage() {
     setTasks(full.tasks || [])
     setCommission((full.commissions && full.commissions[0]) || null)
   }, [full])
+
+  // Detailed obligations live in their own collection; the financial tab needs
+  // only their count, to warn that its questionnaire field is not the one the
+  // DTI is computed from.
+  useEffect(() => {
+    if (!id) return
+    let cancelled = false
+    obligationService.getByCustomer(id).then(({ data }) => {
+      if (!cancelled) setObligationCount(data?.length ?? 0)
+    })
+    return () => { cancelled = true }
+  }, [id])
 
   // Edit forms are populated once per customer so a background refetch
   // does not discard in-progress edits.
@@ -654,6 +669,15 @@ export default function CustomerDetailPage() {
         <input className={inputClass} type="number" dir="ltr" value={financial.existing_obligations}
           onChange={e => setFinancial({ ...financial, existing_obligations: parseInt(e.target.value) || 0 })} />
         <p className="text-xs text-gray-400 mt-1">{formatCurrency(financial.existing_obligations)}</p>
+        {obligationCount > 0 && (
+          <p className="text-xs text-amber-700 mt-1 flex items-start gap-1">
+            <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+            <span>
+              קיימות {obligationCount} התחייבויות מפורטות בתיק. השדה הזה משמש רק כנתון מהשאלון
+              ואינו נכנס ליחס ההחזר.
+            </span>
+          </p>
+        )}
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">מקור הגעה</label>

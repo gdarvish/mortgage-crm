@@ -432,7 +432,17 @@ export interface Obligation {
   monthly_payment: number            // monthly repayment — this is what enters DTI
   balance: number | null             // outstanding balance (display only)
   end_date: string | null            // ISO — loan end date
-  include_in_dti: boolean            // auto-computed, manually overridable
+  /**
+   * Legacy: a snapshot of the 18-month rule taken when the record was written.
+   * Kept for backwards compatibility but no longer the source of truth — it
+   * goes stale as the end date approaches. Read `isCountedInDti` instead.
+   */
+  include_in_dti: boolean
+  /**
+   * null/undefined = decide automatically by the 18-month rule at read time.
+   * true/false = the advisor decided explicitly; leave it alone.
+   */
+  dti_override?: boolean | null
   notes: string | null
   created_at: string
 }

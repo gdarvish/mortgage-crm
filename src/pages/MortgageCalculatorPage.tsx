@@ -27,7 +27,11 @@ import { db, functions } from '@/lib/firebase'
 import { settingsService } from '@/services/settingsService'
 import { customerService } from '@/services/customerService'
 import { mortgageService } from '@/services/mortgageService'
-import { obligationService, totalMonthlyObligations } from '@/services/obligationService'
+import {
+  obligationService,
+  totalMonthlyObligations,
+  DEFAULT_DTI_MONTHS_THRESHOLD,
+} from '@/services/obligationService'
 import { borrowerService, totalHouseholdIncome } from '@/services/borrowerService'
 import { appraisalService } from '@/services/appraisalService'
 import { toast, ConfirmDialog } from '@/components/ui'
@@ -133,6 +137,7 @@ export default function MortgageCalculatorPage() {
   const [caseName, setCaseName] = useState<string | null>(null)
   const [caseLoading, setCaseLoading] = useState(Boolean(customerId))
   const [obligationCount, setObligationCount] = useState(0)
+  const [obligationsEditedManually, setObligationsEditedManually] = useState(false)
   const [appraisedValue, setAppraisedValue] = useState<number | null>(null)
   const [borrowerBirthDates, setBorrowerBirthDates] = useState<(string | null)[]>([])
   const [dtiLimits, setDtiLimits] = useState<DtiLimits>(DEFAULT_DTI_LIMITS)
@@ -183,8 +188,12 @@ export default function MortgageCalculatorPage() {
       // Detailed obligations are the source of truth; the questionnaire's single
       // number is only a fallback for cases that have none recorded yet.
       if (obligations && obligations.length > 0) {
+        const { data: settings } = await settingsService.get()
         setObligationCount(obligations.length)
-        setMonthlyObligations(totalMonthlyObligations(obligations))
+        setMonthlyObligations(totalMonthlyObligations(
+          obligations,
+          settings?.dti_obligation_months_threshold ?? DEFAULT_DTI_MONTHS_THRESHOLD,
+        ))
       } else {
         setObligationCount(0)
         setMonthlyObligations(customer.existing_obligations ?? 0)
@@ -524,12 +533,23 @@ export default function MortgageCalculatorPage() {
                   </select>
                 </div>
                 <InputField label="הכנסה חודשית נטו" value={monthlyIncome} onChange={v => setMonthlyIncome(Number(v) || 0)} prefix="₪" />
-                <InputField label="התחייבויות חודשיות" value={monthlyObligations} onChange={v => setMonthlyObligations(Number(v) || 0)} prefix="₪" />
+                <InputField
+                label="התחייבויות חודשיות"
+                value={monthlyObligations}
+                onChange={v => {
+                  setMonthlyObligations(Number(v) || 0)
+                  if (obligationCount > 0) setObligationsEditedManually(true)
+                }}
+                prefix="₪"
+              />
                 <InputField label="הנחת מדד שנתי" value={expectedCpi} onChange={v => setExpectedCpi(Number(v) || 0)} suffix="%" />
               </div>
               {obligationCount > 0 ? (
                 <p className="mt-2 text-[12px] flex flex-wrap items-center gap-1" style={{ color: '#a8a29e' }}>
                   <span>מקור: {obligationCount} התחייבויות מהתיק</span>
+                  {obligationsEditedManually && (
+                    <span className="font-semibold" style={{ color: '#d97706' }}>· שונה ידנית</span>
+                  )}
                   <button
                     onClick={() => navigate(`/customers/${customerId}`)}
                     className="font-semibold hover:opacity-80 transition-opacity"

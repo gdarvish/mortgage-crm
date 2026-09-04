@@ -6,6 +6,8 @@ import {
   obligationService,
   totalMonthlyObligations,
   shouldIncludeInDti,
+  isCountedInDti,
+  monthsUntilEnd,
   DEFAULT_DTI_MONTHS_THRESHOLD,
 } from '@/services/obligationService'
 import { settingsService } from '@/services/settingsService'
@@ -29,7 +31,8 @@ interface FormState {
   monthly_payment: number
   balance: number
   end_date: string
-  include_in_dti: boolean
+  /** null = follow the 18-month rule automatically. */
+  dti_override: boolean | null
   notes: string
 }
 
@@ -39,7 +42,7 @@ const emptyForm: FormState = {
   monthly_payment: 0,
   balance: 0,
   end_date: '',
-  include_in_dti: true,
+  dti_override: null,
   notes: '',
 }
 
@@ -79,21 +82,17 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
       monthly_payment: o.monthly_payment ?? 0,
       balance: o.balance ?? 0,
       end_date: o.end_date ? o.end_date.split('T')[0] : '',
-      include_in_dti: o.include_in_dti,
+      dti_override: o.dti_override ?? null,
       notes: o.notes ?? '',
     })
     setEditingId(o.id)
     setShowForm(true)
   }
 
-  // Whenever the end date changes in the form, recompute the auto default for
-  // include_in_dti — the advisor can still override it manually afterwards.
+  // The end date no longer freezes a DTI flag — inclusion is derived from it on
+  // every read — so this only records the date.
   const onEndDateChange = (value: string) => {
-    setForm(prev => ({
-      ...prev,
-      end_date: value,
-      include_in_dti: shouldIncludeInDti(value || null, threshold),
-    }))
+    setForm(prev => ({ ...prev, end_date: value }))
   }
 
   const save = async () => {
@@ -109,7 +108,9 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
       monthly_payment: form.monthly_payment || 0,
       balance: form.balance || null,
       end_date: form.end_date || null,
-      include_in_dti: form.include_in_dti,
+      dti_override: form.dti_override,
+      // Kept in step for anything still reading the legacy field.
+      include_in_dti: form.dti_override ?? shouldIncludeInDti(form.end_date || null, threshold),
       notes: form.notes.trim() || null,
     }
     const { error } = editingId
@@ -125,8 +126,13 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
     load()
   }
 
-  const toggleInclude = async (o: Obligation) => {
-    await obligationService.update(o.id, { include_in_dti: !o.include_in_dti })
+  // Clicking the badge pins an explicit decision; clicking "אוטומטי" hands it
+  // back to the 18-month rule.
+  const setOverride = async (o: Obligation, value: boolean | null) => {
+    await obligationService.update(o.id, {
+      dti_override: value,
+      include_in_dti: value ?? shouldIncludeInDti(o.end_date, threshold),
+    })
     load()
   }
 
@@ -135,7 +141,7 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
     load()
   }
 
-  const total = totalMonthlyObligations(obligations)
+  const total = totalMonthlyObligations(obligations, threshold)
 
   if (loading) {
     return (
@@ -189,12 +195,23 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
               <input className={inputClass} type="date" dir="ltr" value={form.end_date}
                 onChange={e => onEndDateChange(e.target.value)} />
             </div>
-            <div className="flex items-end">
-              <label className="flex items-center gap-2 text-sm text-gray-700 pb-2">
-                <input type="checkbox" checked={form.include_in_dti}
-                  onChange={e => setForm({ ...form, include_in_dti: e.target.checked })} />
-                נכלל ביחס ההחזר
-              </label>
+            <div className="flex flex-col justify-end">
+              <label className="block text-xs text-gray-500 mb-1">נכלל ביחס ההחזר</label>
+              <select
+                className={`${inputClass} bg-white`}
+                value={form.dti_override === null ? 'auto' : form.dti_override ? 'yes' : 'no'}
+                onChange={e => setForm({
+                  ...form,
+                  dti_override: e.target.value === 'auto' ? null : e.target.value === 'yes',
+                })}
+              >
+                <option value="auto">
+                  אוטומטי — לפי כלל {threshold} החודשים
+                  {form.end_date ? ` (${shouldIncludeInDti(form.end_date, threshold) ? 'נספר' : 'לא נספר'})` : ''}
+                </option>
+                <option value="yes">נכלל — החלטה ידנית</option>
+                <option value="no">לא נכלל — החלטה ידנית</option>
+              </select>
             </div>
           </div>
           <div className="flex gap-2 justify-end">
@@ -234,8 +251,9 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
             </thead>
             <tbody>
               {obligations.map(o => {
-                const autoInclude = shouldIncludeInDti(o.end_date, threshold)
-                const overridden = o.include_in_dti !== autoInclude
+                const counted = isCountedInDti(o, threshold)
+                const overridden = o.dti_override !== null && o.dti_override !== undefined
+                const monthsLeft = monthsUntilEnd(o.end_date)
                 return (
                   <tr key={o.id} className="border-b border-gray-50">
                     <td className="py-2 text-gray-900">{o.type}</td>
@@ -244,18 +262,35 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
                     <td className="py-2 text-gray-600">{o.balance ? formatCurrency(o.balance) : '—'}</td>
                     <td className="py-2 text-gray-600" dir="ltr">{o.end_date ? formatDate(o.end_date) : '—'}</td>
                     <td className="py-2">
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => toggleInclude(o)}
-                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            o.include_in_dti ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                          }`}>
-                          {o.include_in_dti ? '✓ כן' : '✗ לא'}
-                        </button>
-                        {overridden && (
-                          <span title="נדרס ידנית ביחס לחוק 18 החודשים" className="text-amber-500">
-                            <AlertTriangle size={13} />
+                      <div className="flex flex-col items-start gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setOverride(o, !counted)}
+                            title="לחץ כדי לקבוע ידנית"
+                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              counted ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                            }`}
+                          >
+                            {counted ? '✓ נספר ב-DTI' : '✗ לא נספר'}
+                          </button>
+                          {overridden && (
+                            <span title="נקבע ידנית — אינו נגזר מכלל החודשים" className="text-amber-500">
+                              <AlertTriangle size={13} />
+                            </span>
+                          )}
+                        </div>
+                        {overridden ? (
+                          <button
+                            onClick={() => setOverride(o, null)}
+                            className="text-[11px] text-gray-400 hover:text-[#059669] transition-colors"
+                          >
+                            החזר לחישוב אוטומטי
+                          </button>
+                        ) : !counted && monthsLeft !== null ? (
+                          <span className="text-[11px] text-gray-400">
+                            {monthsLeft > 0 ? `מסתיים בעוד ${monthsLeft} חודשים` : 'הסתיים'}
                           </span>
-                        )}
+                        ) : null}
                       </div>
                     </td>
                     <td className="py-2">

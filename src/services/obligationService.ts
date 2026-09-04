@@ -17,31 +17,18 @@ import type { Obligation } from '@/types/database'
 
 const COL = 'obligations'
 
-export const DEFAULT_DTI_MONTHS_THRESHOLD = 18
-
 /**
- * The 18-month rule: an obligation counts toward DTI when it still has more
- * than `thresholdMonths` left to run (or has no end date). Banks ignore
- * obligations that expire within the window because they will not burden the
- * borrower over the mortgage term.
+ * The DTI helpers are pure and live in @/utils/dti so that they can be tested
+ * and reused without pulling in the Firebase client. Re-exported here because
+ * callers naturally reach for them alongside the service.
  */
-export function shouldIncludeInDti(
-  endDate: string | null | undefined,
-  thresholdMonths = DEFAULT_DTI_MONTHS_THRESHOLD,
-): boolean {
-  if (!endDate) return true
-  const end = new Date(endDate).getTime()
-  if (Number.isNaN(end)) return true
-  const cutoff = Date.now() + thresholdMonths * 30.44 * 24 * 60 * 60 * 1000
-  return end > cutoff
-}
-
-/** Sum of the monthly repayments that actually enter the DTI calculation. */
-export function totalMonthlyObligations(obligations: Obligation[]): number {
-  return obligations
-    .filter(o => o.include_in_dti)
-    .reduce((sum, o) => sum + (o.monthly_payment || 0), 0)
-}
+export {
+  DEFAULT_DTI_MONTHS_THRESHOLD,
+  shouldIncludeInDti,
+  isCountedInDti,
+  monthsUntilEnd,
+  totalMonthlyObligations,
+} from '@/utils/dti'
 
 export const obligationService = {
   async getByCustomer(customerId: string): Promise<{ data: Obligation[] | null; error: FirestoreError | null }> {
