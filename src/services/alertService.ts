@@ -11,7 +11,7 @@ import {
   type QueryConstraint,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDoc, fromDocs, awaitUserId, loadRelated, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import { liveDaysLeft, liveUrgency } from '@/utils/alertUrgency'
 import type { Alert, AlertWithCustomer, Customer, LoanTrack, Document, Mortgage } from '@/types/database'
 
@@ -34,15 +34,13 @@ async function attachRelations(alerts: Alert[]): Promise<AlertWithCustomer[]> {
   const documentMap = new Map<string, Document>()
   const mortgageMap = new Map<string, Mortgage>()
 
-  // These are single-document reads, so ownership is enforced per document by
-  // the rules rather than by a user_id filter. A document that is missing or
-  // not ours must not sink the whole list — the alert simply keeps whatever it
-  // can be dated from.
+  // Single-document reads, so ownership is enforced per document by the rules
+  // rather than a user_id filter. A document that is missing or not ours must
+  // not sink the whole list — the alert simply keeps whatever it can be dated
+  // from — which is what loadRelated guarantees.
   const load = async <T>(col: string, id: string, into: Map<string, T>) => {
-    try {
-      const snap = await getDoc(doc(db, col, id))
-      if (snap.exists()) into.set(id, fromDoc<T>(snap))
-    } catch { /* not readable — leave it out */ }
+    const value = await loadRelated<T>(col, id)
+    if (value) into.set(id, value)
   }
 
   await Promise.all([

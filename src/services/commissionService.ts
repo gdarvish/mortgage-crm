@@ -13,7 +13,7 @@ import {
   type QueryConstraint,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDoc, fromDocs, awaitUserId, loadRelated, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { Commission, Customer, Mortgage } from '@/types/database'
 
 const COL = 'commissions'
@@ -32,12 +32,12 @@ async function attachRelations(commissions: Commission[]): Promise<CommissionWit
 
   await Promise.all([
     ...customerIds.map(async (cid) => {
-      const snap = await getDoc(doc(db, 'customers', cid))
-      if (snap.exists()) customerMap.set(cid, fromDoc<Customer>(snap))
+      const c = await loadRelated<Customer>('customers', cid)
+      if (c) customerMap.set(cid, c)
     }),
     ...mortgageIds.map(async (mid) => {
-      const snap = await getDoc(doc(db, 'mortgages', mid))
-      if (snap.exists()) mortgageMap.set(mid, fromDoc<Mortgage>(snap))
+      const m = await loadRelated<Mortgage>('mortgages', mid)
+      if (m) mortgageMap.set(mid, m)
     }),
   ])
 

@@ -56,7 +56,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    // tests/unit holds checks that are about the project rather than a module
+    // — index coverage, for one. tests/emulator runs under its own config.
+    include: ['src/**/*.test.ts', 'tests/unit/**/*.test.ts'],
   },
   build: {
     rollupOptions: {
