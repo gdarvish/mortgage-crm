@@ -12,33 +12,56 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
-import type { Alert, AlertWithCustomer, Customer, LoanTrack } from '@/types/database'
+import { liveDaysLeft, liveUrgency } from '@/utils/alertUrgency'
+import type { Alert, AlertWithCustomer, Customer, LoanTrack, Document, Mortgage } from '@/types/database'
 
 const COL = 'alerts'
+
+const URGENCY_LABELS = {
+  urgent: 'דחוף',
+  warning: 'אזהרה',
+  normal: 'תקין',
+} as const
 
 async function attachRelations(alerts: Alert[]): Promise<AlertWithCustomer[]> {
   const customerIds = Array.from(new Set(alerts.map((a) => a.customer_id).filter(Boolean)))
   const trackIds = Array.from(new Set(alerts.map((a) => a.loan_track_id).filter(Boolean) as string[]))
+  const documentIds = Array.from(new Set(alerts.map((a) => a.document_id).filter(Boolean) as string[]))
+  const mortgageIds = Array.from(new Set(alerts.map((a) => a.mortgage_id).filter(Boolean) as string[]))
 
   const customerMap = new Map<string, Customer>()
   const trackMap = new Map<string, LoanTrack>()
+  const documentMap = new Map<string, Document>()
+  const mortgageMap = new Map<string, Mortgage>()
+
+  // These are single-document reads, so ownership is enforced per document by
+  // the rules rather than by a user_id filter. A document that is missing or
+  // not ours must not sink the whole list — the alert simply keeps whatever it
+  // can be dated from.
+  const load = async <T>(col: string, id: string, into: Map<string, T>) => {
+    try {
+      const snap = await getDoc(doc(db, col, id))
+      if (snap.exists()) into.set(id, fromDoc<T>(snap))
+    } catch { /* not readable — leave it out */ }
+  }
 
   await Promise.all([
-    ...customerIds.map(async (cid) => {
-      const snap = await getDoc(doc(db, 'customers', cid))
-      if (snap.exists()) customerMap.set(cid, fromDoc<Customer>(snap))
-    }),
-    ...trackIds.map(async (tid) => {
-      const snap = await getDoc(doc(db, 'loan_tracks', tid))
-      if (snap.exists()) trackMap.set(tid, fromDoc<LoanTrack>(snap))
-    }),
+    ...customerIds.map((cid) => load<Customer>('customers', cid, customerMap)),
+    ...trackIds.map((tid) => load<LoanTrack>('loan_tracks', tid, trackMap)),
+    ...documentIds.map((did) => load<Document>('documents', did, documentMap)),
+    ...mortgageIds.map((mid) => load<Mortgage>('mortgages', mid, mortgageMap)),
   ])
 
-  return alerts.map((a) => ({
-    ...a,
-    customer: customerMap.get(a.customer_id),
-    loan_track: a.loan_track_id ? trackMap.get(a.loan_track_id) : undefined,
-  }))
+  return alerts.map((a) => {
+    const daysLeft = liveDaysLeft(a, documentMap, mortgageMap)
+    return {
+      ...a,
+      customer: customerMap.get(a.customer_id),
+      loan_track: a.loan_track_id ? trackMap.get(a.loan_track_id) : undefined,
+      live_days_left: daysLeft,
+      live_urgency: liveUrgency(daysLeft),
+    }
+  })
 }
 
 export const alertService = {
@@ -47,17 +70,18 @@ export const alertService = {
       const uid = await awaitUserId()
       const constraints: QueryConstraint[] = [where('user_id', '==', uid)]
       if (filters?.status) constraints.push(where('status', '==', filters.status))
-      if (filters?.urgency === 'urgent') constraints.push(where('days_until_end', '<', 60))
-      else if (filters?.urgency === 'warning') {
-        constraints.push(where('days_until_end', '>=', 60), where('days_until_end', '<', 120))
-      } else if (filters?.urgency === 'normal') {
-        constraints.push(where('days_until_end', '>=', 120))
-      }
+      // Urgency is no longer filtered server-side: the stored days_until_end it
+      // used to key off is stale by construction. The query shape stays
+      // user_id + status + orderBy(days_until_end), which the existing index
+      // already covers; urgency is applied below against the live value.
       constraints.push(orderBy('days_until_end', 'asc'))
 
       const snap = await getDocs(query(collection(db, COL), ...constraints))
       const alerts = fromDocs<Alert>(snap.docs)
-      const data = await attachRelations(alerts)
+      const withRelations = await attachRelations(alerts)
+      const wanted = filters?.urgency && URGENCY_LABELS[filters.urgency]
+      const data = (wanted ? withRelations.filter(a => a.live_urgency === wanted) : withRelations)
+        .sort((a, b) => (a.live_days_left ?? Infinity) - (b.live_days_left ?? Infinity))
       return { data, error: null }
     } catch (e) {
       return { data: null, error: toError(e) }

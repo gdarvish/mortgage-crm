@@ -433,11 +433,36 @@ export const updateInterestRate = onCall({ region: REGION }, async (req) => {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/**
+ * Alert states that must suppress a duplicate. Deduplicating on 'פתוח' alone
+ * meant a snoozed alert was recreated on the next nightly run — snooze
+ * survived until 02:00 and no longer.
+ */
+const OPEN_OR_SNOOZED = ['פתוח', 'נדחה']
+
+/** Mixes that are still drafts or rejected are not live cases to alert on. */
+const INACTIVE_MORTGAGE_STATUSES = ['טיוטה', 'נדחה']
+
 /** יצירת התראות יומית עבור מסלולי הלוואה שמסתיימים בקרוב. */
 export const generateAlerts = onSchedule(
   { schedule: 'every day 02:00', timeZone: 'Asia/Jerusalem', region: REGION },
   async () => {
     const now = new Date()
+
+    // Bring back anything whose snooze has elapsed, before creating new alerts —
+    // nothing else moved a 'נדחה' alert back to 'פתוח'.
+    const toReopen = await db
+      .collection('alerts')
+      .where('status', '==', 'נדחה')
+      .where('snoozed_until', '<=', now.toISOString())
+      .get()
+    if (!toReopen.empty) {
+      const reopenBatch = db.batch()
+      toReopen.docs.forEach(d => reopenBatch.update(d.ref, { status: 'פתוח', snoozed_until: null }))
+      await reopenBatch.commit()
+      console.log(`generateAlerts: reopened ${toReopen.size} snoozed alerts`)
+    }
+
     const cutoff = new Date(now.getTime() + 180 * DAY_MS)
 
     const tracks = await db
@@ -455,7 +480,7 @@ export const generateAlerts = onSchedule(
       const existing = await db
         .collection('alerts')
         .where('loan_track_id', '==', trackDoc.id)
-        .where('status', '==', 'פתוח')
+        .where('status', 'in', OPEN_OR_SNOOZED)
         .limit(1)
         .get()
       if (!existing.empty) continue
@@ -463,6 +488,9 @@ export const generateAlerts = onSchedule(
       const mort = await db.collection('mortgages').doc(track.mortgage_id).get()
       const mortData = mort.data()
       if (!mort.exists || !mortData) continue
+      // A draft mix is a what-if, not a live loan — it has no end dates worth
+      // chasing the advisor about.
+      if (INACTIVE_MORTGAGE_STATUSES.includes(mortData.status)) continue
 
       const daysLeft = Math.round((new Date(track.end_date).getTime() - now.getTime()) / DAY_MS)
       const urgency = daysLeft < 60 ? 'דחוף' : daysLeft < 120 ? 'אזהרה' : 'תקין'
@@ -501,7 +529,7 @@ export const generateAlerts = onSchedule(
       const existing = await db
         .collection('alerts')
         .where('appraisal_id', '==', apprDoc.id)
-        .where('status', '==', 'פתוח')
+        .where('status', 'in', OPEN_OR_SNOOZED)
         .limit(1)
         .get()
       if (!existing.empty) continue
@@ -539,7 +567,7 @@ export const generateAlerts = onSchedule(
       const existing = await db
         .collection('alerts')
         .where('disbursement_id', '==', dDoc.id)
-        .where('status', '==', 'פתוח')
+        .where('status', 'in', OPEN_OR_SNOOZED)
         .limit(1)
         .get()
       if (!existing.empty) continue
@@ -586,7 +614,7 @@ export const generateDocumentAlerts = onSchedule(
       const existing = await db
         .collection('alerts')
         .where('document_id', '==', docSnap.id)
-        .where('status', '==', 'פתוח')
+        .where('status', 'in', OPEN_OR_SNOOZED)
         .limit(1)
         .get()
       if (!existing.empty) continue
@@ -643,7 +671,7 @@ export const generateApprovalAlerts = onSchedule(
         .collection('alerts')
         .where('mortgage_id', '==', mortDoc.id)
         .where('alert_type', '==', 'approval_expiring')
-        .where('status', '==', 'פתוח')
+        .where('status', 'in', OPEN_OR_SNOOZED)
         .limit(1)
         .get()
       if (!existing.empty) continue
@@ -764,13 +792,16 @@ export const scanRefinanceOpportunities = onSchedule(
         .collection('alerts')
         .where('loan_track_id', '==', trackDoc.id)
         .where('alert_type', '==', 'refinance_opportunity')
-        .where('status', '==', 'פתוח')
+        .where('status', 'in', OPEN_OR_SNOOZED)
         .limit(1)
         .get()
       if (!existing.empty) continue
 
       const mort = await db.collection('mortgages').doc(t.mortgage_id).get()
-      const customerId = mort.data()?.customer_id ?? null
+      const mortData = mort.data()
+      // Same as generateAlerts: a draft mix is not a live loan.
+      if (mortData && INACTIVE_MORTGAGE_STATUSES.includes(mortData.status)) continue
+      const customerId = mortData?.customer_id ?? null
 
       // An opportunity is only an opportunity net of the exit cost, so the
       // alert carries the estimated fee rather than promising a saving the

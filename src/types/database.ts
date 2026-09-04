@@ -509,6 +509,14 @@ export interface MortgageWithTracks extends Mortgage {
 export interface AlertWithCustomer extends Alert {
   customer?: Customer
   loan_track?: LoanTrack
+  /**
+   * Days left recomputed at read time from the alert's target date, rather
+   * than the `days_until_end` snapshot frozen when the alert was created.
+   * null when the alert has no date to count down to.
+   */
+  live_days_left: number | null
+  /** Urgency derived from live_days_left — use this for display and sorting. */
+  live_urgency: NonNullable<Alert['urgency']>
 }
 
 export type ActivityEventType =
