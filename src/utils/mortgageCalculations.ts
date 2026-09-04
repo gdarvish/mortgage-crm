@@ -1,4 +1,9 @@
 import type { LoanTrackType, PropertyType } from '@/types/database'
+import {
+  FALLBACK_REGULATORY_PARAMS,
+  ltvLimitFor,
+  type RegulatoryParams,
+} from '@/utils/regulatoryParams'
 
 export type GraceType = 'מלא' | 'חלקי'
 
@@ -131,15 +136,23 @@ export function checkBarWidth(check: ComplianceCheck): number {
  * flag rather than a red one, because a case at 43% is a conversation, not a
  * rejection.
  *
- * NOTE: verify both numbers against the current הוראת ניהול בנקאי תקין before
- * relying on them — they are defaults, and every caller may override them.
+ * The numbers come from the published regulatory parameters; a caller may
+ * still pass stricter ones of its own.
  */
 export interface DtiLimits {
   warn: number
   hard: number
 }
 
-export const DEFAULT_DTI_LIMITS: DtiLimits = { warn: 40, hard: 50 }
+/**
+ * The thresholds used when neither an advisor setting nor a published
+ * regulatory record supplies them. Derived from the fallback parameters so
+ * there is one place these numbers live.
+ */
+export const DEFAULT_DTI_LIMITS: DtiLimits = {
+  warn: FALLBACK_REGULATORY_PARAMS.dti_warn_threshold,
+  hard: FALLBACK_REGULATORY_PARAMS.dti_hard_threshold,
+}
 
 export function calculateMonthlyPayment(
   principal: number,
@@ -195,13 +208,16 @@ export function calculateTotalInterest(
   return calculateTotalPayment(principal, annualRate, months) - principal
 }
 
-export function getLtvLimit(propertyType: PropertyType): number {
-  switch (propertyType) {
-    case 'דירה_ראשונה': return 75
-    case 'משפרי_דיור': return 70
-    case 'להשקעה': return 50
-    default: return 75
-  }
+/**
+ * LTV ceiling for a property type. The numbers live in the regulatory
+ * parameters, so a Bank of Israel change is a data edit; the built-in
+ * fallback only applies when no record has been published.
+ */
+export function getLtvLimit(
+  propertyType: PropertyType,
+  params: RegulatoryParams = FALLBACK_REGULATORY_PARAMS,
+): number {
+  return ltvLimitFor(propertyType, params)
 }
 
 /** The bank finances against the lower of purchase price and appraised value. */
@@ -212,9 +228,14 @@ export function effectivePropertyValue(purchasePrice: number, appraisedValue?: n
 
 /** Additional equity the borrower must bring if the appraisal came in low. */
 export function additionalEquityRequired(
-  loanAmount: number, purchasePrice: number, appraisedValue: number, propertyType: PropertyType
+  loanAmount: number,
+  purchasePrice: number,
+  appraisedValue: number,
+  propertyType: PropertyType,
+  params: RegulatoryParams = FALLBACK_REGULATORY_PARAMS,
 ): number {
-  const maxLoan = (getLtvLimit(propertyType) / 100) * effectivePropertyValue(purchasePrice, appraisedValue)
+  const maxLoan = (getLtvLimit(propertyType, params) / 100)
+    * effectivePropertyValue(purchasePrice, appraisedValue)
   return Math.max(0, Math.round(loanAmount - maxLoan))
 }
 
@@ -245,8 +266,20 @@ export function checkCompliance(
   monthlyObligations = 0,
   appraisedValue?: number | null,
   borrowerBirthDates?: (string | null | undefined)[],
-  dtiLimits: DtiLimits = DEFAULT_DTI_LIMITS,
+  dtiLimits?: DtiLimits,
+  /**
+   * The rules in force for this case. Every threshold below comes from here,
+   * so a Bank of Israel change is a published record rather than a release,
+   * and a case can be judged by the rules that applied when it was created.
+   */
+  params: RegulatoryParams = FALLBACK_REGULATORY_PARAMS,
 ): ComplianceResult {
+  // An explicit dtiLimits still wins — the advisor's own settings are allowed
+  // to be stricter than the regulator's ceiling.
+  const dti_limits: DtiLimits = dtiLimits ?? {
+    warn: params.dti_warn_threshold,
+    hard: params.dti_hard_threshold,
+  }
   const totalLoan = tracks.reduce((sum, t) => sum + t.amount, 0)
   const totalMonthlyPayment = tracks.reduce(
     (sum, t) => sum + effectiveMonthlyPayment(t),
@@ -278,7 +311,7 @@ export function checkCompliance(
   const effectiveValue = effectivePropertyValue(propertyPrice, appraisedValue)
   const ltvApplicable = effectiveValue > 0
   const ltv = ltvApplicable ? (totalLoan / effectiveValue) * 100 : 0
-  const ltvLimit = getLtvLimit(propertyType)
+  const ltvLimit = getLtvLimit(propertyType, params)
   const combinedPayment = totalMonthlyPayment + monthlyObligations
   const dti = monthlyIncome > 0 ? (combinedPayment / monthlyIncome) * 100 : 0
 
@@ -302,69 +335,69 @@ export function checkCompliance(
     {
       name: 'ריבית קבועה (מינימום)',
       value: Math.round(fixedPercent * 10) / 10,
-      limit: 33.3,
-      isValid: fixedPercent >= 33.3,
+      limit: params.min_fixed_percent,
+      isValid: fixedPercent >= params.min_fixed_percent,
       severity: 'error',
-      message: fixedPercent >= 33.3
-        ? `ריבית קבועה תקינה: ${fixedPercent.toFixed(1)}% (מינימום 33.3%)`
-        : `ריבית קבועה חסרה: ${fixedPercent.toFixed(1)}% (מינימום 33.3%)`,
+      message: fixedPercent >= params.min_fixed_percent
+        ? `ריבית קבועה תקינה: ${fixedPercent.toFixed(1)}% (מינימום ${params.min_fixed_percent}%)`
+        : `ריבית קבועה חסרה: ${fixedPercent.toFixed(1)}% (מינימום ${params.min_fixed_percent}%)`,
       unit: '%',
       direction: 'min',
     },
     {
       name: 'פריים (בתוך מגבלת המשתנה)',
       value: Math.round(primePercent * 10) / 10,
-      limit: 66.6,
-      isValid: primePercent <= 66.6,
+      limit: params.max_prime_percent,
+      isValid: primePercent <= params.max_prime_percent,
       severity: 'warning',
-      message: primePercent <= 66.6
-        ? `פריים תקין: ${primePercent.toFixed(1)}% (מקסימום 66.6%)`
-        : `פריים חורג: ${primePercent.toFixed(1)}% (מקסימום 66.6%)`,
+      message: primePercent <= params.max_prime_percent
+        ? `פריים תקין: ${primePercent.toFixed(1)}% (מקסימום ${params.max_prime_percent}%)`
+        : `פריים חורג: ${primePercent.toFixed(1)}% (מקסימום ${params.max_prime_percent}%)`,
       unit: '%',
       direction: 'max',
     },
     {
       name: 'משתנה כולל (מקסימום)',
       value: Math.round(variablePercent * 10) / 10,
-      limit: 66.6,
-      isValid: variablePercent <= 66.6,
+      limit: params.max_variable_percent,
+      isValid: variablePercent <= params.max_variable_percent,
       severity: 'error',
-      message: variablePercent <= 66.6
-        ? `משתנה כולל תקין: ${variablePercent.toFixed(1)}% (מקסימום 66.6%)`
-        : `משתנה כולל חורג: ${variablePercent.toFixed(1)}% (מקסימום 66.6%)`,
+      message: variablePercent <= params.max_variable_percent
+        ? `משתנה כולל תקין: ${variablePercent.toFixed(1)}% (מקסימום ${params.max_variable_percent}%)`
+        : `משתנה כולל חורג: ${variablePercent.toFixed(1)}% (מקסימום ${params.max_variable_percent}%)`,
       unit: '%',
       direction: 'max',
     },
     {
       name: 'תקופה (מקסימום)',
       value: maxPeriod,
-      limit: 360,
-      isValid: maxPeriod <= 360,
+      limit: params.max_period_months,
+      isValid: maxPeriod <= params.max_period_months,
       severity: 'error',
-      message: maxPeriod <= 360
-        ? `תקופה תקינה: ${maxPeriod} חודשים (מקסימום 360)`
-        : `תקופה חורגת: ${maxPeriod} חודשים (מקסימום 360)`,
+      message: maxPeriod <= params.max_period_months
+        ? `תקופה תקינה: ${maxPeriod} חודשים (מקסימום ${params.max_period_months})`
+        : `תקופה חורגת: ${maxPeriod} חודשים (מקסימום ${params.max_period_months})`,
       unit: 'months',
       direction: 'max',
     },
     {
       name: 'יחס החזר/הכנסה',
       value: Math.round(dti * 10) / 10,
-      limit: dtiLimits.hard,
+      limit: dti_limits.hard,
       // Three states, not two. Up to `warn` the case is clean; between `warn`
       // and `hard` it is flagged but still fundable, so the check reads as
       // not-clean at warning severity and does not fail overall compliance;
       // only above `hard` is it an error.
-      isValid: dti <= dtiLimits.warn,
-      severity: dti <= dtiLimits.hard ? 'warning' : 'error',
-      message: dtiBreakdown(dti, dtiLimits, totalMonthlyPayment, monthlyObligations),
+      isValid: dti <= dti_limits.warn,
+      severity: dti <= dti_limits.hard ? 'warning' : 'error',
+      message: dtiBreakdown(dti, dti_limits, totalMonthlyPayment, monthlyObligations),
       unit: '%',
       direction: 'max',
     },
   ]
 
-  // Age-at-term warning (professional guidance, non-blocking). Many banks cap
-  // the borrower's age at the end of the term around 85.
+  // Age-at-term warning (professional guidance, non-blocking). Banks cap the
+  // borrower's age at the end of the term; the cap itself is a parameter.
   const oldestAgeAtEnd = (borrowerBirthDates ?? [])
     .map(bd => {
       if (!bd) return null
@@ -376,14 +409,14 @@ export function checkCompliance(
     .filter((v): v is number => v !== null)
     .reduce((max, v) => Math.max(max, v), 0)
 
-  if (oldestAgeAtEnd > 85) {
+  if (oldestAgeAtEnd > params.max_age_at_term) {
     checks.push({
       name: 'גיל בתום התקופה',
       value: Math.round(oldestAgeAtEnd),
-      limit: 85,
+      limit: params.max_age_at_term,
       isValid: false,
       severity: 'warning',
-      message: `גיל הלווה בתום התקופה: ${Math.round(oldestAgeAtEnd)} — בנקים רבים מגבילים ל-~85`,
+      message: `גיל הלווה בתום התקופה: ${Math.round(oldestAgeAtEnd)} — בנקים רבים מגבילים ל-~${params.max_age_at_term}`,
       unit: 'years',
       direction: 'max',
     })
@@ -503,20 +536,6 @@ export function mixTotalCostWithCpi(tracks: TrackInput[], annualCpi: number): nu
 
 // ── Early-repayment (capitalization) fee ─────────────────────────────────────
 
-/**
- * Statutory discounts on the capitalization fee.
- *
- * NOTE: verify all three against the current צו הבנקאות (עמלות פירעון מוקדם)
- * before relying on the numbers — they are collected here so that a regulatory
- * change is a one-line edit rather than a hunt through the formula.
- */
-export const PREPAY_SENIORITY_DISCOUNTS: { years: number; discount: number }[] = [
-  { years: 5, discount: 0.3 },
-  { years: 3, discount: 0.2 },
-]
-/** Discount for giving the bank early notice (10–45 days) of the repayment. */
-export const PREPAY_EARLY_NOTICE_DISCOUNT = 0.1
-
 export interface PrepaymentFeeInput {
   /** פריים carries no capitalization fee at all. */
   trackType: LoanTrackType
@@ -530,7 +549,10 @@ export interface PrepaymentFeeInput {
   atExitStation?: boolean
 }
 
-export function estimatePrepaymentFee(input: PrepaymentFeeInput) {
+export function estimatePrepaymentFee(
+  input: PrepaymentFeeInput,
+  params: RegulatoryParams = FALLBACK_REGULATORY_PARAMS,
+) {
   const { trackType, balance, contractRate, avgRate, remainingMonths, yearsSinceStart } = input
 
   // פריים tracks the Bank of Israel rate, so there is no fixed-rate spread to
@@ -549,7 +571,7 @@ export function estimatePrepaymentFee(input: PrepaymentFeeInput) {
   const pvAtAvg = payment * (1 - Math.pow(1 + rAvg, -remainingMonths)) / rAvg
   const capitalizationFee = Math.max(0, pvAtAvg - balance)
 
-  const seniorityRate = PREPAY_SENIORITY_DISCOUNTS
+  const seniorityRate = params.prepay_seniority_discounts
     .find(d => yearsSinceStart >= d.years)?.discount ?? 0
   const seniorityDiscount = capitalizationFee * seniorityRate
 
@@ -557,7 +579,9 @@ export function estimatePrepaymentFee(input: PrepaymentFeeInput) {
   // discount. It was accepted as a parameter but never used, so ticking the box
   // changed the fee by exactly nothing.
   const afterSeniority = capitalizationFee - seniorityDiscount
-  const noticeDiscount = input.earlyNoticeGiven ? afterSeniority * PREPAY_EARLY_NOTICE_DISCOUNT : 0
+  const noticeDiscount = input.earlyNoticeGiven
+    ? afterSeniority * params.prepay_early_notice_discount
+    : 0
 
   return {
     capitalizationFee: Math.round(capitalizationFee),

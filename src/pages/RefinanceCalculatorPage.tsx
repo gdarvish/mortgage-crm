@@ -1,9 +1,11 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { RefreshCw, Plus, Trash2, TrendingDown, Upload, Loader2, CheckCircle, X } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
 import { calculateMonthlyPayment, calculateRefinanceSavings, estimatePrepaymentFee, type TrackInput } from '@/utils/mortgageCalculations'
 import { customerService } from '@/services/customerService'
+import { regulatoryService } from '@/services/regulatoryService'
+import { FALLBACK_REGULATORY_PARAMS, type RegulatoryParams } from '@/utils/regulatoryParams'
 import { documentService } from '@/services/documentService'
 import { toast } from '@/components/ui'
 import type { LoanTrackType, Customer } from '@/types/database'
@@ -49,6 +51,10 @@ export default function RefinanceCalculatorPage() {
   const [feeYearsSinceStart, setFeeYearsSinceStart] = useState(4)
   const [feeEarlyNotice, setFeeEarlyNotice] = useState(false)
   const [feeAtExitStation, setFeeAtExitStation] = useState(false)
+  // The seniority and early-notice discounts are regulatory, not code.
+  const [regParams, setRegParams] = useState<RegulatoryParams>(FALLBACK_REGULATORY_PARAMS)
+
+  useEffect(() => { regulatoryService.getInForceAt().then(setRegParams) }, [])
 
   // פריים never carries a capitalization fee, and a variable track repaid at an
   // exit station is exempt — both are decided inside estimatePrepaymentFee.
@@ -63,8 +69,8 @@ export default function RefinanceCalculatorPage() {
     yearsSinceStart: feeYearsSinceStart,
     earlyNoticeGiven: feeEarlyNotice,
     atExitStation: feeAtExitStation,
-  }), [feeTrackType, feeBalance, feeContractRate, feeAvgRate, feeRemainingMonths,
-       feeYearsSinceStart, feeEarlyNotice, feeAtExitStation])
+  }, regParams), [feeTrackType, feeBalance, feeContractRate, feeAvgRate, feeRemainingMonths,
+       feeYearsSinceStart, feeEarlyNotice, feeAtExitStation, regParams])
 
   // Balance report upload state
   const [showUploadModal, setShowUploadModal] = useState(false)

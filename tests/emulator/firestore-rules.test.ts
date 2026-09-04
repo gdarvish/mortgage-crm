@@ -47,6 +47,10 @@ async function seedOwnedByA() {
     }
     await setDoc(doc(db, 'interest_rates', 'seeded'), { track_type: 'קל"צ', rate: 4.5 })
     await setDoc(doc(db, 'cpi_index', 'seeded'), { value: 100 })
+    await setDoc(doc(db, 'regulatory_params', 'seeded'), {
+      effective_from: '2024-01-01T00:00:00.000Z',
+      max_period_months: 360,
+    })
     await setDoc(doc(db, 'activity', 'seeded'), { user_id: ADVISOR_A })
     await setDoc(doc(db, 'audit_log', 'seeded'), { user_id: ADVISOR_A })
   })
@@ -148,6 +152,19 @@ describe('public reference data', () => {
 
   it('a client cannot write cpi_index', async () => {
     await assertFails(setDoc(doc(asAdvisor(ADVISOR_A), 'cpi_index', 'forged'), { value: 1 }))
+  })
+
+  // S3: the regulatory limits are read by everyone and published only by an
+  // admin through updateRegulatoryParams.
+  it('anyone may read regulatory_params', async () => {
+    await assertSucceeds(getDoc(doc(asAnonymous(), 'regulatory_params', 'seeded')))
+    await assertSucceeds(getDoc(doc(asAdvisor(ADVISOR_A), 'regulatory_params', 'seeded')))
+  })
+
+  it('a client cannot write regulatory_params', async () => {
+    await assertFails(setDoc(doc(asAdvisor(ADVISOR_A), 'regulatory_params', 'forged'), { max_period_months: 999 }))
+    await assertFails(updateDoc(doc(asAdvisor(ADVISOR_A), 'regulatory_params', 'seeded'), { max_period_months: 999 }))
+    await assertFails(deleteDoc(doc(asAdvisor(ADVISOR_A), 'regulatory_params', 'seeded')))
   })
 })
 

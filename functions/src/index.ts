@@ -411,6 +411,83 @@ export const updateInterestRate = onCall({ region: REGION }, async (req) => {
   return { ok: true }
 })
 
+/**
+ * Numeric fields of a regulatory-parameters record, with the range each must
+ * fall in. A typo here would silently repaint every case in the system, so
+ * every value is bounded.
+ */
+const REGULATORY_FIELDS: Record<string, { min: number; max: number }> = {
+  ltv_first_home: { min: 0, max: 100 },
+  ltv_upgrader: { min: 0, max: 100 },
+  ltv_investment: { min: 0, max: 100 },
+  min_fixed_percent: { min: 0, max: 100 },
+  max_prime_percent: { min: 0, max: 100 },
+  max_variable_percent: { min: 0, max: 100 },
+  max_period_months: { min: 12, max: 600 },
+  dti_warn_threshold: { min: 0, max: 100 },
+  dti_hard_threshold: { min: 0, max: 100 },
+  max_age_at_term: { min: 50, max: 120 },
+  dti_obligation_months: { min: 0, max: 120 },
+  prepay_early_notice_discount: { min: 0, max: 1 },
+}
+
+/**
+ * Publishes a new set of regulatory limits.
+ *
+ * Records are never edited — a new one is published with the date it takes
+ * effect, so the history stays intact and a case opened under the old rules
+ * can still be judged by them.
+ */
+export const updateRegulatoryParams = onCall({ region: REGION }, async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
+  if (req.auth.token.admin !== true) {
+    throw new HttpsError('permission-denied', 'נדרשות הרשאות מנהל לעדכון פרמטרים רגולטוריים')
+  }
+
+  const data = req.data ?? {}
+  const record: Record<string, unknown> = {}
+
+  for (const [field, range] of Object.entries(REGULATORY_FIELDS)) {
+    const value = data[field]
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < range.min || value > range.max) {
+      throw new HttpsError('invalid-argument', `הערך של ${field} אינו תקין`)
+    }
+    record[field] = value
+  }
+
+  if (record.dti_warn_threshold as number > (record.dti_hard_threshold as number)) {
+    throw new HttpsError('invalid-argument', 'סף האזהרה חייב להיות נמוך מסף החריגה')
+  }
+
+  const discounts = data.prepay_seniority_discounts
+  if (!Array.isArray(discounts) || discounts.length === 0) {
+    throw new HttpsError('invalid-argument', 'חסרות הנחות ותק לפירעון מוקדם')
+  }
+  for (const d of discounts) {
+    const validYears = typeof d?.years === 'number' && d.years >= 0 && d.years <= 40
+    const validDiscount = typeof d?.discount === 'number' && d.discount >= 0 && d.discount <= 1
+    if (!validYears || !validDiscount) {
+      throw new HttpsError('invalid-argument', 'הנחת ותק אינה תקינה')
+    }
+  }
+  // Highest seniority first, so a lookup takes the first match.
+  record.prepay_seniority_discounts = [...discounts]
+    .sort((a, b) => b.years - a.years)
+    .map((d) => ({ years: d.years, discount: d.discount }))
+
+  const effectiveFrom = data.effective_from
+  if (typeof effectiveFrom !== 'string' || Number.isNaN(new Date(effectiveFrom).getTime())) {
+    throw new HttpsError('invalid-argument', 'תאריך תחילת תוקף אינו תקין')
+  }
+  record.effective_from = new Date(effectiveFrom).toISOString()
+  record.source_note = typeof data.source_note === 'string' ? data.source_note : null
+  record.updated_by = req.auth.uid
+  record.created_at = FieldValue.serverTimestamp()
+
+  const ref = await db.collection('regulatory_params').add(record)
+  return { ok: true, id: ref.id }
+})
+
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**

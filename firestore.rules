@@ -136,6 +136,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Bank of Israel limits. Read by everyone, published only by an admin
+    // through updateRegulatoryParams — same shape as interest_rates.
+    match /regulatory_params/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Rate-limit entries — managed by Cloud Functions only
     match /rate_limits/{docId} {
       allow read, write: if false;

@@ -16,7 +16,6 @@ import {
   trackTotalCost,
   formatCheckValue,
   checkBarWidth,
-  DEFAULT_DTI_LIMITS,
   isCpiLinked,
   mixMonthlyPaymentAfterYears,
   mixTotalCostWithCpi,
@@ -37,6 +36,8 @@ import {
 } from '@/services/obligationService'
 import { borrowerService, totalHouseholdIncome } from '@/services/borrowerService'
 import { appraisalService } from '@/services/appraisalService'
+import { regulatoryService } from '@/services/regulatoryService'
+import { FALLBACK_REGULATORY_PARAMS, type RegulatoryParams } from '@/utils/regulatoryParams'
 import { toast, ConfirmDialog } from '@/components/ui'
 
 const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
@@ -145,7 +146,9 @@ export default function MortgageCalculatorPage() {
   const [obligationsEditedManually, setObligationsEditedManually] = useState(false)
   const [appraisedValue, setAppraisedValue] = useState<number | null>(null)
   const [borrowerBirthDates, setBorrowerBirthDates] = useState<(string | null)[]>([])
-  const [dtiLimits, setDtiLimits] = useState<DtiLimits>(DEFAULT_DTI_LIMITS)
+  const [dtiLimits, setDtiLimits] = useState<DtiLimits | undefined>(undefined)
+  // Bank of Israel limits, resolved for this case rather than hard-coded.
+  const [regParams, setRegParams] = useState<RegulatoryParams>(FALLBACK_REGULATORY_PARAMS)
   const [savingMix, setSavingMix] = useState(false)
   const [mismatchConfirm, setMismatchConfirm] = useState(false)
 
@@ -181,6 +184,10 @@ export default function MortgageCalculatorPage() {
       if (mortgage?.property_type) setPropertyType(mortgage.property_type)
       setMonthlyIncome(totalHouseholdIncome(customer.monthly_income, customer.partner_income, borrowers ?? []))
       setBorrowerBirthDates((borrowers ?? []).map(b => b.birth_date))
+
+      // A case is judged by the rules that applied when its mix was created,
+      // so it does not turn red the day the regulator moves the numbers.
+      setRegParams(await regulatoryService.getInForceAt(mortgage?.created_at ?? new Date()))
 
       // The bank finances against the lower of purchase price and appraisal, so
       // a received appraisal — the most recent one — drives LTV from here on.
@@ -249,12 +256,20 @@ export default function MortgageCalculatorPage() {
       .catch(() => {})
     settingsService.get().then(({ data }) => {
       if (typeof data?.expected_annual_cpi === 'number') setExpectedCpi(data.expected_annual_cpi)
-      setDtiLimits({
-        warn: data?.dti_warn_threshold ?? DEFAULT_DTI_LIMITS.warn,
-        hard: data?.dti_hard_threshold ?? DEFAULT_DTI_LIMITS.hard,
-      })
+      // Only an explicit advisor setting overrides the regulator's thresholds;
+      // otherwise checkCompliance takes them from the parameters.
+      if (typeof data?.dti_warn_threshold === 'number' && typeof data?.dti_hard_threshold === 'number') {
+        setDtiLimits({ warn: data.dti_warn_threshold, hard: data.dti_hard_threshold })
+      }
     })
   }, [])
+
+  // Standalone calculator: no case to date the rules from, so use today's.
+  // With a case, the effect above resolves them from the mix's own date.
+  useEffect(() => {
+    if (customerId) return
+    regulatoryService.getInForceAt().then(setRegParams)
+  }, [customerId])
 
   const loanAmount  = Math.max(0, propertyPrice - ownCapital)
   const ltv         = propertyPrice > 0 ? Math.round((loanAmount / propertyPrice) * 100) : 0
@@ -279,18 +294,18 @@ export default function MortgageCalculatorPage() {
   const compliance = useMemo(() =>
     checkCompliance(
       tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations,
-      appraisedValue, borrowerBirthDates, dtiLimits,
+      appraisedValue, borrowerBirthDates, dtiLimits, regParams,
     ),
     [tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations,
-     appraisedValue, borrowerBirthDates, dtiLimits]
+     appraisedValue, borrowerBirthDates, dtiLimits, regParams]
   )
 
   // A low appraisal caps the loan below what the purchase price would allow;
   // the gap is equity the borrower has to find.
   const extraEquityNeeded = useMemo(() => {
     if (!appraisedValue || appraisedValue >= propertyPrice) return 0
-    return additionalEquityRequired(tracksTotal, propertyPrice, appraisedValue, propertyType)
-  }, [appraisedValue, propertyPrice, tracksTotal, propertyType])
+    return additionalEquityRequired(tracksTotal, propertyPrice, appraisedValue, propertyType, regParams)
+  }, [appraisedValue, propertyPrice, tracksTotal, propertyType, regParams])
 
   const recommendations = useMemo(() =>
     generateRecommendedMixes(loanAmount, recommendationMonths, liveRates?.prime ?? 6.0, liveRates),

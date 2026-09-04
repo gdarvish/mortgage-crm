@@ -3,7 +3,8 @@ import { Settings, Upload, Save, Eye, Trash2, Loader2, CheckCircle } from 'lucid
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
 import { settingsService } from '@/services/settingsService'
-import { DEFAULT_DTI_LIMITS } from '@/utils/mortgageCalculations'
+import { regulatoryService } from '@/services/regulatoryService'
+import { FALLBACK_REGULATORY_PARAMS } from '@/utils/regulatoryParams'
 import { toast } from '@/components/ui'
 
 export default function SettingsPage() {
@@ -20,8 +21,8 @@ export default function SettingsPage() {
     logoSize: 'medium',
     logoPosition: 'right',
     alertWindowMonths: 6,
-    dtiWarnThreshold: DEFAULT_DTI_LIMITS.warn,
-    dtiHardThreshold: DEFAULT_DTI_LIMITS.hard,
+    dtiWarnThreshold: FALLBACK_REGULATORY_PARAMS.dti_warn_threshold,
+    dtiHardThreshold: FALLBACK_REGULATORY_PARAMS.dti_hard_threshold,
     logo_url: '',
   })
   const [saving, setSaving] = useState(false)
@@ -30,6 +31,15 @@ export default function SettingsPage() {
   const logoInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
+    // Seed the thresholds from the regulator's published values, so an advisor
+    // who never touches them still sees the numbers the app is actually using.
+    regulatoryService.getInForceAt().then(params => {
+      setSettings(prev => ({
+        ...prev,
+        dtiWarnThreshold: prev.dtiWarnThreshold || params.dti_warn_threshold,
+        dtiHardThreshold: prev.dtiHardThreshold || params.dti_hard_threshold,
+      }))
+    })
     settingsService.get().then(({ data }) => {
       if (data) {
         setSettings(prev => ({
@@ -46,8 +56,8 @@ export default function SettingsPage() {
           logoSize: data.logo_size ?? 'medium',
           logoPosition: data.logo_position ?? 'right',
           alertWindowMonths: data.alert_window_months ?? 6,
-          dtiWarnThreshold: data.dti_warn_threshold ?? DEFAULT_DTI_LIMITS.warn,
-          dtiHardThreshold: data.dti_hard_threshold ?? DEFAULT_DTI_LIMITS.hard,
+          dtiWarnThreshold: data.dti_warn_threshold ?? prev.dtiWarnThreshold,
+          dtiHardThreshold: data.dti_hard_threshold ?? prev.dtiHardThreshold,
           logo_url: data.logo_url ?? '',
         }))
       }
@@ -228,7 +238,7 @@ export default function SettingsPage() {
           </div>
           <p className="text-xs text-gray-400 mt-2">
             מעל {settings.dtiWarnThreshold}% התיק מסומן באזהרה כתומה; מעל {settings.dtiHardThreshold}% כחריגה אדומה.
-            יש לוודא את הערכים מול הוראת ניהול בנקאי תקין העדכנית.
+            ברירת המחדל מגיעה מהפרמטרים הרגולטוריים המפורסמים; ערך שנקבע כאן גובר עליהם.
           </p>
         </div>
       </div>
