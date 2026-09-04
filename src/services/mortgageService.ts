@@ -20,10 +20,23 @@ import type {
   BankResponse,
 } from '@/types/database'
 
-async function attachRelations(mortgage: Mortgage): Promise<MortgageWithTracks> {
+/**
+ * Firestore rules are filters-with-teeth, not filters: a query that does not
+ * narrow to the caller's own user_id is rejected wholesale with
+ * `permission-denied`. Every collection query below must carry it.
+ */
+async function attachRelations(mortgage: Mortgage, uid: string): Promise<MortgageWithTracks> {
   const [tracksSnap, responsesSnap] = await Promise.all([
-    getDocs(query(collection(db, 'loan_tracks'), where('mortgage_id', '==', mortgage.id))),
-    getDocs(query(collection(db, 'bank_responses'), where('mortgage_id', '==', mortgage.id))),
+    getDocs(query(
+      collection(db, 'loan_tracks'),
+      where('user_id', '==', uid),
+      where('mortgage_id', '==', mortgage.id),
+    )),
+    getDocs(query(
+      collection(db, 'bank_responses'),
+      where('user_id', '==', uid),
+      where('mortgage_id', '==', mortgage.id),
+    )),
   ])
   return {
     ...mortgage,
@@ -35,15 +48,17 @@ async function attachRelations(mortgage: Mortgage): Promise<MortgageWithTracks> 
 export const mortgageService = {
   async getByCustomer(customerId: string): Promise<{ data: MortgageWithTracks[] | null; error: FirestoreError | null }> {
     try {
+      const uid = await awaitUserId()
       const snap = await getDocs(
         query(
           collection(db, 'mortgages'),
+          where('user_id', '==', uid),
           where('customer_id', '==', customerId),
           orderBy('created_at', 'desc')
         )
       )
       const mortgages = fromDocs<Mortgage>(snap.docs)
-      const data = await Promise.all(mortgages.map(attachRelations))
+      const data = await Promise.all(mortgages.map((m) => attachRelations(m, uid)))
       return { data, error: null }
     } catch (e) {
       return { data: null, error: toError(e) }
@@ -52,9 +67,10 @@ export const mortgageService = {
 
   async getById(id: string): Promise<{ data: MortgageWithTracks | null; error: FirestoreError | null }> {
     try {
+      const uid = await awaitUserId()
       const snap = await getDoc(doc(db, 'mortgages', id))
       if (!snap.exists()) return { data: null, error: null }
-      const data = await attachRelations(fromDoc<Mortgage>(snap))
+      const data = await attachRelations(fromDoc<Mortgage>(snap), uid)
       return { data, error: null }
     } catch (e) {
       return { data: null, error: toError(e) }

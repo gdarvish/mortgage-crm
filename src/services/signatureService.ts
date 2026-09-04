@@ -1,7 +1,7 @@
 import { collection, addDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { generateToken, tokenExpiration } from '@/lib/utils'
-import { fromDocs, withUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDocs, awaitUserId, withUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { Signature } from '@/types/database'
 
 export const signatureService = {
@@ -35,7 +35,12 @@ export const signatureService = {
 
   async listByCustomer(customerId: string): Promise<{ data: Signature[] | null; error: FirestoreError | null }> {
     try {
-      const snap = await getDocs(query(collection(db, 'signatures'), where('customer_id', '==', customerId)))
+      const uid = await awaitUserId()
+      const snap = await getDocs(query(
+        collection(db, 'signatures'),
+        where('user_id', '==', uid),
+        where('customer_id', '==', customerId),
+      ))
       return { data: fromDocs<Signature>(snap.docs), error: null }
     } catch (e) {
       return { data: null, error: toError(e) }
