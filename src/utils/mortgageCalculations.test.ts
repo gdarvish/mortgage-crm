@@ -15,6 +15,7 @@ import {
   linkedPaymentAtMonth,
   totalPaymentWithCpi,
   estimatePrepaymentFee,
+  calculateRefinanceSavings,
   type TrackInput,
 } from './mortgageCalculations'
 
@@ -416,25 +417,86 @@ describe('CPI linkage', () => {
 
 describe('estimatePrepaymentFee', () => {
   it('returns 0 when average rate >= contract rate', () => {
-    const fee = estimatePrepaymentFee({ balance: 500000, contractRate: 5, avgRate: 5.5, remainingMonths: 120, yearsSinceStart: 4, earlyNoticeGiven: false })
+    const fee = estimatePrepaymentFee({ trackType: 'קל"צ', balance: 500000, contractRate: 5, avgRate: 5.5, remainingMonths: 120, yearsSinceStart: 4, earlyNoticeGiven: false })
     expect(fee.finalFee).toBe(0)
   })
 
   it('computes a positive fee with seniority discount when rate dropped', () => {
-    const fee = estimatePrepaymentFee({ balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 4, earlyNoticeGiven: false })
+    const fee = estimatePrepaymentFee({ trackType: 'קל"צ', balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 4, earlyNoticeGiven: false })
     expect(fee.capitalizationFee).toBeGreaterThan(0)
     expect(fee.discount).toBeCloseTo(fee.capitalizationFee * 0.2, 0) // 4 years => 20%
     expect(fee.finalFee).toBe(fee.capitalizationFee - fee.discount)
   })
 
   it('applies 30% discount after 5 years', () => {
-    const fee = estimatePrepaymentFee({ balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 6, earlyNoticeGiven: false })
+    const fee = estimatePrepaymentFee({ trackType: 'קל"צ', balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 6, earlyNoticeGiven: false })
     expect(fee.discount).toBeCloseTo(fee.capitalizationFee * 0.3, 0)
   })
 
   it('no discount before 3 years', () => {
-    const fee = estimatePrepaymentFee({ balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 2, earlyNoticeGiven: false })
+    const fee = estimatePrepaymentFee({ trackType: 'קל"צ', balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 2, earlyNoticeGiven: false })
     expect(fee.discount).toBe(0)
+  })
+
+  // ── PR-H regressions ──────────────────────────────────────────────────────
+
+  it('H.1 — early notice actually changes the fee', () => {
+    const base = { trackType: 'קל"צ' as const, balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 4 }
+    const without = estimatePrepaymentFee({ ...base, earlyNoticeGiven: false })
+    const withNotice = estimatePrepaymentFee({ ...base, earlyNoticeGiven: true })
+    expect(withNotice.finalFee).toBeLessThan(without.finalFee)
+    // 10% off what remains after the seniority discount.
+    expect(withNotice.finalFee).toBeCloseTo(without.finalFee * 0.9, 0)
+  })
+
+  it('H.2 — a prime track carries no capitalization fee', () => {
+    const fee = estimatePrepaymentFee({ trackType: 'פריים', balance: 500000, contractRate: 6.5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 4, earlyNoticeGiven: false })
+    expect(fee.capitalizationFee).toBe(0)
+    expect(fee.finalFee).toBe(0)
+  })
+
+  it('H.2 — repayment at an exit station is exempt', () => {
+    const fee = estimatePrepaymentFee({ trackType: 'משתנה_צמודה', balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 4, earlyNoticeGiven: false, atExitStation: true })
+    expect(fee.finalFee).toBe(0)
+  })
+})
+
+describe('calculateRefinanceSavings', () => {
+  it('H.3 — a shorter term at a higher payment is still worth it', () => {
+    // 600K at 5% over 240 months refinanced to 3.5% over 120: the monthly
+    // payment rises, but the total cost falls by far more than the fee.
+    const existing: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 5, periodMonths: 240 }]
+    const shorter: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 3.5, periodMonths: 120 }]
+    const result = calculateRefinanceSavings(existing, shorter, 15000)
+    expect(result.monthlySaving).toBeLessThan(0)
+    expect(result.totalSaving).toBeGreaterThan(0)
+    expect(result.savingType).toBe('term')
+    expect(result.isWorthIt).toBe(true)
+  })
+
+  it('H.3 — a lower monthly payment that pays back quickly is worth it', () => {
+    const existing: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 5, periodMonths: 240 }]
+    const cheaper: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 3.5, periodMonths: 240 }]
+    const result = calculateRefinanceSavings(existing, cheaper, 15000)
+    expect(result.savingType).toBe('monthly')
+    expect(result.breakEvenMonths).toBeLessThan(36)
+    expect(result.isWorthIt).toBe(true)
+  })
+
+  it('H.3 — no saving at all is not worth it', () => {
+    const existing: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 3.5, periodMonths: 240 }]
+    const worse: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 4.5, periodMonths: 240 }]
+    const result = calculateRefinanceSavings(existing, worse, 15000)
+    expect(result.savingType).toBe('none')
+    expect(result.isWorthIt).toBe(false)
+  })
+
+  it('H.3 — a monthly saving that never pays back the fee is not worth it', () => {
+    const existing: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 5, periodMonths: 240 }]
+    const cheaper: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 4.95, periodMonths: 240 }]
+    const result = calculateRefinanceSavings(existing, cheaper, 200000)
+    expect(result.monthlySaving).toBeGreaterThan(0)
+    expect(result.isWorthIt).toBe(false)
   })
 })
 

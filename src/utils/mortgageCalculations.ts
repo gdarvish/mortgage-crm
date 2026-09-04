@@ -442,17 +442,41 @@ export function mixTotalCostWithCpi(tracks: TrackInput[], annualCpi: number): nu
 
 // ── Early-repayment (capitalization) fee ─────────────────────────────────────
 
+/**
+ * Statutory discounts on the capitalization fee.
+ *
+ * NOTE: verify all three against the current צו הבנקאות (עמלות פירעון מוקדם)
+ * before relying on the numbers — they are collected here so that a regulatory
+ * change is a one-line edit rather than a hunt through the formula.
+ */
+export const PREPAY_SENIORITY_DISCOUNTS: { years: number; discount: number }[] = [
+  { years: 5, discount: 0.3 },
+  { years: 3, discount: 0.2 },
+]
+/** Discount for giving the bank early notice (10–45 days) of the repayment. */
+export const PREPAY_EARLY_NOTICE_DISCOUNT = 0.1
+
 export interface PrepaymentFeeInput {
+  /** פריים carries no capitalization fee at all. */
+  trackType: LoanTrackType
   balance: number               // track balance
   contractRate: number          // the rate in the contract (%)
   avgRate: number               // Bank of Israel average rate for the remaining term (%)
   remainingMonths: number
   yearsSinceStart: number       // seniority — for the seniority discount
-  earlyNoticeGiven: boolean     // early notice (10–45 days) — 10% discount (not applied by default)
+  earlyNoticeGiven: boolean     // early notice (10–45 days)
+  /** A variable track repaid at an exit station is exempt. */
+  atExitStation?: boolean
 }
 
 export function estimatePrepaymentFee(input: PrepaymentFeeInput) {
-  const { balance, contractRate, avgRate, remainingMonths, yearsSinceStart } = input
+  const { trackType, balance, contractRate, avgRate, remainingMonths, yearsSinceStart } = input
+
+  // פריים tracks the Bank of Israel rate, so there is no fixed-rate spread to
+  // capitalize; a variable track repaid at its exit station is likewise exempt.
+  if (trackType === 'פריים' || input.atExitStation) {
+    return { capitalizationFee: 0, discount: 0, finalFee: 0 }
+  }
   // No capitalization fee when the average rate is at or above the contract rate.
   if (avgRate >= contractRate || balance <= 0 || remainingMonths <= 0) {
     return { capitalizationFee: 0, discount: 0, finalFee: 0 }
@@ -463,15 +487,29 @@ export function estimatePrepaymentFee(input: PrepaymentFeeInput) {
   const rAvg = avgRate / 100 / 12
   const pvAtAvg = payment * (1 - Math.pow(1 + rAvg, -remainingMonths)) / rAvg
   const capitalizationFee = Math.max(0, pvAtAvg - balance)
-  // Seniority discount per the regulations: 20% after 3 years, 30% after 5 years.
-  const discountRate = yearsSinceStart >= 5 ? 0.3 : yearsSinceStart >= 3 ? 0.2 : 0
-  const discount = capitalizationFee * discountRate
+
+  const seniorityRate = PREPAY_SENIORITY_DISCOUNTS
+    .find(d => yearsSinceStart >= d.years)?.discount ?? 0
+  const seniorityDiscount = capitalizationFee * seniorityRate
+
+  // The early-notice discount applies to what is left after the seniority
+  // discount. It was accepted as a parameter but never used, so ticking the box
+  // changed the fee by exactly nothing.
+  const afterSeniority = capitalizationFee - seniorityDiscount
+  const noticeDiscount = input.earlyNoticeGiven ? afterSeniority * PREPAY_EARLY_NOTICE_DISCOUNT : 0
+
   return {
     capitalizationFee: Math.round(capitalizationFee),
-    discount: Math.round(discount),
-    finalFee: Math.round(capitalizationFee - discount),
+    discount: Math.round(seniorityDiscount + noticeDiscount),
+    finalFee: Math.round(afterSeniority - noticeDiscount),
   }
 }
+
+/**
+ * How a refinance pays off: a lower monthly payment, a shorter term at a
+ * higher payment but lower total cost, or not at all.
+ */
+export type RefinanceSavingType = 'monthly' | 'term' | 'none'
 
 export function calculateRefinanceSavings(
   existingTracks: TrackInput[],
@@ -498,6 +536,12 @@ export function calculateRefinanceSavings(
     ? Math.ceil(earlyRepaymentFee / monthlySaving)
     : Infinity
 
+  // Shortening the term raises the monthly payment while cutting total cost.
+  // Judging every refinance by break-even on a monthly saving rejected those
+  // outright — including cases saving hundreds of thousands over the term.
+  const savingType: RefinanceSavingType =
+    monthlySaving > 0 ? 'monthly' : totalSaving > 0 ? 'term' : 'none'
+
   return {
     existingMonthly: Math.round(existingMonthly),
     newMonthly: Math.round(newMonthly),
@@ -507,6 +551,7 @@ export function calculateRefinanceSavings(
     totalSaving: Math.round(totalSaving),
     earlyRepaymentFee,
     breakEvenMonths,
-    isWorthIt: totalSaving > 0 && breakEvenMonths < 36,
+    savingType,
+    isWorthIt: totalSaving > 0 && (monthlySaving <= 0 || breakEvenMonths < 36),
   }
 }

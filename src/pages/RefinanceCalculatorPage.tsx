@@ -41,24 +41,30 @@ export default function RefinanceCalculatorPage() {
   const [earlyRepaymentFee, setEarlyRepaymentFee] = useState(15000)
 
   // Prepayment (capitalization) fee estimator
-  const [feeIsFixed, setFeeIsFixed] = useState(true)
+  const [feeTrackType, setFeeTrackType] = useState<LoanTrackType>('קל"צ')
   const [feeBalance, setFeeBalance] = useState(500000)
   const [feeContractRate, setFeeContractRate] = useState(5.0)
   const [feeAvgRate, setFeeAvgRate] = useState(3.5)
   const [feeRemainingMonths, setFeeRemainingMonths] = useState(120)
   const [feeYearsSinceStart, setFeeYearsSinceStart] = useState(4)
+  const [feeEarlyNotice, setFeeEarlyNotice] = useState(false)
+  const [feeAtExitStation, setFeeAtExitStation] = useState(false)
 
-  const prepaymentFee = useMemo(() => {
-    if (!feeIsFixed) return { capitalizationFee: 0, discount: 0, finalFee: 0 }
-    return estimatePrepaymentFee({
-      balance: feeBalance,
-      contractRate: feeContractRate,
-      avgRate: feeAvgRate,
-      remainingMonths: feeRemainingMonths,
-      yearsSinceStart: feeYearsSinceStart,
-      earlyNoticeGiven: false,
-    })
-  }, [feeIsFixed, feeBalance, feeContractRate, feeAvgRate, feeRemainingMonths, feeYearsSinceStart])
+  // פריים never carries a capitalization fee, and a variable track repaid at an
+  // exit station is exempt — both are decided inside estimatePrepaymentFee.
+  const feeExempt = feeTrackType === 'פריים' || feeAtExitStation
+
+  const prepaymentFee = useMemo(() => estimatePrepaymentFee({
+    trackType: feeTrackType,
+    balance: feeBalance,
+    contractRate: feeContractRate,
+    avgRate: feeAvgRate,
+    remainingMonths: feeRemainingMonths,
+    yearsSinceStart: feeYearsSinceStart,
+    earlyNoticeGiven: feeEarlyNotice,
+    atExitStation: feeAtExitStation,
+  }), [feeTrackType, feeBalance, feeContractRate, feeAvgRate, feeRemainingMonths,
+       feeYearsSinceStart, feeEarlyNotice, feeAtExitStation])
 
   // Balance report upload state
   const [showUploadModal, setShowUploadModal] = useState(false)
@@ -211,42 +217,63 @@ export default function RefinanceCalculatorPage() {
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           <div>
             <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }}>סוג מסלול</label>
-            <select value={feeIsFixed ? 'fixed' : 'other'} onChange={e => setFeeIsFixed(e.target.value === 'fixed')} className={inputCls} style={inputSt}>
-              <option value="fixed">ריבית קבועה (קל"צ/קל"ב)</option>
-              <option value="other">פריים / משתנה</option>
+            <select value={feeTrackType} onChange={e => setFeeTrackType(e.target.value as LoanTrackType)} className={inputCls} style={inputSt}>
+              {trackTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }}>יתרת המסלול</label>
-            <input type="number" value={feeBalance} onChange={e => setFeeBalance(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={!feeIsFixed} />
+            <input type="number" value={feeBalance} onChange={e => setFeeBalance(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={feeExempt} />
           </div>
           <div>
             <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }}>ריבית החוזה %</label>
-            <input type="number" step="0.1" value={feeContractRate} onChange={e => setFeeContractRate(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={!feeIsFixed} />
+            <input type="number" step="0.1" value={feeContractRate} onChange={e => setFeeContractRate(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={feeExempt} />
           </div>
           <div>
             <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }} title="לפי פרסום בנק ישראל לתקופה הממוצעת הנותרת">הריבית הממוצעת (בנק ישראל) %</label>
-            <input type="number" step="0.1" value={feeAvgRate} onChange={e => setFeeAvgRate(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={!feeIsFixed} />
+            <input type="number" step="0.1" value={feeAvgRate} onChange={e => setFeeAvgRate(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={feeExempt} />
           </div>
           <div>
             <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }}>חודשים שנותרו</label>
-            <input type="number" value={feeRemainingMonths} onChange={e => setFeeRemainingMonths(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={!feeIsFixed} />
+            <input type="number" value={feeRemainingMonths} onChange={e => setFeeRemainingMonths(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={feeExempt} />
           </div>
           <div>
             <label className="block text-[11px] font-semibold mb-1" style={{ color: '#a8a29e' }}>ותק המסלול (שנים)</label>
-            <input type="number" value={feeYearsSinceStart} onChange={e => setFeeYearsSinceStart(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={!feeIsFixed} />
+            <input type="number" value={feeYearsSinceStart} onChange={e => setFeeYearsSinceStart(+e.target.value)} className={inputCls} style={inputSt} dir="ltr" disabled={feeExempt} />
+          </div>
+          <div className="flex items-end">
+            <label className="flex items-center gap-2 text-[13px] pb-1.5" style={{ color: '#57534e' }}>
+              <input
+                type="checkbox"
+                checked={feeEarlyNotice}
+                onChange={e => setFeeEarlyNotice(e.target.checked)}
+                disabled={feeTrackType === 'פריים'}
+              />
+              ניתנה הודעה מוקדמת
+            </label>
+          </div>
+          <div className="flex items-end">
+            <label className="flex items-center gap-2 text-[13px] pb-1.5" style={{ color: '#57534e' }}>
+              <input
+                type="checkbox"
+                checked={feeAtExitStation}
+                onChange={e => setFeeAtExitStation(e.target.checked)}
+                disabled={feeTrackType === 'פריים'}
+              />
+              פירעון בתחנת יציאה
+            </label>
           </div>
         </div>
 
         <div className="mt-4 flex items-center gap-4 flex-wrap">
-          {feeIsFixed ? (
+          {!feeExempt ? (
             <>
               <div className="text-center px-4 py-2 rounded-xl" style={{ background: '#f5f4f2' }}>
                 <p className="text-[11px]" style={{ color: '#a8a29e' }}>עמלת היוון</p>
                 <p className="text-[16px] font-black tabular-nums" style={{ color: '#57534e' }}>{formatCurrency(prepaymentFee.capitalizationFee)}</p>
               </div>
               <div className="text-center px-4 py-2 rounded-xl" style={{ background: '#d1fae5' }}>
-                <p className="text-[11px]" style={{ color: '#065f46' }}>הנחת ותק</p>
+                <p className="text-[11px]" style={{ color: '#065f46' }}>הנחות{feeEarlyNotice ? ' (ותק + הודעה מוקדמת)' : ' (ותק)'}</p>
                 <p className="text-[16px] font-black tabular-nums" style={{ color: '#059669' }}>−{formatCurrency(prepaymentFee.discount)}</p>
               </div>
               <div className="text-center px-4 py-2 rounded-xl" style={{ background: '#059669' }}>
@@ -263,7 +290,11 @@ export default function RefinanceCalculatorPage() {
             </>
           ) : (
             <div className="text-center px-4 py-2 rounded-xl" style={{ background: '#d1fae5' }}>
-              <p className="text-[16px] font-black" style={{ color: '#059669' }}>0 ₪ — מסלול פריים / משתנה (אין עמלת היוון)</p>
+              <p className="text-[16px] font-black" style={{ color: '#059669' }}>
+                {feeTrackType === 'פריים'
+                  ? '0 ₪ — מסלול פריים אינו נושא עמלת היוון'
+                  : '0 ₪ — פירעון בתחנת יציאה פטור מעמלת היוון'}
+              </p>
             </div>
           )}
         </div>
@@ -300,7 +331,11 @@ export default function RefinanceCalculatorPage() {
               ? { background: '#d1fae5', color: '#065f46' }
               : { background: '#fee2e2', color: '#dc2626' }}
           >
-            {savings.isWorthIt ? '✅ כדאי לבצע מחזור' : '❌ לא כדאי כרגע'}
+            {savings.savingType === 'monthly'
+              ? `✅ כדאי — חיסכון של ${formatCurrency(savings.monthlySaving)} בחודש, החזר ההשקעה תוך ${savings.breakEvenMonths} חודשים`
+              : savings.savingType === 'term'
+                ? `✅ כדאי — ההחזר החודשי עולה ב-${formatCurrency(Math.abs(savings.monthlySaving))} אך העלות הכוללת קטנה ב-${formatCurrency(savings.totalSaving)} (קיצור תקופה)`
+                : '❌ לא כדאי כרגע'}
           </span>
         </div>
       </div>

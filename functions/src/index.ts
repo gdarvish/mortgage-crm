@@ -6,6 +6,7 @@ import { getStorage } from 'firebase-admin/storage'
 import { randomUUID } from 'node:crypto'
 import type { Archiver } from 'archiver'
 import { db, REGION } from './common'
+import { monthlyPayment, estimatePrepaymentFee } from './mortgageMath'
 
 // archiver's CommonJS entry is a factory function, which the bundled types do
 // not expose as callable — require it and type the factory explicitly.
@@ -671,14 +672,10 @@ export const generateApprovalAlerts = onSchedule(
   }
 )
 
-/** Standard monthly payment (annuity). Mirrors the frontend calculation. */
-function monthlyPayment(principal: number, annualRate: number, months: number): number {
-  if (months <= 0) return 0
-  if (annualRate === 0) return principal / months
-  const r = annualRate / 100 / 12
-  return (principal * r * Math.pow(1 + r, months)) / (Math.pow(1 + r, months) - 1)
-}
-
+/**
+ * Exit stations are assumed uniform at 5 years. In practice they vary by track
+ * type and by contract; a per-track field would be more faithful.
+ */
 const REFI_STATION_MONTHS = 60
 const DEFAULT_REFI_GAP = 0.5
 
@@ -726,14 +723,22 @@ export const scanRefinanceOpportunities = onSchedule(
       const current = currentRate.get(t.type)
       const threshold = await gapThreshold(uid)
 
+      // Months actually left to run. The original period is what the track
+      // started with, not what remains, and quoting a saving over the full
+      // original term overstates it for every seasoned loan.
+      const remaining = t.end_date
+        ? Math.max(1, Math.round((new Date(t.end_date).getTime() - now.getTime()) / (30.44 * DAY_MS)))
+        : (t.period_months ?? 240)
+
       let reason: 'gap' | 'station' | null = null
       let stationDate: string | null = null
       let monthlySaving = 0
 
-      // Rate-gap trigger.
-      if (typeof current === 'number' && rate - current >= threshold) {
+      // Rate-gap trigger. Prime is excluded: its rate follows the Bank of
+      // Israel rate by construction, so a gap against the published rate says
+      // nothing about whether refinancing helps.
+      if (t.type !== 'פריים' && typeof current === 'number' && rate - current >= threshold) {
         reason = 'gap'
-        const remaining = t.period_months ?? 240
         monthlySaving = Math.round(monthlyPayment(amount, rate, remaining) - monthlyPayment(amount, current, remaining))
       }
 
@@ -767,6 +772,23 @@ export const scanRefinanceOpportunities = onSchedule(
       const mort = await db.collection('mortgages').doc(t.mortgage_id).get()
       const customerId = mort.data()?.customer_id ?? null
 
+      // An opportunity is only an opportunity net of the exit cost, so the
+      // alert carries the estimated fee rather than promising a saving the
+      // capitalization fee would wipe out.
+      const yearsSinceStart = t.start_date && !Number.isNaN(new Date(t.start_date).getTime())
+        ? (now.getTime() - new Date(t.start_date).getTime()) / (365.25 * DAY_MS)
+        : 0
+      const estimatedFee = estimatePrepaymentFee({
+        trackType: t.type,
+        balance: amount,
+        contractRate: rate,
+        avgRate: current ?? rate,
+        remainingMonths: remaining,
+        yearsSinceStart,
+        earlyNoticeGiven: false,
+        atExitStation: reason === 'station',
+      }).finalFee
+
       await db.collection('alerts').add({
         user_id: uid,
         customer_id: customerId,
@@ -787,6 +809,8 @@ export const scanRefinanceOpportunities = onSchedule(
           current_rate: current ?? null,
           monthly_saving: monthlySaving,
           station_date: stationDate,
+          estimated_fee: estimatedFee,
+          remaining_months: remaining,
         },
         created_at: FieldValue.serverTimestamp(),
       })
