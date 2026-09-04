@@ -23,6 +23,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCustomer } from '@/hooks/queries/useCustomers'
 import { useCaseSnapshot, caseSnapshotKey } from '@/hooks/queries/useCaseSnapshot'
 import { CaseSummaryBar } from '@/components/customer/CaseSummaryBar'
+import { MixVersions } from '@/components/customer/MixVersions'
 import { customerService } from '@/services/customerService'
 import { taskService } from '@/services/taskService'
 import { messageService } from '@/services/messageService'
@@ -965,6 +966,15 @@ export default function CustomerDetailPage() {
           </button>
         </div>
       )}
+      {/* The negotiation side by side — only meaningful past the first round. */}
+      {snapshot && (
+        <MixVersions
+          snapshot={snapshot}
+          customerName={`${customer.first_name} ${customer.last_name}`}
+          onOpenVersion={(mortgageId) =>
+            navigate(`/calculator?customerId=${customer.id}&mortgageId=${mortgageId}`)}
+        />
+      )}
       {mortgages.map(mortgage => {
         const tracks = mortgage.loan_tracks || []
         const totalAmount = tracks.reduce((s, t) => s + (t.amount || 0), 0)
@@ -973,8 +983,13 @@ export default function CustomerDetailPage() {
           <div key={mortgage.id} className="border border-gray-200 rounded-xl overflow-hidden">
             <div className="bg-gray-50 p-4 flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h4 className="font-medium text-gray-900">משכנתא {mortgage.type}</h4>
+                  {(mortgage.version ?? 1) > 1 || mortgage.version_label ? (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                      v{mortgage.version ?? 1}{mortgage.version_label ? ` · ${mortgage.version_label}` : ''}
+                    </span>
+                  ) : null}
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
                     mortgage.status === 'אושר' ? 'bg-green-100 text-green-700' :
                     mortgage.status === 'הוגש' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
@@ -987,7 +1002,7 @@ export default function CustomerDetailPage() {
               </div>
               <button onClick={() => navigate(`/calculator?customerId=${customer.id}&mortgageId=${mortgage.id}`)}
                 className="inline-flex items-center gap-1 text-sm text-[#059669] hover:text-[#047857] transition-colors">
-                <ExternalLink size={14} />ערוך במחשבון
+                <ExternalLink size={14} />ערוך / שכפל כגרסה
               </button>
             </div>
             {mortgage.status === 'אושר' && (

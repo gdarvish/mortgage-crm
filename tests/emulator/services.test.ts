@@ -187,6 +187,119 @@ describe('mortgageService (PR-C regression)', () => {
   })
 })
 
+describe('mortgage mix versioning (S2)', () => {
+  async function seedFirstVersion() {
+    const { data } = await mortgageService.create({
+      customer_id: 'cust-v',
+      type: 'חדשה',
+      property_price: 2_000_000,
+      property_type: 'דירה_ראשונה',
+      own_capital: 600_000,
+      loan_amount: 1_400_000,
+      status: 'טיוטה',
+      compliance_status: null,
+      notes: null,
+    })
+    return data!
+  }
+
+  const versionTracks = [{
+    type: 'קל"צ' as const,
+    amount: 1_400_000,
+    interest_rate: 4.5,
+    period_months: 300,
+    monthly_payment: 7_778,
+    is_existing: false,
+    start_date: null,
+    end_date: null,
+  }]
+
+  const snapshot = { dti: 33, ltv: 70, monthly_payment: 7_778, total_cost: 2_333_400, compliance: null }
+
+  it('a first mix is version 1 with no parent', async () => {
+    const first = await seedFirstVersion()
+    expect(first.version).toBe(1)
+    expect(first.parent_mortgage_id).toBeNull()
+    expect(first.source).toBe('advisor')
+  })
+
+  it('a derived version numbers above every existing one and keeps its parent', async () => {
+    const first = await seedFirstVersion()
+    const { data: second, error } = await mortgageService.createVersion({
+      customerId: 'cust-v',
+      parent: first,
+      label: 'אחרי מו"מ',
+      source: 'advisor',
+      propertyPrice: 2_000_000,
+      propertyType: 'דירה_ראשונה',
+      ownCapital: 600_000,
+      loanAmount: 1_400_000,
+      snapshot,
+      tracks: versionTracks,
+    })
+    expect(error).toBeNull()
+    expect(second!.version).toBe(2)
+    expect(second!.parent_mortgage_id).toBe(first.id)
+    expect(second!.version_label).toBe('אחרי מו"מ')
+  })
+
+  it('does not lose the version it was derived from', async () => {
+    const first = await seedFirstVersion()
+    await mortgageService.createVersion({
+      customerId: 'cust-v', parent: first, label: 'v2', source: 'advisor',
+      propertyPrice: 2_000_000, propertyType: 'דירה_ראשונה', ownCapital: 600_000,
+      loanAmount: 1_400_000, snapshot, tracks: versionTracks,
+    })
+    const { data } = await mortgageService.getByCustomer('cust-v')
+    expect(data).toHaveLength(2)
+    expect(data!.map(m => m.version).sort()).toEqual([1, 2])
+  })
+
+  it('numbers a third version above both, not above its own parent', async () => {
+    const first = await seedFirstVersion()
+    const { data: second } = await mortgageService.createVersion({
+      customerId: 'cust-v', parent: first, label: 'v2', source: 'advisor',
+      propertyPrice: 2_000_000, propertyType: 'דירה_ראשונה', ownCapital: 600_000,
+      loanAmount: 1_400_000, snapshot, tracks: versionTracks,
+    })
+    // Branching from v1 again must still produce v3, not a second v2.
+    const { data: third } = await mortgageService.createVersion({
+      customerId: 'cust-v', parent: first, label: 'v3', source: 'bank_offer',
+      propertyPrice: 2_000_000, propertyType: 'דירה_ראשונה', ownCapital: 600_000,
+      loanAmount: 1_400_000, snapshot, tracks: versionTracks,
+    })
+    expect(second!.version).toBe(2)
+    expect(third!.version).toBe(3)
+    expect(third!.source).toBe('bank_offer')
+  })
+
+  it('freezes the snapshot on the version', async () => {
+    const first = await seedFirstVersion()
+    const { data: second } = await mortgageService.createVersion({
+      customerId: 'cust-v', parent: first, label: 'מזרחי', source: 'bank_offer',
+      propertyPrice: 2_000_000, propertyType: 'דירה_ראשונה', ownCapital: 600_000,
+      loanAmount: 1_400_000,
+      snapshot: { ...snapshot, bank_name: 'מזרחי' },
+      tracks: versionTracks,
+    })
+    const { data: reloaded } = await mortgageService.getById(second!.id)
+    expect(reloaded!.snapshot!.monthly_payment).toBe(7_778)
+    expect(reloaded!.snapshot!.bank_name).toBe('מזרחי')
+  })
+
+  it('carries its own tracks', async () => {
+    const first = await seedFirstVersion()
+    const { data: second } = await mortgageService.createVersion({
+      customerId: 'cust-v', parent: first, label: null, source: 'advisor',
+      propertyPrice: 2_000_000, propertyType: 'דירה_ראשונה', ownCapital: 600_000,
+      loanAmount: 1_400_000, snapshot, tracks: versionTracks,
+    })
+    const { data: reloaded } = await mortgageService.getById(second!.id)
+    expect(reloaded!.loan_tracks).toHaveLength(1)
+    expect(reloaded!.loan_tracks![0].interest_rate).toBe(4.5)
+  })
+})
+
 describe('index-backed queries (PR-D regression)', () => {
   it('referralService.getAll does not fail with failed-precondition', async () => {
     await referralService.create({

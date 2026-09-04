@@ -261,7 +261,39 @@ export interface Mortgage {
   life_insurance_status?: 'נדרש' | 'בתהליך' | 'הופק' | null
   property_insurance_status?: 'נדרש' | 'בתהליך' | 'הופק' | null
   insurance_referral_partner_id?: string | null
+
+  // ── Versioning (S2) ──
+  /** 1 for the first mix on a case, incrementing per derived version. */
+  version?: number
+  /** What this version is, in the advisor's words: 'אחרי מו"מ מזרחי'. */
+  version_label?: string | null
+  /** The version this one was derived from, if any. */
+  parent_mortgage_id?: string | null
+  /** Where it came from: the advisor, a bank's offer, or the signed deal. */
+  source?: MortgageSource
+  /**
+   * The numbers as they stood when this version was saved.
+   *
+   * Frozen deliberately: a version is a record of what was on the table at a
+   * moment in the negotiation, and it must not silently re-price itself when
+   * market rates move.
+   */
+  snapshot?: MortgageVersionSnapshot | null
+
   created_at: string
+}
+
+export type MortgageSource = 'advisor' | 'bank_offer' | 'signed'
+
+export interface MortgageVersionSnapshot {
+  dti: number
+  ltv: number
+  monthly_payment: number
+  total_cost: number
+  /** ComplianceResult, stored as data. */
+  compliance: Json | null
+  /** The bank whose offer this version came from, when source is bank_offer. */
+  bank_name?: string | null
 }
 
 export interface Disbursement {

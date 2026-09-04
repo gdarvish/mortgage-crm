@@ -22,7 +22,9 @@ import {
   type DtiLimits,
 } from '@/utils/mortgageCalculations'
 import { evaluateMix } from '@/utils/caseEvaluation'
-import type { LoanTrackType, Mortgage, PropertyType } from '@/types/database'
+import type {
+  LoanTrackType, Mortgage, MortgageVersionSnapshot, PropertyType,
+} from '@/types/database'
 import { db, functions } from '@/lib/firebase'
 import { settingsService } from '@/services/settingsService'
 import { mortgageService } from '@/services/mortgageService'
@@ -141,6 +143,9 @@ export default function MortgageCalculatorPage() {
   const [dtiLimits, setDtiLimits] = useState<DtiLimits | undefined>(undefined)
   const [savingMix, setSavingMix] = useState(false)
   const [mismatchConfirm, setMismatchConfirm] = useState(false)
+  // Saving an edited mix as a new version keeps the one the client already saw.
+  const [saveAsNewVersion, setSaveAsNewVersion] = useState(false)
+  const [versionLabel, setVersionLabel] = useState('')
   const [seededFor, setSeededFor] = useState<string | null>(null)
 
   const caseName = snapshot ? `${snapshot.customer.first_name} ${snapshot.customer.last_name}` : null
@@ -336,47 +341,70 @@ export default function MortgageCalculatorPage() {
 
   // Writing the mix back to the case: upsert the mortgage, then replace its
   // track set atomically so a re-save edits the mix rather than duplicating it.
+  /** The tracks in the shape loan_tracks stores them. */
+  const trackRecords = () => tracks.map(t => ({
+    type: t.type,
+    amount: t.amount,
+    interest_rate: t.interestRate,
+    period_months: t.periodMonths,
+    monthly_payment: Math.round(effectiveMonthlyPayment(t)),
+    is_existing: false,
+    start_date: null,
+    end_date: null,
+  }))
+
+  /** The numbers frozen onto a version at the moment it is saved. */
+  const versionSnapshot = (): MortgageVersionSnapshot => ({
+    dti: evaluation.dti,
+    ltv: evaluation.ltv,
+    monthly_payment: evaluation.monthlyPayment,
+    total_cost: evaluation.totalCost,
+    compliance: compliance as unknown as MortgageVersionSnapshot['compliance'],
+  })
+
   const persistMix = async () => {
     if (!customerId) return
     setSavingMix(true)
     try {
-      const { data: mortgage, error } = mortgageId
-        ? await mortgageService.update(mortgageId, {
-            property_price: propertyPrice,
-            property_type: propertyType,
-            own_capital: ownCapital,
-            loan_amount: tracksTotal,
-            compliance_status: compliance as unknown as Mortgage['compliance_status'],
-          })
-        : await mortgageService.create({
-            customer_id: customerId,
-            type: 'חדשה',
-            property_price: propertyPrice,
-            property_type: propertyType,
-            own_capital: ownCapital,
-            loan_amount: tracksTotal,
-            status: 'טיוטה',
-            compliance_status: compliance as unknown as Mortgage['compliance_status'],
-            notes: null,
-          })
-      if (error || !mortgage) throw new Error(error?.message ?? 'שמירה נכשלה')
+      // Editing an existing version updates it in place; anything else — a new
+      // mix, or "save as a new version" — appends to the case's history rather
+      // than overwriting what was already shown to the client.
+      if (mortgageId && !saveAsNewVersion) {
+        const { data: mortgage, error } = await mortgageService.update(mortgageId, {
+          property_price: propertyPrice,
+          property_type: propertyType,
+          own_capital: ownCapital,
+          loan_amount: tracksTotal,
+          compliance_status: compliance as unknown as Mortgage['compliance_status'],
+          snapshot: versionSnapshot(),
+          ...(versionLabel.trim() ? { version_label: versionLabel.trim() } : {}),
+        })
+        if (error || !mortgage) throw new Error(error?.message ?? 'שמירה נכשלה')
+        const { error: tracksError } = await mortgageService.replaceTracks(mortgage.id, trackRecords())
+        if (tracksError) throw new Error(tracksError.message)
+        toast.success('התמהיל עודכן בתיק הלקוח')
+      } else {
+        const parent = mortgageId
+          ? snapshot?.mortgages.find(m => m.id === mortgageId) ?? null
+          : null
+        const { data, error } = await mortgageService.createVersion({
+          customerId,
+          parent,
+          label: versionLabel.trim() || null,
+          source: 'advisor',
+          propertyPrice,
+          propertyType,
+          ownCapital,
+          loanAmount: tracksTotal,
+          snapshot: versionSnapshot(),
+          tracks: trackRecords(),
+        })
+        if (error || !data) throw new Error(error?.message ?? 'שמירה נכשלה')
+        toast.success(
+          parent ? `נשמרה גרסה ${data.version} בתיק הלקוח` : 'התמהיל נשמר בתיק הלקוח',
+        )
+      }
 
-      const { error: tracksError } = await mortgageService.replaceTracks(
-        mortgage.id,
-        tracks.map(t => ({
-          type: t.type,
-          amount: t.amount,
-          interest_rate: t.interestRate,
-          period_months: t.periodMonths,
-          monthly_payment: Math.round(effectiveMonthlyPayment(t)),
-          is_existing: false,
-          start_date: null,
-          end_date: null,
-        })),
-      )
-      if (tracksError) throw new Error(tracksError.message)
-
-      toast.success('התמהיל נשמר בתיק הלקוח')
       navigate(`/customers/${customerId}`)
     } catch (e) {
       toast.error('שגיאה בשמירת התמהיל', e instanceof Error ? e.message : undefined)
@@ -661,12 +689,49 @@ export default function MortgageCalculatorPage() {
               style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
             >
               {savingMix ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-              {savingMix ? 'שומר...' : mortgageId ? 'עדכן תמהיל בתיק' : 'שמור תמהיל ללקוח'}
+              {savingMix
+                ? 'שומר...'
+                : mortgageId
+                  ? (saveAsNewVersion ? 'שמור כגרסה חדשה' : 'עדכן תמהיל בתיק')
+                  : 'שמור תמהיל ללקוח'}
             </button>
             {!customerId && (
               <p className="text-[11px] text-center" style={{ color: '#a8a29e' }}>
                 פתח את המחשבון מתוך תיק לקוח כדי לשמור תמהיל
               </p>
+            )}
+            {customerId && (
+              <div className="flex flex-col gap-2 pt-1">
+                <input
+                  value={versionLabel}
+                  onChange={e => setVersionLabel(e.target.value)}
+                  placeholder='שם הגרסה — למשל "אחרי מו"מ מזרחי"'
+                  className="w-full py-2 px-3 text-[13px] outline-none"
+                  style={{
+                    border: '1.5px solid #e7e5e4',
+                    borderRadius: 10,
+                    background: '#ffffff',
+                    color: '#1c1917',
+                    fontFamily: 'var(--font-heebo)',
+                  }}
+                />
+                {mortgageId && (
+                  <label className="flex items-start gap-2 text-[12px]" style={{ color: '#57534e' }}>
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={saveAsNewVersion}
+                      onChange={e => setSaveAsNewVersion(e.target.checked)}
+                    />
+                    <span>
+                      שמור כגרסה חדשה
+                      <span className="block" style={{ color: '#a8a29e' }}>
+                        הגרסה הקיימת נשמרת כפי שהיא — כך אפשר להשוות בין הסבבים
+                      </span>
+                    </span>
+                  </label>
+                )}
+              </div>
             )}
             <button
               onClick={handleExportPdf}
