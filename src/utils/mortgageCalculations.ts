@@ -288,9 +288,20 @@ export function checkCompliance(
   }
 }
 
+/**
+ * Live market rates keyed by track, as published in `interest_rates`.
+ *
+ * The keys are deliberately named after the Hebrew tracks rather than after
+ * "linked"/"unlinked": קל"צ is fixed *un*linked and קל"ב is fixed *linked*, and
+ * naming them the other way round is exactly how the two got swapped before.
+ * These names never reach Firestore — documents key off `track_type` with the
+ * Hebrew value — so the shape is free to describe the tracks directly.
+ */
 export interface LiveRates {
-  fixed_linked?: number
-  fixed_unlinked?: number
+  /** קל"צ — קבועה לא צמודה. Carries the higher nominal rate: no index on top. */
+  fixed_kalatz?: number
+  /** קל"ב — קבועה צמודת מדד. Lower nominal rate; the CPI is added on top. */
+  fixed_kalab?: number
   variable_linked?: number
   eligibility?: number
   prime?: number
@@ -303,8 +314,8 @@ export function generateRecommendedMixes(
   rates?: LiveRates,
 ): { name: string; tracks: TrackInput[] }[] {
   const r = {
-    fixedLinked: rates?.fixed_linked ?? 4.5,
-    fixedUnlinked: rates?.fixed_unlinked ?? 3.8,
+    kalatz: rates?.fixed_kalatz ?? 4.5,
+    kalab: rates?.fixed_kalab ?? 3.8,
     variableLinked: rates?.variable_linked ?? 3.2,
     eligibility: rates?.eligibility ?? 3.0,
   }
@@ -312,23 +323,23 @@ export function generateRecommendedMixes(
     {
       name: 'שמרני',
       tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.4), interestRate: r.fixedLinked, periodMonths },
-        { type: 'קל"ב', amount: Math.round(loanAmount * 0.3), interestRate: r.fixedUnlinked, periodMonths },
+        { type: 'קל"צ', amount: Math.round(loanAmount * 0.4), interestRate: r.kalatz, periodMonths },
+        { type: 'קל"ב', amount: Math.round(loanAmount * 0.3), interestRate: r.kalab, periodMonths },
         { type: 'פריים', amount: Math.round(loanAmount * 0.3), interestRate: primeRate, periodMonths },
       ],
     },
     {
       name: 'מאוזן',
       tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.34), interestRate: r.fixedLinked, periodMonths },
-        { type: 'קל"ב', amount: Math.round(loanAmount * 0.33), interestRate: r.fixedUnlinked, periodMonths },
+        { type: 'קל"צ', amount: Math.round(loanAmount * 0.34), interestRate: r.kalatz, periodMonths },
+        { type: 'קל"ב', amount: Math.round(loanAmount * 0.33), interestRate: r.kalab, periodMonths },
         { type: 'פריים', amount: Math.round(loanAmount * 0.33), interestRate: primeRate, periodMonths },
       ],
     },
     {
       name: 'אגרסיבי',
       tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.34), interestRate: r.fixedLinked, periodMonths },
+        { type: 'קל"צ', amount: Math.round(loanAmount * 0.34), interestRate: r.kalatz, periodMonths },
         { type: 'משתנה_צמודה', amount: Math.round(loanAmount * 0.33), interestRate: r.variableLinked, periodMonths },
         { type: 'פריים', amount: Math.round(loanAmount * 0.33), interestRate: primeRate, periodMonths },
       ],
@@ -336,8 +347,8 @@ export function generateRecommendedMixes(
     {
       name: 'מותאם אישית',
       tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.35), interestRate: r.fixedLinked, periodMonths },
-        { type: 'קל"ב', amount: Math.round(loanAmount * 0.2), interestRate: r.fixedUnlinked, periodMonths },
+        { type: 'קל"צ', amount: Math.round(loanAmount * 0.35), interestRate: r.kalatz, periodMonths },
+        { type: 'קל"ב', amount: Math.round(loanAmount * 0.2), interestRate: r.kalab, periodMonths },
         { type: 'זכאות', amount: Math.round(loanAmount * 0.15), interestRate: r.eligibility, periodMonths: Math.min(periodMonths, 240) },
         { type: 'פריים', amount: Math.round(loanAmount * 0.3), interestRate: primeRate, periodMonths },
       ],

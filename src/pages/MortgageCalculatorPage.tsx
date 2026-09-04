@@ -114,9 +114,11 @@ export default function MortgageCalculatorPage() {
   const [liveRates, setLiveRates] = useState<LiveRates | undefined>()
 
   useEffect(() => {
-    const rateMap: Record<string, string> = {
-      'קל"צ': 'fixed_linked',
-      'קל"ב': 'fixed_unlinked',
+    // קל"צ = קבועה לא צמודה, קל"ב = קבועה צמודה. The two were mapped the other
+    // way round, which priced every recommended mix backwards.
+    const rateMap: Record<string, keyof LiveRates> = {
+      'קל"צ': 'fixed_kalatz',
+      'קל"ב': 'fixed_kalab',
       'משתנה_צמודה': 'variable_linked',
       'זכאות': 'eligibility',
       'פריים': 'prime',

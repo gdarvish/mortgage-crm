@@ -350,18 +350,46 @@ describe('generateRecommendedMixes', () => {
 
   it('uses live rates when provided', () => {
     const mixes = generateRecommendedMixes(1000000, 300, 6.0, {
-      fixed_linked: 5.0,
-      fixed_unlinked: 4.2,
+      fixed_kalatz: 5.0,
+      fixed_kalab: 4.2,
     })
     const conservative = mixes[0]
-    const fixedLinked = conservative.tracks.find(t => t.type === 'קל"צ')!
-    expect(fixedLinked.interestRate).toBe(5.0)
+    const kalatz = conservative.tracks.find(t => t.type === 'קל"צ')!
+    expect(kalatz.interestRate).toBe(5.0)
   })
 
   it('falls back to defaults without live rates', () => {
     const mixes = generateRecommendedMixes(1000000, 300, 6.0)
     const conservative = mixes[0]
-    const fixedLinked = conservative.tracks.find(t => t.type === 'קל"צ')!
-    expect(fixedLinked.interestRate).toBe(4.5)
+    const kalatz = conservative.tracks.find(t => t.type === 'קל"צ')!
+    expect(kalatz.interestRate).toBe(4.5)
+  })
+
+  // Regression (PR-B): קל"צ is fixed *unlinked* and קל"ב is fixed *linked*.
+  // The two rates used to be handed to the wrong tracks, so every recommended
+  // mix was priced backwards on screen.
+  it('קל"צ מקבל ריבית לא צמודה וקל"ב ריבית צמודה', () => {
+    const mixes = generateRecommendedMixes(1_000_000, 300, 6, {
+      fixed_kalatz: 3.8,
+      fixed_kalab: 4.5,
+    })
+    for (const mix of mixes) {
+      const kalatz = mix.tracks.find(t => t.type === 'קל"צ')
+      const kalab = mix.tracks.find(t => t.type === 'קל"ב')
+      if (kalatz) expect(kalatz.interestRate).toBe(3.8)
+      if (kalab) expect(kalab.interestRate).toBe(4.5)
+    }
+  })
+
+  it('prices קל"צ above קל"ב under real market rates', () => {
+    const mixes = generateRecommendedMixes(1_000_000, 300, 6, {
+      fixed_kalatz: 4.9,
+      fixed_kalab: 3.4,
+    })
+    for (const mix of mixes) {
+      const kalatz = mix.tracks.find(t => t.type === 'קל"צ')
+      const kalab = mix.tracks.find(t => t.type === 'קל"ב')
+      if (kalatz && kalab) expect(kalatz.interestRate).toBeGreaterThan(kalab.interestRate)
+    }
   })
 })
