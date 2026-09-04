@@ -4,7 +4,7 @@ import { formatCurrency } from '@/lib/utils'
 import { validateIsraeliId } from '@/utils/israeliValidations'
 import { toast } from '@/components/ui'
 import { borrowerService, totalHouseholdIncome } from '@/services/borrowerService'
-import { documentService } from '@/services/documentService'
+import { getChecklist } from '@/utils/documentChecklist'
 import type { Borrower } from '@/types/database'
 
 const inputClass =
@@ -227,10 +227,14 @@ interface ChecklistProps {
   customerId: string
   primaryName: string
   primaryEmployment: 'שכיר' | 'עצמאי'
+  /** Outstanding types from the case snapshot; all of them when not supplied. */
+  missingDocuments?: string[]
 }
 
 /** Document checklist duplicated per borrower, shown in the documents tab. */
-export function BorrowerChecklist({ customerId, primaryName, primaryEmployment }: ChecklistProps) {
+export function BorrowerChecklist({
+  customerId, primaryName, primaryEmployment, missingDocuments,
+}: ChecklistProps) {
   const [borrowers, setBorrowers] = useState<Borrower[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -251,18 +255,35 @@ export function BorrowerChecklist({ customerId, primaryName, primaryEmployment }
       employmentType: (b.employment_type === 'עצמאי' ? 'עצמאי' : 'שכיר') as 'שכיר' | 'עצמאי',
     })),
   ]
-  const checklist = documentService.getChecklist(checklistBorrowers)
+  const checklist = getChecklist(checklistBorrowers)
+
+  // What is still outstanding comes from the case snapshot, so this list and
+  // the summary bar's document counter can never disagree.
+  const missing = new Set(missingDocuments ?? checklist.map(c => c.type))
+  const done = checklist.length - checklist.filter(c => missing.has(c.type)).length
 
   return (
     <div className="border border-gray-200 rounded-xl p-4">
-      <h4 className="font-medium text-gray-900 mb-3">צ'קליסט מסמכים נדרשים</h4>
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="font-medium text-gray-900">צ'קליסט מסמכים נדרשים</h4>
+        <span className="text-xs text-gray-500 tabular-nums">{done}/{checklist.length}</span>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-        {checklist.map((item, i) => (
-          <div key={i} className="flex items-center gap-2 text-sm text-gray-700">
-            <CheckCircle2 size={14} className="text-gray-300 shrink-0" />
-            {item.type}
-          </div>
-        ))}
+        {checklist.map((item, i) => {
+          const outstanding = missing.has(item.type)
+          return (
+            <div
+              key={i}
+              className={`flex items-center gap-2 text-sm ${outstanding ? 'text-gray-700' : 'text-gray-400 line-through'}`}
+            >
+              <CheckCircle2
+                size={14}
+                className={`shrink-0 ${outstanding ? 'text-gray-300' : 'text-green-500'}`}
+              />
+              {item.type}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

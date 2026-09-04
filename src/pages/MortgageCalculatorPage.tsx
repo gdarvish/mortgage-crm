@@ -8,12 +8,9 @@ import { formatCurrency } from '@/lib/utils'
 import {
   calculateMonthlyPayment,
   calculateAmortizationSchedule,
-  checkCompliance,
   generateRecommendedMixes,
   calculateGracePayments,
   effectiveMonthlyPayment,
-  additionalEquityRequired,
-  trackTotalCost,
   formatCheckValue,
   checkBarWidth,
   isCpiLinked,
@@ -24,19 +21,13 @@ import {
   type LiveRates,
   type DtiLimits,
 } from '@/utils/mortgageCalculations'
+import { evaluateMix } from '@/utils/caseEvaluation'
 import type { LoanTrackType, Mortgage, PropertyType } from '@/types/database'
 import { db, functions } from '@/lib/firebase'
 import { settingsService } from '@/services/settingsService'
-import { customerService } from '@/services/customerService'
 import { mortgageService } from '@/services/mortgageService'
-import {
-  obligationService,
-  totalMonthlyObligations,
-  DEFAULT_DTI_MONTHS_THRESHOLD,
-} from '@/services/obligationService'
-import { borrowerService, totalHouseholdIncome } from '@/services/borrowerService'
-import { appraisalService } from '@/services/appraisalService'
 import { regulatoryService } from '@/services/regulatoryService'
+import { useCaseSnapshot } from '@/hooks/queries/useCaseSnapshot'
 import { FALLBACK_REGULATORY_PARAMS, type RegulatoryParams } from '@/utils/regulatoryParams'
 import { toast, ConfirmDialog } from '@/components/ui'
 
@@ -140,94 +131,66 @@ export default function MortgageCalculatorPage() {
   const [searchParams] = useSearchParams()
   const customerId = searchParams.get('customerId')
   const mortgageId = searchParams.get('mortgageId')
-  const [caseName, setCaseName] = useState<string | null>(null)
-  const [caseLoading, setCaseLoading] = useState(Boolean(customerId))
-  const [obligationCount, setObligationCount] = useState(0)
+  // The case's own numbers come from the shared snapshot, so the calculator
+  // cannot disagree with the case file about income, obligations, the
+  // appraisal or the rules in force. Only the mix being edited is local.
+  const { data: snapshot, isLoading: caseLoading, isError: caseError } = useCaseSnapshot(
+    customerId ?? undefined,
+  )
   const [obligationsEditedManually, setObligationsEditedManually] = useState(false)
-  const [appraisedValue, setAppraisedValue] = useState<number | null>(null)
-  const [borrowerBirthDates, setBorrowerBirthDates] = useState<(string | null)[]>([])
   const [dtiLimits, setDtiLimits] = useState<DtiLimits | undefined>(undefined)
-  // Bank of Israel limits, resolved for this case rather than hard-coded.
-  const [regParams, setRegParams] = useState<RegulatoryParams>(FALLBACK_REGULATORY_PARAMS)
   const [savingMix, setSavingMix] = useState(false)
   const [mismatchConfirm, setMismatchConfirm] = useState(false)
+  const [seededFor, setSeededFor] = useState<string | null>(null)
+
+  const caseName = snapshot ? `${snapshot.customer.first_name} ${snapshot.customer.last_name}` : null
+  const obligationCount = snapshot?.obligations.length ?? 0
+  const appraisedValue = snapshot?.appraisal?.appraised_value ?? null
+  const borrowerBirthDates = useMemo(
+    () => (snapshot?.borrowers ?? []).map(b => b.birth_date),
+    [snapshot],
+  )
+
+  // Standalone calculator: no case to date the rules from, so use today's.
+  const [standaloneParams, setStandaloneParams] = useState<RegulatoryParams>(FALLBACK_REGULATORY_PARAMS)
+  useEffect(() => {
+    if (customerId) return
+    regulatoryService.getInForceAt().then(setStandaloneParams)
+  }, [customerId])
+  const regParams = snapshot?.params ?? standaloneParams
 
   useEffect(() => {
-    if (!customerId) {
-      setCaseLoading(false)
-      return
+    if (caseError) toast.error('שגיאה בטעינת התיק')
+  }, [caseError])
+
+  // Seed the editable fields from the case once, so a background refetch does
+  // not overwrite a mix the advisor is in the middle of building.
+  useEffect(() => {
+    if (!snapshot || !customerId) return
+    const seedKey = `${customerId}:${mortgageId ?? ''}`
+    if (seededFor === seedKey) return
+    setSeededFor(seedKey)
+
+    const mortgage = mortgageId
+      ? snapshot.mortgages.find(m => m.id === mortgageId) ?? null
+      : null
+
+    setPropertyPrice(mortgage?.property_price ?? snapshot.customer.requested_amount ?? 0)
+    setOwnCapital(mortgage?.own_capital ?? snapshot.customer.own_capital ?? 0)
+    if (mortgage?.property_type) setPropertyType(mortgage.property_type)
+    setMonthlyIncome(snapshot.householdIncome)
+    setMonthlyObligations(snapshot.monthlyObligations)
+
+    const existingTracks = (mortgage?.loan_tracks ?? []).filter(t => !t.is_existing)
+    if (existingTracks.length > 0) {
+      setTracks(existingTracks.map(t => ({
+        type: t.type,
+        amount: t.amount ?? 0,
+        interestRate: t.interest_rate ?? 0,
+        periodMonths: t.period_months ?? 0,
+      })))
     }
-    let cancelled = false
-    setCaseLoading(true)
-    ;(async () => {
-      const [{ data: customer }, { data: obligations }, { data: borrowers }, { data: appraisals }] =
-        await Promise.all([
-          customerService.getById(customerId),
-          obligationService.getByCustomer(customerId),
-          borrowerService.getByCustomer(customerId),
-          appraisalService.getByCustomer(customerId),
-        ])
-      if (cancelled) return
-      if (!customer) {
-        toast.error('התיק לא נמצא')
-        setCaseLoading(false)
-        return
-      }
-      setCaseName(`${customer.first_name} ${customer.last_name}`)
-
-      const mortgage = mortgageId
-        ? customer.mortgages?.find(m => m.id === mortgageId) ?? null
-        : null
-
-      setPropertyPrice(mortgage?.property_price ?? customer.requested_amount ?? 0)
-      setOwnCapital(mortgage?.own_capital ?? customer.own_capital ?? 0)
-      if (mortgage?.property_type) setPropertyType(mortgage.property_type)
-      setMonthlyIncome(totalHouseholdIncome(customer.monthly_income, customer.partner_income, borrowers ?? []))
-      setBorrowerBirthDates((borrowers ?? []).map(b => b.birth_date))
-
-      // A case is judged by the rules that applied when its mix was created,
-      // so it does not turn red the day the regulator moves the numbers.
-      setRegParams(await regulatoryService.getInForceAt(mortgage?.created_at ?? new Date()))
-
-      // The bank finances against the lower of purchase price and appraisal, so
-      // a received appraisal — the most recent one — drives LTV from here on.
-      const latestAppraised = (appraisals ?? [])
-        .filter(a => a.status === 'התקבלה' && a.appraised_value)
-        .sort((a, b) => (b.received_at ?? '').localeCompare(a.received_at ?? ''))[0]
-        ?.appraised_value ?? null
-      setAppraisedValue(latestAppraised)
-
-      // Detailed obligations are the source of truth; the questionnaire's single
-      // number is only a fallback for cases that have none recorded yet.
-      if (obligations && obligations.length > 0) {
-        const { data: settings } = await settingsService.get()
-        setObligationCount(obligations.length)
-        setMonthlyObligations(totalMonthlyObligations(
-          obligations,
-          settings?.dti_obligation_months_threshold ?? DEFAULT_DTI_MONTHS_THRESHOLD,
-        ))
-      } else {
-        setObligationCount(0)
-        setMonthlyObligations(customer.existing_obligations ?? 0)
-      }
-
-      const existingTracks = (mortgage?.loan_tracks ?? []).filter(t => !t.is_existing)
-      if (existingTracks.length > 0) {
-        setTracks(existingTracks.map(t => ({
-          type: t.type,
-          amount: t.amount ?? 0,
-          interestRate: t.interest_rate ?? 0,
-          periodMonths: t.period_months ?? 0,
-        })))
-      }
-      setCaseLoading(false)
-    })().catch((e) => {
-      if (cancelled) return
-      toast.error('שגיאה בטעינת התיק', e instanceof Error ? e.message : undefined)
-      setCaseLoading(false)
-    })
-    return () => { cancelled = true }
-  }, [customerId, mortgageId])
+  }, [snapshot, customerId, mortgageId, seededFor])
 
   useEffect(() => {
     // קל"צ = קבועה לא צמודה, קל"ב = קבועה צמודה. The two were mapped the other
@@ -264,13 +227,6 @@ export default function MortgageCalculatorPage() {
     })
   }, [])
 
-  // Standalone calculator: no case to date the rules from, so use today's.
-  // With a case, the effect above resolves them from the mix's own date.
-  useEffect(() => {
-    if (customerId) return
-    regulatoryService.getInForceAt().then(setRegParams)
-  }, [customerId])
-
   const loanAmount  = Math.max(0, propertyPrice - ownCapital)
   const ltv         = propertyPrice > 0 ? Math.round((loanAmount / propertyPrice) * 100) : 0
   const ltvColor    = ltv > 75 ? '#dc2626' : ltv > 60 ? '#d97706' : '#059669'
@@ -281,31 +237,29 @@ export default function MortgageCalculatorPage() {
     [tracks]
   )
 
-  const totalCost = useMemo(() =>
-    tracks.reduce((s, t) => s + trackTotalCost(t), 0),
-    [tracks]
-  )
-
   const hasLinkedTracks = useMemo(() => tracks.some(t => isCpiLinked(t.type)), [tracks])
   const payment5yr = useMemo(() => mixMonthlyPaymentAfterYears(tracks, expectedCpi, 5), [tracks, expectedCpi])
   const payment10yr = useMemo(() => mixMonthlyPaymentAfterYears(tracks, expectedCpi, 10), [tracks, expectedCpi])
   const totalCostWithCpi = useMemo(() => mixTotalCostWithCpi(tracks, expectedCpi), [tracks, expectedCpi])
 
-  const compliance = useMemo(() =>
-    checkCompliance(
-      tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations,
-      appraisedValue, borrowerBirthDates, dtiLimits, regParams,
-    ),
-    [tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations,
-     appraisedValue, borrowerBirthDates, dtiLimits, regParams]
-  )
+  // The draft mix is judged by the same function the case snapshot uses, so
+  // the calculator and the case file can only disagree about a mix if they
+  // were handed different mixes — never because they score them differently.
+  const evaluation = useMemo(() => evaluateMix(tracks, {
+    purchasePrice: propertyPrice,
+    propertyType,
+    appraisedValue,
+    householdIncome: monthlyIncome,
+    monthlyObligations,
+    borrowerBirthDates,
+    dtiLimits,
+    params: regParams,
+  }), [tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations,
+       appraisedValue, borrowerBirthDates, dtiLimits, regParams])
 
-  // A low appraisal caps the loan below what the purchase price would allow;
-  // the gap is equity the borrower has to find.
-  const extraEquityNeeded = useMemo(() => {
-    if (!appraisedValue || appraisedValue >= propertyPrice) return 0
-    return additionalEquityRequired(tracksTotal, propertyPrice, appraisedValue, propertyType, regParams)
-  }, [appraisedValue, propertyPrice, tracksTotal, propertyType, regParams])
+  const compliance = evaluation.compliance
+  const extraEquityNeeded = evaluation.additionalEquityRequired
+  const totalCost = evaluation.totalCost
 
   const recommendations = useMemo(() =>
     generateRecommendedMixes(loanAmount, recommendationMonths, liveRates?.prime ?? 6.0, liveRates),

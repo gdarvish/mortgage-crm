@@ -21,6 +21,8 @@ import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidation
 import { toast, ConfirmDialog } from '@/components/ui'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCustomer } from '@/hooks/queries/useCustomers'
+import { useCaseSnapshot, caseSnapshotKey } from '@/hooks/queries/useCaseSnapshot'
+import { CaseSummaryBar } from '@/components/customer/CaseSummaryBar'
 import { customerService } from '@/services/customerService'
 import { taskService } from '@/services/taskService'
 import { messageService } from '@/services/messageService'
@@ -142,6 +144,9 @@ export default function CustomerDetailPage() {
   const [commissionMortgageId, setCommissionMortgageId] = useState<string>('')
   const [duplicateCustomer, setDuplicateCustomer] = useState<Customer | null>(null)
   const [openingDocId, setOpeningDocId] = useState<string | null>(null)
+
+  // The one computed view of this case — every number the summary bar shows.
+  const { data: snapshot } = useCaseSnapshot(id)
   const [deleting, setDeleting] = useState(false)
 
   // Task form
@@ -164,8 +169,12 @@ export default function CustomerDetailPage() {
   // -------------------------------------------------------------------------
   // Sync server data into local state
   // -------------------------------------------------------------------------
+  // Anything that changes the case invalidates the snapshot too, so the
+  // summary bar can never disagree with the tab beneath it.
   const refreshCustomer = () => {
-    if (id) qc.invalidateQueries({ queryKey: ['customer', id] })
+    if (!id) return
+    qc.invalidateQueries({ queryKey: ['customer', id] })
+    qc.invalidateQueries({ queryKey: caseSnapshotKey(id) })
   }
 
   // Display fields and lists always track the latest server data.
@@ -835,6 +844,7 @@ export default function CustomerDetailPage() {
         customerId={id!}
         primaryName={`${customer.first_name} ${customer.last_name}`}
         primaryEmployment={customer.employment_type === 'עצמאי' ? 'עצמאי' : 'שכיר'}
+        missingDocuments={snapshot?.missingDocuments}
       />
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">
@@ -1279,6 +1289,9 @@ export default function CustomerDetailPage() {
         className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#059669] transition-colors">
         <ArrowRight size={16} />חזרה לרשימת לקוחות
       </button>
+
+      {/* Sticky case summary — visible on every tab */}
+      {snapshot && <CaseSummaryBar snapshot={snapshot} />}
 
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
