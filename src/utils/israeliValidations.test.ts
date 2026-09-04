@@ -37,6 +37,25 @@ describe('validateIsraeliId', () => {
   it('rejects more than 9 digits', () => {
     expect(validateIsraeliId('1234567890')).toBe(false)
   })
+
+  // ── PR-K.6 regressions ────────────────────────────────────────────────────
+
+  it('rejects an all-zero ID that satisfies the checksum', () => {
+    // '0' padded to nine zeros passes the check digit but identifies nobody.
+    expect(validateIsraeliId('0')).toBe(false)
+    expect(validateIsraeliId('000000000')).toBe(false)
+  })
+
+  it('rejects fewer than five digits as a typo', () => {
+    expect(validateIsraeliId('1')).toBe(false)
+    expect(validateIsraeliId('18')).toBe(false)
+    expect(validateIsraeliId('1234')).toBe(false)
+  })
+
+  it('still accepts a genuinely short ID of five digits or more', () => {
+    // 000000018 padded from '00018' — a real short-form ID.
+    expect(validateIsraeliId('00018')).toBe(true)
+  })
 })
 
 describe('validateIsraeliPhone', () => {

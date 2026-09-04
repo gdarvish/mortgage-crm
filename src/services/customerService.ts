@@ -96,6 +96,33 @@ export const customerService = {
     }
   },
 
+  /**
+   * Any other case of this advisor's already carrying this national ID.
+   *
+   * Not a hard block — a case can legitimately be re-opened or split — but the
+   * advisor should know before creating a second file for the same person.
+   */
+  async findDuplicateIdNumber(
+    idNumber: string,
+    excludeCustomerId?: string,
+  ): Promise<{ data: Customer | null; error: FirestoreError | null }> {
+    try {
+      const clean = idNumber.trim()
+      if (!clean) return { data: null, error: null }
+      const uid = await awaitUserId()
+      const snap = await getDocs(query(
+        collection(db, COL),
+        where('user_id', '==', uid),
+        where('id_number', '==', clean),
+        limit(5),
+      ))
+      const match = fromDocs<Customer>(snap.docs).find((c) => c.id !== excludeCustomerId) ?? null
+      return { data: match, error: null }
+    } catch (e) {
+      return { data: null, error: toError(e) }
+    }
+  },
+
   async getById(id: string): Promise<{ data: CustomerWithRelations | null; error: FirestoreError | null }> {
     try {
       const uid = await awaitUserId()

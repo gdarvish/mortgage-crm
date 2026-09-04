@@ -200,8 +200,14 @@ export default function LeadsPage() {
     const newStatus = over.id as LeadStatus
     const lead = leads.find(l => l.id === leadId)
     if (!lead || lead.status === newStatus) return
-    // Dropping onto "converted" runs the real conversion flow, not just a status change.
+    // Dropping onto "converted" runs the real conversion flow, not just a status
+    // change. A lead already converted has a case — go to it rather than
+    // creating a second customer for the same person.
     if (newStatus === 'הפך ללקוח') {
+      if (lead.converted_to_customer_id) {
+        navigate(`/customers/${lead.converted_to_customer_id}`)
+        return
+      }
       setLeadToConvert(lead)
       return
     }

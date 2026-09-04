@@ -135,6 +135,12 @@ export default function CustomerDetailPage() {
   const [formErrors, setFormErrors] = useState<FormErrors>({})
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showCloseWarn, setShowCloseWarn] = useState(false)
+  const [pendingStatus, setPendingStatus] = useState<CustomerStatus | null>(null)
+  const [pendingLinkKind, setPendingLinkKind] = useState<'questionnaire' | 'portal' | null>(null)
+  const [linkExpiryWarning, setLinkExpiryWarning] = useState<string | null>(null)
+  const [pendingOcrIncome, setPendingOcrIncome] = useState<number | null>(null)
+  const [commissionMortgageId, setCommissionMortgageId] = useState<string>('')
+  const [duplicateCustomer, setDuplicateCustomer] = useState<Customer | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   // Task form
@@ -218,19 +224,37 @@ export default function CustomerDetailPage() {
       m.life_insurance_status !== 'הופק' || m.property_insurance_status !== 'הופק'
     )
 
-  const doSavePersonal = async () => {
+  /**
+   * The status is saved the moment it is clicked, not folded into the personal
+   * form's save button. It used to ride along with savePersonal only — so
+   * changing the status and then switching tabs, or saving from the financial
+   * tab, discarded it silently.
+   */
+  const persistStatus = async (status: CustomerStatus) => {
     if (!id) return
     setShowCloseWarn(false)
-    setSaving(true)
-    const { error } = await customerService.update(id, { ...personal, status: statusValue })
-    if (!error) {
-      setCustomer(prev => prev ? { ...prev, ...personal, status: statusValue } : prev)
-      refreshCustomer()
-      toast.success('הפרטים נשמרו בהצלחה')
-    } else {
-      toast.error('שגיאה בשמירה', error.message)
+    const previous = statusValue
+    setStatusValue(status)
+    const { error } = await customerService.update(id, { status })
+    if (error) {
+      setStatusValue(previous)
+      toast.error('שגיאה בעדכון הסטטוס', error.message)
+      return
     }
-    setSaving(false)
+    setCustomer(prev => prev ? { ...prev, status } : prev)
+    refreshCustomer()
+    toast.success(`הסטטוס עודכן ל"${status}"`)
+  }
+
+  const handleStatusChange = (status: CustomerStatus) => {
+    if (status === statusValue) return
+    // Soft block: closing the case while insurance is not yet issued.
+    if (status === 'סגירה' && insuranceIncomplete()) {
+      setPendingStatus(status)
+      setShowCloseWarn(true)
+      return
+    }
+    void persistStatus(status)
   }
 
   const savePersonal = async () => {
@@ -241,12 +265,22 @@ export default function CustomerDetailPage() {
       toast.error('יש שגיאות בטופס', 'אנא תקן את השדות המסומנים ונסה שוב')
       return
     }
-    // Soft block: closing the case while insurance is not yet issued.
-    if (statusValue === 'סגירה' && insuranceIncomplete()) {
-      setShowCloseWarn(true)
-      return
+    setSaving(true)
+    const { error } = await customerService.update(id, personal)
+    if (!error) {
+      setCustomer(prev => prev ? { ...prev, ...personal } : prev)
+      refreshCustomer()
+      toast.success('הפרטים נשמרו בהצלחה')
+      // A second file for the same person is a real possibility and a real
+      // problem, but not always a mistake — warn, do not block.
+      if (personal.id_number) {
+        const { data: duplicate } = await customerService.findDuplicateIdNumber(personal.id_number, id)
+        if (duplicate) setDuplicateCustomer(duplicate)
+      }
+    } else {
+      toast.error('שגיאה בשמירה', error.message)
     }
-    doSavePersonal()
+    setSaving(false)
   }
 
   const saveFinancial = async () => {
@@ -335,14 +369,36 @@ export default function CustomerDetailPage() {
         'הנתונים חולצו מהמסמך',
         `ברוטו: ${data.gross_salary ?? '—'} · נטו: ${data.net_salary ?? '—'}`
       )
+      // Overwriting the recorded income is the advisor's call, and it used to
+      // happen silently and only in local state — lost unless they remembered
+      // to press save.
       if (typeof data.net_salary === 'number') {
-        setFinancial(prev => ({ ...prev, monthly_income: data.net_salary as number }))
+        if (data.net_salary === financial.monthly_income) {
+          toast.success('ההכנסה בתלוש זהה לרשומה בתיק')
+        } else {
+          setPendingOcrIncome(data.net_salary)
+        }
       }
     } catch (e) {
       toast.error('שגיאה בחילוץ נתונים', e instanceof Error ? e.message : undefined)
     } finally {
       setOcrDocId(null)
     }
+  }
+
+  const applyOcrIncome = async () => {
+    if (!id || pendingOcrIncome === null) return
+    const income = pendingOcrIncome
+    setPendingOcrIncome(null)
+    const { error } = await customerService.update(id, { monthly_income: income })
+    if (error) {
+      toast.error('שגיאה בעדכון ההכנסה', error.message)
+      return
+    }
+    setFinancial(prev => ({ ...prev, monthly_income: income }))
+    setCustomer(prev => prev ? { ...prev, monthly_income: income } : prev)
+    refreshCustomer()
+    toast.success('ההכנסה עודכנה בתיק')
   }
 
   const handleValidateDoc = async (docId: string) => {
@@ -414,8 +470,31 @@ export default function CustomerDetailPage() {
     }
   }
 
+  /** An unexpired token that a new link would silently invalidate. */
+  const liveTokenExpiry = (kind: 'questionnaire' | 'portal'): string | null => {
+    const token = kind === 'questionnaire' ? customer?.questionnaire_token : customer?.portal_token
+    const expires = kind === 'questionnaire'
+      ? customer?.questionnaire_token_expires_at
+      : customer?.portal_token_expires_at
+    if (!token || !expires) return null
+    return new Date(expires).getTime() > Date.now() ? expires : null
+  }
+
+  const requestNewLink = (kind: 'questionnaire' | 'portal') => {
+    // Handing out a second link kills the first one. The client may already be
+    // holding it, so this is not something to do silently.
+    const expiry = liveTokenExpiry(kind)
+    if (expiry) {
+      setPendingLinkKind(kind)
+      setLinkExpiryWarning(expiry)
+      return
+    }
+    void (kind === 'questionnaire' ? sendQuestionnaire() : sendPortalLink())
+  }
+
   const sendQuestionnaire = async () => {
     if (!id) return
+    setPendingLinkKind(null)
     const token = generateToken()
     const { error } = await customerService.update(id, {
       questionnaire_token: token,
@@ -434,6 +513,7 @@ export default function CustomerDetailPage() {
 
   const sendPortalLink = async () => {
     if (!id) return
+    setPendingLinkKind(null)
     const token = generateToken()
     const { error } = await customerService.update(id, {
       portal_token: token,
@@ -472,11 +552,14 @@ export default function CustomerDetailPage() {
         status: commission.status,
         payment_date: commission.payment_date,
         notes: commission.notes,
+        mortgage_id: commissionMortgageId || commission.mortgage_id || mortgages[0]?.id || null,
       })
     } else {
       const { data } = await commissionService.create({
         customer_id: id,
-        mortgage_id: null,
+        // Attach to the case's mix so the commission is traceable to a deal;
+        // with more than one, the selector above decides.
+        mortgage_id: commissionMortgageId || mortgages[0]?.id || null,
         amount: commission.amount,
         status: commission.status,
         payment_date: commission.payment_date,
@@ -523,7 +606,7 @@ export default function CustomerDetailPage() {
           {statuses.map(s => (
             <button
               key={s}
-              onClick={() => setStatusValue(s)}
+              onClick={() => handleStatusChange(s)}
               className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
                 statusValue === s ? statusColors[s] + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
@@ -1124,6 +1207,22 @@ export default function CustomerDetailPage() {
           <input className={inputClass} type="date" value={comm.payment_date || ''}
             onChange={e => setCommission({ ...comm, payment_date: e.target.value })} />
         </div>
+        {mortgages.length > 1 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">משכנתא מקושרת</label>
+            <select
+              className={`${inputClass} bg-white`}
+              value={commissionMortgageId || comm.mortgage_id || mortgages[0].id}
+              onChange={e => setCommissionMortgageId(e.target.value)}
+            >
+              {mortgages.map(m => (
+                <option key={m.id} value={m.id}>
+                  משכנתא {m.type} · {m.loan_amount ? formatCurrency(m.loan_amount) : 'ללא סכום'} · {m.status}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">הערות</label>
           <textarea className={`${inputClass} min-h-[80px]`} value={comm.notes || ''}
@@ -1187,12 +1286,12 @@ export default function CustomerDetailPage() {
               <Send size={16} />שלח הודעה
             </button>
             <button
-              onClick={sendQuestionnaire}
+              onClick={() => requestNewLink('questionnaire')}
               className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm">
               <ClipboardList size={16} />שלח שאלון
             </button>
             <button
-              onClick={sendPortalLink}
+              onClick={() => requestNewLink('portal')}
               className="inline-flex items-center gap-2 bg-teal-50 text-teal-700 border border-teal-200 px-3 py-2 rounded-lg hover:bg-teal-100 transition-colors text-sm">
               <ExternalLink size={16} />שלח קישור פורטל
             </button>
@@ -1244,8 +1343,45 @@ export default function CustomerDetailPage() {
         title="סגירת תיק"
         message="הביטוחים טרם הופקו — להמשיך בכל זאת ולסגור את התיק?"
         confirmText="סגור בכל זאת"
-        onConfirm={doSavePersonal}
-        onCancel={() => setShowCloseWarn(false)}
+        onConfirm={() => { if (pendingStatus) void persistStatus(pendingStatus); setPendingStatus(null) }}
+        onCancel={() => { setShowCloseWarn(false); setPendingStatus(null) }}
+      />
+
+      <ConfirmDialog
+        open={duplicateCustomer !== null}
+        title="ת.ז קיימת בתיק אחר"
+        message={`ת.ז ${personal.id_number} מופיעה גם בתיק של ${duplicateCustomer?.first_name ?? ''} ${duplicateCustomer?.last_name ?? ''}. לעבור לתיק הקיים?`}
+        confirmText="פתח את התיק הקיים"
+        cancelText="השאר כאן"
+        onConfirm={() => {
+          const target = duplicateCustomer
+          setDuplicateCustomer(null)
+          if (target) navigate(`/customers/${target.id}`)
+        }}
+        onCancel={() => setDuplicateCustomer(null)}
+      />
+
+      <ConfirmDialog
+        open={pendingOcrIncome !== null}
+        title="עדכון הכנסה מהתלוש"
+        message={`הכנסה נוכחית: ${formatCurrency(financial.monthly_income || 0)} → הכנסה מהתלוש: ${formatCurrency(pendingOcrIncome ?? 0)}. לעדכן?`}
+        confirmText="עדכן ושמור"
+        onConfirm={applyOcrIncome}
+        onCancel={() => setPendingOcrIncome(null)}
+      />
+
+      <ConfirmDialog
+        open={linkExpiryWarning !== null}
+        title="קיים כבר קישור פעיל"
+        message={`קיים כבר קישור פעיל בתוקף עד ${formatDate(linkExpiryWarning ?? '')}. יצירת קישור חדש תבטל אותו. להמשיך?`}
+        confirmText="צור קישור חדש"
+        onConfirm={() => {
+          const kind = pendingLinkKind
+          setLinkExpiryWarning(null)
+          if (kind === 'questionnaire') void sendQuestionnaire()
+          else if (kind === 'portal') void sendPortalLink()
+        }}
+        onCancel={() => { setLinkExpiryWarning(null); setPendingLinkKind(null) }}
       />
 
       <ConfirmDialog
