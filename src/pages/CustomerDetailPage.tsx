@@ -806,9 +806,27 @@ export default function CustomerDetailPage() {
         propertyType={mortgages[0]?.property_type ?? undefined}
       />
       {mortgages.length === 0 && (
-        <div className="text-center py-12 text-gray-400 text-sm">
+        <div className="text-center py-12">
           <Home size={36} className="mx-auto mb-3 text-gray-300" />
-          אין תמהילים עדיין
+          <p className="text-sm text-gray-400 mb-4">אין תמהילים עדיין</p>
+          <button
+            onClick={() => navigate(`/calculator?customerId=${customer.id}`)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#059669] text-white text-sm font-medium hover:bg-[#047857] transition-colors"
+          >
+            <Calculator size={15} />
+            בנה תמהיל חדש
+          </button>
+        </div>
+      )}
+      {mortgages.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => navigate(`/calculator?customerId=${customer.id}`)}
+            className="inline-flex items-center gap-1.5 text-sm text-[#059669] hover:text-[#047857] transition-colors font-medium"
+          >
+            <Plus size={15} />
+            בנה תמהיל חדש
+          </button>
         </div>
       )}
       {mortgages.map(mortgage => {
@@ -831,9 +849,9 @@ export default function CustomerDetailPage() {
                   {mortgage.loan_amount ? `סכום הלוואה: ${formatCurrency(mortgage.loan_amount)}` : ''}
                 </p>
               </div>
-              <button onClick={() => navigate('/calculator')}
+              <button onClick={() => navigate(`/calculator?customerId=${customer.id}&mortgageId=${mortgage.id}`)}
                 className="inline-flex items-center gap-1 text-sm text-[#059669] hover:text-[#047857] transition-colors">
-                <ExternalLink size={14} />מחשבון
+                <ExternalLink size={14} />ערוך במחשבון
               </button>
             </div>
             {mortgage.status === 'אושר' && (
@@ -1165,7 +1183,7 @@ export default function CustomerDetailPage() {
               currentStatus={customer.status}
               onDone={refreshCustomer}
             />
-            <button onClick={() => navigate('/calculator')}
+            <button onClick={() => navigate(`/calculator?customerId=${customer.id}`)}
               className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg hover:bg-purple-100 transition-colors text-sm">
               <Calculator size={16} />צור תמהיל
             </button>

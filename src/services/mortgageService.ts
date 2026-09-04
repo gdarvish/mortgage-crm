@@ -10,6 +10,7 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { fromDoc, fromDocs, awaitUserId, withUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
@@ -138,6 +139,43 @@ export const mortgageService = {
       return { data: fromDoc<LoanTrack>(snap), error: null }
     } catch (e) {
       return { data: null, error: toError(e) }
+    }
+  },
+
+  /**
+   * Replace a mortgage's whole track set in one atomic batch.
+   *
+   * Saving an edited mix is a replace, not an append: deleting the old tracks
+   * and adding the new ones as separate calls can leave the case with a
+   * half-written mix if the tab is closed midway, so both halves go into a
+   * single writeBatch.
+   */
+  async replaceTracks(
+    mortgageId: string,
+    tracks: Omit<LoanTrack, 'id' | 'created_at' | 'user_id' | 'mortgage_id'>[],
+  ): Promise<{ error: FirestoreError | null }> {
+    try {
+      const uid = await awaitUserId()
+      const existing = await getDocs(query(
+        collection(db, 'loan_tracks'),
+        where('user_id', '==', uid),
+        where('mortgage_id', '==', mortgageId),
+      ))
+      const batch = writeBatch(db)
+      existing.docs.forEach((d) => batch.delete(d.ref))
+      for (const track of tracks) {
+        batch.set(doc(collection(db, 'loan_tracks')), {
+          ...track,
+          user_id: uid,
+          mortgage_id: mortgageId,
+          is_existing: track.is_existing ?? false,
+          created_at: serverTimestamp(),
+        })
+      }
+      await batch.commit()
+      return { error: null }
+    } catch (e) {
+      return { error: toError(e) }
     }
   },
 

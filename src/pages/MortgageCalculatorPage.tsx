@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Sparkles, AlertTriangle, CheckCircle, Download, Save, X, Loader2 } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Plus, Sparkles, AlertTriangle, CheckCircle, Download, Save, X, Loader2, ArrowRight } from 'lucide-react'
 import { httpsCallable } from 'firebase/functions'
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -18,10 +19,14 @@ import {
   type GraceType,
   type LiveRates,
 } from '@/utils/mortgageCalculations'
-import type { LoanTrackType, PropertyType } from '@/types/database'
+import type { LoanTrackType, Mortgage, PropertyType } from '@/types/database'
 import { db, functions } from '@/lib/firebase'
 import { settingsService } from '@/services/settingsService'
-import { toast } from '@/components/ui'
+import { customerService } from '@/services/customerService'
+import { mortgageService } from '@/services/mortgageService'
+import { obligationService, totalMonthlyObligations } from '@/services/obligationService'
+import { borrowerService, totalHouseholdIncome } from '@/services/borrowerService'
+import { toast, ConfirmDialog } from '@/components/ui'
 
 const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
 
@@ -112,6 +117,78 @@ export default function MortgageCalculatorPage() {
   const [aiAdvising, setAiAdvising] = useState(false)
   const [aiAdvice, setAiAdvice] = useState<{ rationale: string; risk_level: string } | null>(null)
   const [liveRates, setLiveRates] = useState<LiveRates | undefined>()
+
+  // ── Case context (PR-A) ───────────────────────────────────────────────────
+  // The calculator is reachable both standalone and from inside a case. With
+  // ?customerId (and optionally ?mortgageId) it seeds itself from the case and
+  // can write the mix back; without them it stays a scratch calculator.
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const customerId = searchParams.get('customerId')
+  const mortgageId = searchParams.get('mortgageId')
+  const [caseName, setCaseName] = useState<string | null>(null)
+  const [caseLoading, setCaseLoading] = useState(Boolean(customerId))
+  const [obligationCount, setObligationCount] = useState(0)
+  const [savingMix, setSavingMix] = useState(false)
+  const [mismatchConfirm, setMismatchConfirm] = useState(false)
+
+  useEffect(() => {
+    if (!customerId) {
+      setCaseLoading(false)
+      return
+    }
+    let cancelled = false
+    setCaseLoading(true)
+    ;(async () => {
+      const [{ data: customer }, { data: obligations }, { data: borrowers }] = await Promise.all([
+        customerService.getById(customerId),
+        obligationService.getByCustomer(customerId),
+        borrowerService.getByCustomer(customerId),
+      ])
+      if (cancelled) return
+      if (!customer) {
+        toast.error('התיק לא נמצא')
+        setCaseLoading(false)
+        return
+      }
+      setCaseName(`${customer.first_name} ${customer.last_name}`)
+
+      const mortgage = mortgageId
+        ? customer.mortgages?.find(m => m.id === mortgageId) ?? null
+        : null
+
+      setPropertyPrice(mortgage?.property_price ?? customer.requested_amount ?? 0)
+      setOwnCapital(mortgage?.own_capital ?? customer.own_capital ?? 0)
+      if (mortgage?.property_type) setPropertyType(mortgage.property_type)
+      setMonthlyIncome(totalHouseholdIncome(customer.monthly_income, customer.partner_income, borrowers ?? []))
+
+      // Detailed obligations are the source of truth; the questionnaire's single
+      // number is only a fallback for cases that have none recorded yet.
+      if (obligations && obligations.length > 0) {
+        setObligationCount(obligations.length)
+        setMonthlyObligations(totalMonthlyObligations(obligations))
+      } else {
+        setObligationCount(0)
+        setMonthlyObligations(customer.existing_obligations ?? 0)
+      }
+
+      const existingTracks = (mortgage?.loan_tracks ?? []).filter(t => !t.is_existing)
+      if (existingTracks.length > 0) {
+        setTracks(existingTracks.map(t => ({
+          type: t.type,
+          amount: t.amount ?? 0,
+          interestRate: t.interest_rate ?? 0,
+          periodMonths: t.period_months ?? 0,
+        })))
+      }
+      setCaseLoading(false)
+    })().catch((e) => {
+      if (cancelled) return
+      toast.error('שגיאה בטעינת התיק', e instanceof Error ? e.message : undefined)
+      setCaseLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [customerId, mortgageId])
 
   useEffect(() => {
     // קל"צ = קבועה לא צמודה, קל"ב = קבועה צמודה. The two were mapped the other
@@ -228,6 +305,72 @@ export default function MortgageCalculatorPage() {
     }
   }
 
+  // Writing the mix back to the case: upsert the mortgage, then replace its
+  // track set atomically so a re-save edits the mix rather than duplicating it.
+  const persistMix = async () => {
+    if (!customerId) return
+    setSavingMix(true)
+    try {
+      const { data: mortgage, error } = mortgageId
+        ? await mortgageService.update(mortgageId, {
+            property_price: propertyPrice,
+            property_type: propertyType,
+            own_capital: ownCapital,
+            loan_amount: tracksTotal,
+            compliance_status: compliance as unknown as Mortgage['compliance_status'],
+          })
+        : await mortgageService.create({
+            customer_id: customerId,
+            type: 'חדשה',
+            property_price: propertyPrice,
+            property_type: propertyType,
+            own_capital: ownCapital,
+            loan_amount: tracksTotal,
+            status: 'טיוטה',
+            compliance_status: compliance as unknown as Mortgage['compliance_status'],
+            notes: null,
+          })
+      if (error || !mortgage) throw new Error(error?.message ?? 'שמירה נכשלה')
+
+      const { error: tracksError } = await mortgageService.replaceTracks(
+        mortgage.id,
+        tracks.map(t => ({
+          type: t.type,
+          amount: t.amount,
+          interest_rate: t.interestRate,
+          period_months: t.periodMonths,
+          monthly_payment: Math.round(effectiveMonthlyPayment(t)),
+          is_existing: false,
+          start_date: null,
+          end_date: null,
+        })),
+      )
+      if (tracksError) throw new Error(tracksError.message)
+
+      toast.success('התמהיל נשמר בתיק הלקוח')
+      navigate(`/customers/${customerId}`)
+    } catch (e) {
+      toast.error('שגיאה בשמירת התמהיל', e instanceof Error ? e.message : undefined)
+    } finally {
+      setSavingMix(false)
+    }
+  }
+
+  const handleSaveMix = () => {
+    if (!customerId) return
+    if (tracks.length === 0) {
+      toast.error('אין מסלולים לשמירה')
+      return
+    }
+    // A mix that does not add up to the loan is usually a half-finished edit,
+    // but it is a legitimate what-if too — so confirm rather than block.
+    if (Math.abs(tracksTotal - loanAmount) > 1000) {
+      setMismatchConfirm(true)
+      return
+    }
+    void persistMix()
+  }
+
   const handleAiAdvice = async () => {
     setAiAdvising(true)
     try {
@@ -271,6 +414,28 @@ export default function MortgageCalculatorPage() {
 
   return (
     <div className="animate-fade-in max-w-[1360px] mx-auto">
+      {/* Case banner — only when the calculator was opened from a case */}
+      {customerId && (
+        <div
+          className="mb-4 flex items-center justify-between gap-3 px-4 py-3"
+          style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 14 }}
+        >
+          <p className="text-[13px] font-semibold" style={{ color: '#047857' }}>
+            {caseLoading
+              ? 'טוען את התיק...'
+              : `בונה תמהיל עבור ${caseName ?? 'הלקוח'}${mortgageId ? ' — עריכת תמהיל קיים' : ''}`}
+          </p>
+          <button
+            onClick={() => navigate(`/customers/${customerId}`)}
+            className="inline-flex items-center gap-1 text-[13px] font-semibold hover:opacity-80 transition-opacity shrink-0"
+            style={{ color: '#047857' }}
+          >
+            <ArrowRight size={14} />
+            חזרה לתיק
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6">
         <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
@@ -329,7 +494,18 @@ export default function MortgageCalculatorPage() {
                 <InputField label="התחייבויות חודשיות" value={monthlyObligations} onChange={v => setMonthlyObligations(Number(v) || 0)} prefix="₪" />
                 <InputField label="הנחת מדד שנתי" value={expectedCpi} onChange={v => setExpectedCpi(Number(v) || 0)} suffix="%" />
               </div>
-              {monthlyObligations > 0 && (
+              {obligationCount > 0 ? (
+                <p className="mt-2 text-[12px] flex flex-wrap items-center gap-1" style={{ color: '#a8a29e' }}>
+                  <span>מקור: {obligationCount} התחייבויות מהתיק</span>
+                  <button
+                    onClick={() => navigate(`/customers/${customerId}`)}
+                    className="font-semibold hover:opacity-80 transition-opacity"
+                    style={{ color: '#059669' }}
+                  >
+                    ערוך בתיק
+                  </button>
+                </p>
+              ) : monthlyObligations > 0 && (
                 <p className="mt-2 text-[12px]" style={{ color: '#a8a29e' }}>
                   התחייבויות חודשיות: {formatCurrency(monthlyObligations)} — נכללות ביחס ההחזר
                 </p>
@@ -427,12 +603,20 @@ export default function MortgageCalculatorPage() {
               {aiAdvising ? 'מנתח...' : 'המלצת AI לתמהיל'}
             </button>
             <button
-              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97]"
+              onClick={handleSaveMix}
+              disabled={!customerId || savingMix || caseLoading}
+              title={customerId ? undefined : 'פתח את המחשבון מתוך תיק לקוח כדי לשמור תמהיל'}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
             >
-              <Save size={15} />
-              שמור תמהיל ללקוח
+              {savingMix ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              {savingMix ? 'שומר...' : mortgageId ? 'עדכן תמהיל בתיק' : 'שמור תמהיל ללקוח'}
             </button>
+            {!customerId && (
+              <p className="text-[11px] text-center" style={{ color: '#a8a29e' }}>
+                פתח את המחשבון מתוך תיק לקוח כדי לשמור תמהיל
+              </p>
+            )}
             <button
               onClick={handleExportPdf}
               disabled={generatingPdf}
@@ -695,6 +879,15 @@ export default function MortgageCalculatorPage() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={mismatchConfirm}
+        title="סכום המסלולים אינו תואם"
+        message={`סכום המסלולים שונה מסכום ההלוואה ב-${formatCurrency(Math.abs(tracksTotal - loanAmount))}. לשמור בכל זאת?`}
+        confirmText="שמור בכל זאת"
+        onConfirm={() => { setMismatchConfirm(false); void persistMix() }}
+        onCancel={() => setMismatchConfirm(false)}
+      />
     </div>
   )
 }
