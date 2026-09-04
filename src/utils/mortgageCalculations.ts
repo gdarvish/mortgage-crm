@@ -45,6 +45,24 @@ export function calculateGracePayments(
   }
 }
 
+/**
+ * Total paid over a track's life.
+ *
+ * With a grace period the payment is not one number: multiplying the
+ * after-grace payment by the whole term charges the higher payment for the
+ * grace months too. On 500K / 4% / 240 months with 24 months of partial grace
+ * that overstated the cost by about 38,000 ₪.
+ */
+export function trackTotalCost(t: TrackInput): number {
+  if (!t.graceMonths || t.graceMonths <= 0) {
+    return calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths) * t.periodMonths
+  }
+  const { duringGrace, afterGrace } = calculateGracePayments(
+    t.amount, t.interestRate, t.periodMonths, t.graceMonths, t.graceType || 'חלקי',
+  )
+  return duringGrace * t.graceMonths + afterGrace * (t.periodMonths - t.graceMonths)
+}
+
 /** Returns the effective monthly payment for compliance & totals (uses afterGrace if grace exists) */
 export function effectiveMonthlyPayment(track: TrackInput): number {
   if (!track.graceMonths || track.graceMonths <= 0) {
@@ -69,6 +87,8 @@ export interface ComplianceResult {
   checks: ComplianceCheck[]
 }
 
+export type ComplianceUnit = '%' | 'months' | 'years'
+
 export interface ComplianceCheck {
   name: string
   value: number
@@ -76,6 +96,33 @@ export interface ComplianceCheck {
   isValid: boolean
   severity: 'error' | 'warning'
   message: string
+  /** What `value` is measured in — not every check is a percentage. */
+  unit: ComplianceUnit
+  /** Whether `limit` is a ceiling or a floor, for the progress bar's direction. */
+  direction: 'max' | 'min'
+}
+
+/** Renders a check's value with its own unit. */
+export function formatCheckValue(check: ComplianceCheck): string {
+  switch (check.unit) {
+    case 'months': return `${check.value} חודשים`
+    case 'years': return `${check.value}`
+    default: return `${check.value}%`
+  }
+}
+
+/**
+ * How full a check's progress bar should be, as a percentage.
+ *
+ * A minimum is the mirror image of a maximum: the bar fills as the value
+ * approaches the floor from below and is full once it is met, rather than
+ * filling as it approaches a ceiling.
+ */
+export function checkBarWidth(check: ComplianceCheck): number {
+  if (check.limit <= 0) return 0
+  const ratio = check.value / check.limit
+  if (check.direction === 'min') return Math.min(Math.max(ratio, 0), 1) * 100
+  return Math.min(Math.max(ratio, 0), 1) * 100
 }
 
 /**
@@ -249,6 +296,8 @@ export function checkCompliance(
         : ltv <= ltvLimit
           ? `LTV תקין: ${ltv.toFixed(1)}% (מקסימום ${ltvLimit}%)`
           : `LTV חורג: ${ltv.toFixed(1)}% (מקסימום ${ltvLimit}%)`,
+      unit: '%',
+      direction: 'max',
     },
     {
       name: 'ריבית קבועה (מינימום)',
@@ -259,6 +308,8 @@ export function checkCompliance(
       message: fixedPercent >= 33.3
         ? `ריבית קבועה תקינה: ${fixedPercent.toFixed(1)}% (מינימום 33.3%)`
         : `ריבית קבועה חסרה: ${fixedPercent.toFixed(1)}% (מינימום 33.3%)`,
+      unit: '%',
+      direction: 'min',
     },
     {
       name: 'פריים (בתוך מגבלת המשתנה)',
@@ -269,6 +320,8 @@ export function checkCompliance(
       message: primePercent <= 66.6
         ? `פריים תקין: ${primePercent.toFixed(1)}% (מקסימום 66.6%)`
         : `פריים חורג: ${primePercent.toFixed(1)}% (מקסימום 66.6%)`,
+      unit: '%',
+      direction: 'max',
     },
     {
       name: 'משתנה כולל (מקסימום)',
@@ -279,6 +332,8 @@ export function checkCompliance(
       message: variablePercent <= 66.6
         ? `משתנה כולל תקין: ${variablePercent.toFixed(1)}% (מקסימום 66.6%)`
         : `משתנה כולל חורג: ${variablePercent.toFixed(1)}% (מקסימום 66.6%)`,
+      unit: '%',
+      direction: 'max',
     },
     {
       name: 'תקופה (מקסימום)',
@@ -289,6 +344,8 @@ export function checkCompliance(
       message: maxPeriod <= 360
         ? `תקופה תקינה: ${maxPeriod} חודשים (מקסימום 360)`
         : `תקופה חורגת: ${maxPeriod} חודשים (מקסימום 360)`,
+      unit: 'months',
+      direction: 'max',
     },
     {
       name: 'יחס החזר/הכנסה',
@@ -301,6 +358,8 @@ export function checkCompliance(
       isValid: dti <= dtiLimits.warn,
       severity: dti <= dtiLimits.hard ? 'warning' : 'error',
       message: dtiBreakdown(dti, dtiLimits, totalMonthlyPayment, monthlyObligations),
+      unit: '%',
+      direction: 'max',
     },
   ]
 
@@ -325,6 +384,8 @@ export function checkCompliance(
       isValid: false,
       severity: 'warning',
       message: `גיל הלווה בתום התקופה: ${Math.round(oldestAgeAtEnd)} — בנקים רבים מגבילים ל-~85`,
+      unit: 'years',
+      direction: 'max',
     })
   }
 
@@ -429,7 +490,7 @@ export function totalPaymentWithCpi(track: TrackInput, annualCpi: number): numbe
 export function mixMonthlyPaymentAfterYears(tracks: TrackInput[], annualCpi: number, years: number): number {
   return tracks.reduce((sum, t) => {
     const base = calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths)
-    if (t.periodMonths < years * 12) return sum // track already paid off
+    if (t.periodMonths <= years * 12) return sum // track already paid off
     if (!isCpiLinked(t.type) || annualCpi <= 0) return sum + base
     return sum + linkedPaymentAtMonth(base, annualCpi, years * 12)
   }, 0)

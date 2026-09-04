@@ -1,4 +1,5 @@
 import { formatCurrency } from '@/lib/utils'
+import type { ComplianceUnit } from '@/utils/mortgageCalculations'
 
 function esc(s: string | undefined | null): string {
   return String(s ?? '')
@@ -21,6 +22,17 @@ export interface MortgagePdfComplianceCheck {
   value: number
   limit: number
   isValid: boolean
+  /** Defaults to '%' for callers that predate per-check units. */
+  unit?: ComplianceUnit
+}
+
+/** Renders a value with its own unit — "300 חודשים", not "300%". */
+function withUnit(value: number, unit: ComplianceUnit = '%'): string {
+  switch (unit) {
+    case 'months': return `${value} חו'`
+    case 'years': return `${value}`
+    default: return `${value}%`
+  }
 }
 
 export interface MortgagePdfData {
@@ -69,8 +81,8 @@ function buildHtml(data: MortgagePdfData): string {
     .map(
       (c) => `<tr>
         <td style="${td}">${esc(c.name)}</td>
-        <td style="${td}" dir="ltr">${c.value}%</td>
-        <td style="${td}" dir="ltr">${c.limit}%</td>
+        <td style="${td}" dir="ltr">${withUnit(c.value, c.unit)}</td>
+        <td style="${td}" dir="ltr">${withUnit(c.limit, c.unit)}</td>
         <td style="${td}font-weight:700;color:${c.isValid ? GREEN : '#dc2626'};">${c.isValid ? '✓ תקין' : '✗ חריגה'}</td>
       </tr>`
     )

@@ -16,6 +16,10 @@ import {
   totalPaymentWithCpi,
   estimatePrepaymentFee,
   calculateRefinanceSavings,
+  trackTotalCost,
+  formatCheckValue,
+  checkBarWidth,
+  mixMonthlyPaymentAfterYears,
   type TrackInput,
 } from './mortgageCalculations'
 
@@ -497,6 +501,70 @@ describe('calculateRefinanceSavings', () => {
     const result = calculateRefinanceSavings(existing, cheaper, 200000)
     expect(result.monthlySaving).toBeGreaterThan(0)
     expect(result.isWorthIt).toBe(false)
+  })
+})
+
+describe('PR-J — calculation and display fixes', () => {
+  it('J.1 — total cost charges the grace payment for the grace months', () => {
+    const track: TrackInput = {
+      type: 'קל"צ', amount: 500000, interestRate: 4, periodMonths: 240,
+      graceMonths: 24, graceType: 'חלקי',
+    }
+    const { duringGrace, afterGrace } = calculateGracePayments(500000, 4, 240, 24, 'חלקי')
+    const expected = duringGrace * 24 + afterGrace * 216
+    expect(trackTotalCost(track)).toBeCloseTo(expected, 0)
+    // The old formula charged the after-grace payment for all 240 months.
+    expect(trackTotalCost(track)).toBeLessThan(afterGrace * 240)
+  })
+
+  it('J.1 — a track without grace is unaffected', () => {
+    const track: TrackInput = { type: 'קל"צ', amount: 500000, interestRate: 4, periodMonths: 240 }
+    expect(trackTotalCost(track)).toBeCloseTo(calculateTotalPayment(500000, 4, 240), 6)
+  })
+
+  it('J.2 — each check carries the unit its value is measured in', () => {
+    const tracks: TrackInput[] = [
+      { type: 'קל"צ', amount: 400000, interestRate: 4.5, periodMonths: 300 },
+      { type: 'פריים', amount: 300000, interestRate: 5, periodMonths: 240 },
+      { type: 'קל"ב', amount: 300000, interestRate: 3.8, periodMonths: 300 },
+    ]
+    const born = new Date()
+    born.setFullYear(born.getFullYear() - 62)
+    const result = checkCompliance(tracks, 2000000, 'דירה_ראשונה', 30000, 0, null, [born.toISOString()])
+
+    const period = result.checks.find(c => c.name.includes('תקופה'))!
+    expect(period.unit).toBe('months')
+    expect(formatCheckValue(period)).toBe('300 חודשים')
+
+    const age = result.checks.find(c => c.name.includes('גיל'))!
+    expect(age.unit).toBe('years')
+    expect(formatCheckValue(age)).not.toContain('%')
+
+    const ltv = result.checks.find(c => c.name.includes('LTV'))!
+    expect(ltv.unit).toBe('%')
+    expect(formatCheckValue(ltv)).toContain('%')
+  })
+
+  it('J.3 — the fixed-rate floor is a minimum, every other check a maximum', () => {
+    const tracks: TrackInput[] = [
+      { type: 'קל"צ', amount: 400000, interestRate: 4.5, periodMonths: 300 },
+      { type: 'פריים', amount: 600000, interestRate: 5, periodMonths: 240 },
+    ]
+    const result = checkCompliance(tracks, 2000000, 'דירה_ראשונה', 30000)
+    const fixed = result.checks.find(c => c.name.includes('קבועה'))!
+    expect(fixed.direction).toBe('min')
+    expect(result.checks.filter(c => c !== fixed).every(c => c.direction === 'max')).toBe(true)
+    // 40% against a 33.3% floor is met, so the bar is full.
+    expect(checkBarWidth(fixed)).toBe(100)
+  })
+
+  it('J.6 — a track ending exactly at the year checked no longer pays', () => {
+    const tracks: TrackInput[] = [
+      { type: 'קל"צ', amount: 300000, interestRate: 4, periodMonths: 60 },
+      { type: 'קל"צ', amount: 300000, interestRate: 4, periodMonths: 240 },
+    ]
+    const atFive = mixMonthlyPaymentAfterYears(tracks, 0, 5)
+    expect(atFive).toBeCloseTo(calculateMonthlyPayment(300000, 4, 240), 6)
   })
 })
 

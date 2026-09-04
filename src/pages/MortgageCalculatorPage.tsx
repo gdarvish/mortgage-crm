@@ -13,6 +13,9 @@ import {
   calculateGracePayments,
   effectiveMonthlyPayment,
   additionalEquityRequired,
+  trackTotalCost,
+  formatCheckValue,
+  checkBarWidth,
   DEFAULT_DTI_LIMITS,
   isCpiLinked,
   mixMonthlyPaymentAfterYears,
@@ -125,6 +128,8 @@ export default function MortgageCalculatorPage() {
   const [aiAdvising, setAiAdvising] = useState(false)
   const [aiAdvice, setAiAdvice] = useState<{ rationale: string; risk_level: string } | null>(null)
   const [liveRates, setLiveRates] = useState<LiveRates | undefined>()
+  // Term used to build the recommended mixes — 300 months was hard-coded.
+  const [recommendationMonths, setRecommendationMonths] = useState(300)
 
   // ── Case context (PR-A) ───────────────────────────────────────────────────
   // The calculator is reachable both standalone and from inside a case. With
@@ -262,7 +267,7 @@ export default function MortgageCalculatorPage() {
   )
 
   const totalCost = useMemo(() =>
-    tracks.reduce((s, t) => s + effectiveMonthlyPayment(t) * t.periodMonths, 0),
+    tracks.reduce((s, t) => s + trackTotalCost(t), 0),
     [tracks]
   )
 
@@ -288,14 +293,26 @@ export default function MortgageCalculatorPage() {
   }, [appraisedValue, propertyPrice, tracksTotal, propertyType])
 
   const recommendations = useMemo(() =>
-    generateRecommendedMixes(loanAmount, 300, liveRates?.prime ?? 6.0, liveRates),
-    [loanAmount, liveRates]
+    generateRecommendedMixes(loanAmount, recommendationMonths, liveRates?.prime ?? 6.0, liveRates),
+    [loanAmount, recommendationMonths, liveRates]
   )
 
+  // The schedule covers the whole mix, not just tracks[0]: a three-track mix
+  // was charted as though only the first track existed.
   const amortizationData = useMemo(() => {
     if (!showAmortization || tracks.length === 0) return []
-    const schedule = calculateAmortizationSchedule(tracks[0].amount, tracks[0].interestRate, tracks[0].periodMonths)
-    return schedule.filter((_, i) => i % 12 === 0).map(row => ({
+    const schedules = tracks.map(t =>
+      calculateAmortizationSchedule(t.amount, t.interestRate, t.periodMonths)
+    )
+    const maxMonths = Math.max(...tracks.map(t => t.periodMonths))
+    const merged = Array.from({ length: maxMonths }, (_, i) => ({
+      month: i + 1,
+      payment: schedules.reduce((s, sch) => s + (sch[i]?.payment ?? 0), 0),
+      principal: schedules.reduce((s, sch) => s + (sch[i]?.principal ?? 0), 0),
+      interest: schedules.reduce((s, sch) => s + (sch[i]?.interest ?? 0), 0),
+      balance: schedules.reduce((s, sch) => s + (sch[i]?.balance ?? 0), 0),
+    }))
+    return merged.filter((_, i) => i % 12 === 0).map(row => ({
       year: Math.ceil(row.month / 12),
       payment: row.payment,
       principal: row.principal,
@@ -338,6 +355,7 @@ export default function MortgageCalculatorPage() {
           value: c.value,
           limit: c.limit,
           isValid: c.isValid,
+          unit: c.unit,
         })),
       })
     } catch (e) {
@@ -635,13 +653,13 @@ export default function MortgageCalculatorPage() {
                   <div key={idx}>
                     <div className="flex items-center justify-between text-[13px] mb-1">
                       <span style={{ color: '#57534e' }}>{check.name}</span>
-                      <span className="font-semibold" style={{ color }}>{check.value}%</span>
+                      <span className="font-semibold" style={{ color }}>{formatCheckValue(check)}</span>
                     </div>
                     <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#f5f4f2' }}>
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{
-                          width: `${Math.min((check.value / check.limit) * 100, 100)}%`,
+                          width: `${checkBarWidth(check)}%`,
                           background: color,
                         }}
                       />
@@ -875,10 +893,33 @@ export default function MortgageCalculatorPage() {
 
           {/* Recommendations */}
           <div style={{ ...cardStyle, padding: '22px 24px' }}>
-            <h3 className="text-[14px] font-bold mb-4 flex items-center gap-2" style={{ color: '#1c1917' }}>
-              <Sparkles size={15} style={{ color: '#d97706' }} />
-              תמהילים מומלצים
-            </h3>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h3 className="text-[14px] font-bold flex items-center gap-2" style={{ color: '#1c1917' }}>
+                <Sparkles size={15} style={{ color: '#d97706' }} />
+                תמהילים מומלצים
+              </h3>
+              <div className="flex items-center gap-2">
+                <span className="text-[12px]" style={{ color: '#a8a29e' }}>תקופה</span>
+                <select
+                  value={recommendationMonths}
+                  onChange={e => setRecommendationMonths(Number(e.target.value))}
+                  className="py-1.5 px-2 text-[13px] outline-none"
+                  style={{
+                    border: '1.5px solid #e7e5e4',
+                    borderRadius: 8,
+                    background: '#ffffff',
+                    color: '#1c1917',
+                    fontFamily: 'var(--font-heebo)',
+                  }}
+                >
+                  {[
+                    { months: 240, label: '20 שנה' },
+                    { months: 300, label: '25 שנה' },
+                    { months: 360, label: '30 שנה' },
+                  ].map(o => <option key={o.months} value={o.months}>{o.label}</option>)}
+                </select>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               {recommendations.map((rec, idx) => {
                 const monthly = rec.tracks.reduce((s, t) => s + calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths), 0)
