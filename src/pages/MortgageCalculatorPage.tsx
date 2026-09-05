@@ -32,6 +32,7 @@ import { regulatoryService } from '@/services/regulatoryService'
 import { useCaseSnapshot } from '@/hooks/queries/useCaseSnapshot'
 import { FALLBACK_REGULATORY_PARAMS, type RegulatoryParams } from '@/utils/regulatoryParams'
 import { toast, ConfirmDialog } from '@/components/ui'
+import { useChartTheme } from '@/theme/chartTheme'
 
 const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
 
@@ -106,6 +107,7 @@ function InputField({
 }
 
 export default function MortgageCalculatorPage() {
+  const chart = useChartTheme()
   const [propertyPrice, setPropertyPrice] = useState(1500000)
   const [ownCapital, setOwnCapital] = useState(300000)
   const [propertyType, setPropertyType] = useState<PropertyType>('דירה_ראשונה')
@@ -999,14 +1001,14 @@ export default function MortgageCalculatorPage() {
             {showAmortization && amortizationData.length > 0 && (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={amortizationData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
-                  <XAxis dataKey="year" label={{ value: 'שנה', position: 'bottom' }} tick={{ fontSize: 11, fill: '#a8a29e' }} />
-                  <YAxis tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 11, fill: '#a8a29e' }} axisLine={false} tickLine={false} />
+                  <CartesianGrid {...chart.grid} />
+                  <XAxis dataKey="year" label={{ value: 'שנה', position: 'bottom' }} tick={chart.tick(11)} />
+                  <YAxis tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} tick={chart.tick(11)} axisLine={false} tickLine={false} />
                   <Tooltip
                     formatter={(v) => formatCurrency(v as number)}
-                    contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 12 }}
+                    contentStyle={chart.tooltip}
                   />
-                  <Bar dataKey="principal" name="קרן"   fill="#059669" stackId="a" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="principal" name="קרן"   fill={chart.series} stackId="a" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="interest"  name="ריבית" fill="#d97706" stackId="a" />
                 </BarChart>
               </ResponsiveContainer>

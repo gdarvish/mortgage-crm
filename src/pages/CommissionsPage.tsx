@@ -3,6 +3,7 @@ import { DollarSign, TrendingUp, Clock, CheckCircle, Loader2 } from 'lucide-reac
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useCommissions } from '@/hooks/queries/useCommissions'
+import { useChartTheme } from '@/theme/chartTheme'
 
 const hebrewMonths = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ']
 
@@ -17,6 +18,7 @@ type CommissionRow = {
 }
 
 export default function CommissionsPage() {
+  const chart = useChartTheme()
   const [statusFilter, setStatusFilter] = useState('הכל')
 
   const { data: rawCommissions = [], isLoading: loading } = useCommissions()
@@ -96,11 +98,11 @@ export default function CommissionsPage() {
           <p className="text-[15px] font-bold mb-4" style={{ color: 'var(--color-text)' }}>הכנסות לפי חודש</p>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#a8a29e' }} axisLine={false} tickLine={false} />
-              <YAxis tickFormatter={v => `₪${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 11, fill: '#a8a29e' }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 12 }} />
-              <Bar dataKey="amount" fill="#059669" radius={[6, 6, 0, 0]} animationDuration={750} />
+              <CartesianGrid {...chart.grid} />
+              <XAxis dataKey="month" tick={chart.tick(11)} axisLine={false} tickLine={false} />
+              <YAxis tickFormatter={v => `₪${(v / 1000).toFixed(0)}K`} tick={chart.tick(11)} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={chart.tooltip} />
+              <Bar dataKey="amount" fill={chart.series} radius={[6, 6, 0, 0]} animationDuration={750} />
             </BarChart>
           </ResponsiveContainer>
         </div>

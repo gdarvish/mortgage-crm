@@ -19,6 +19,7 @@ import {
   type BudgetInput,
 } from '@/utils/familyEconomics'
 import type { Customer } from '@/types/database'
+import { useChartTheme } from '@/theme/chartTheme'
 
 const COLORS = ['#059669', '#34d399', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#6b7280']
 
@@ -29,9 +30,13 @@ const cardStyle = {
   border: '1px solid var(--color-border)',
 }
 
-const inputClass = 'w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] bg-[var(--color-card)]'
+// Width is left to the caller: `w-full` and `w-28` on the same element is a
+// coin toss decided by stylesheet order, not by class order.
+const fieldClass = 'px-3 py-2 border border-[var(--color-border)] rounded-lg text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] bg-[var(--color-card)]'
+const inputClass = `w-full ${fieldClass}`
 
 export default function FamilyEconomicsPage() {
+  const chart = useChartTheme()
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const customerId = searchParams.get('customerId')
@@ -198,7 +203,7 @@ export default function FamilyEconomicsPage() {
                     type="number" min="0" dir="ltr"
                     value={expense.amount}
                     onChange={e => updateExpense(idx, Math.max(0, +e.target.value))}
-                    className={`${inputClass} w-28 shrink-0`}
+                    className={`w-28 shrink-0 ${fieldClass}`}
                   />
                   <span className="text-[12px] w-24 shrink-0 text-left" style={{ color: 'var(--color-text-muted)' }}>{formatCurrency(expense.amount)}</span>
                 </div>
@@ -256,7 +261,7 @@ export default function FamilyEconomicsPage() {
                 <Pie data={chartData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false}>
                   {chartData.map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
                 </Pie>
-                <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 13 }} />
+                <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={chart.tooltip} />
               </PieChart>
             </ResponsiveContainer>
           </div>

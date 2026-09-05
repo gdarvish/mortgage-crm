@@ -8,6 +8,7 @@ import { Modal, toast } from '@/components/ui'
 import { settingsService } from '@/services/settingsService'
 import type { BankRate, RatesDoc } from '@/types/database'
 import { applyBoiReading, defaultRatesDoc, isRatesStale, normalizeRatesDoc, parseRateInput } from '@/utils/bankRates'
+import { useChartTheme } from '@/theme/chartTheme'
 
 const CACHE_KEY = 'boi_rates_cache'
 const CACHE_TS_KEY = 'boi_rates_ts'
@@ -75,6 +76,7 @@ function readCache(): RatesDoc | null {
 }
 
 export default function InterestRatesPage() {
+  const chart = useChartTheme()
   const [rates, setRates] = useState<RatesDoc>(defaultRatesDoc)
   const [history] = useState(fallbackHistory)
   const [loading, setLoading] = useState(true)
@@ -215,11 +217,11 @@ export default function InterestRatesPage() {
         <h2 className="text-[15px] font-bold mb-4" style={{ color: 'var(--color-text)' }}>מגמת ריבית פריים</h2>
         <ResponsiveContainer width="100%" height={280}>
           <LineChart data={history}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
-            <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#a8a29e' }} />
-            <YAxis domain={[5, 6.5]} tickFormatter={v => `${v}%`} tick={{ fontSize: 12, fill: '#a8a29e' }} />
-            <Tooltip formatter={(v) => `${v}%`} contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 13 }} />
-            <Line type="monotone" dataKey="rate" stroke="#059669" strokeWidth={2} dot={{ fill: '#059669' }} />
+            <CartesianGrid {...chart.grid} />
+            <XAxis dataKey="date" tick={chart.tick(12)} />
+            <YAxis domain={[5, 6.5]} tickFormatter={v => `${v}%`} tick={chart.tick(12)} />
+            <Tooltip formatter={(v) => `${v}%`} contentStyle={chart.tooltip} />
+            <Line type="monotone" dataKey="rate" stroke={chart.series} strokeWidth={2} dot={{ fill: chart.series }} />
           </LineChart>
         </ResponsiveContainer>
       </div>

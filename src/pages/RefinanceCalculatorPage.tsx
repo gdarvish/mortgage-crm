@@ -9,6 +9,7 @@ import { FALLBACK_REGULATORY_PARAMS, type RegulatoryParams } from '@/utils/regul
 import { documentService } from '@/services/documentService'
 import { toast } from '@/components/ui'
 import type { LoanTrackType, Customer } from '@/types/database'
+import { useChartTheme } from '@/theme/chartTheme'
 
 const trackTypes: { value: LoanTrackType; label: string }[] = [
   { value: 'פריים',           label: 'פריים' },
@@ -31,6 +32,7 @@ const inputCls = 'w-full px-2 py-1.5 text-[13px] outline-none'
 const inputSt = { border: '1.5px solid var(--color-border)', borderRadius: 8, color: 'var(--color-text)', background: 'var(--color-card)' }
 
 export default function RefinanceCalculatorPage() {
+  const chart = useChartTheme()
   const [existingTracks, setExistingTracks] = useState<TrackInput[]>([
     { type: 'קל"צ', amount: 400000, interestRate: 5.2, periodMonths: 240 },
     { type: 'פריים', amount: 300000, interestRate: 6.5, periodMonths: 240 },
@@ -351,12 +353,12 @@ export default function RefinanceCalculatorPage() {
         <h2 className="text-[15px] font-bold mb-4" style={{ color: 'var(--color-text)' }}>חיסכון מצטבר</h2>
         <ResponsiveContainer width="100%" height={280}>
           <LineChart data={cumulativeSavings}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
-            <XAxis dataKey="month" label={{ value: 'חודש', position: 'bottom' }} tick={{ fontSize: 11, fill: '#a8a29e' }} />
-            <YAxis tickFormatter={v => `₪${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 11, fill: '#a8a29e' }} />
-            <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 12 }} />
+            <CartesianGrid {...chart.grid} />
+            <XAxis dataKey="month" label={{ value: 'חודש', position: 'bottom' }} tick={chart.tick(11)} />
+            <YAxis tickFormatter={v => `₪${(v / 1000).toFixed(0)}K`} tick={chart.tick(11)} />
+            <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={chart.tooltip} />
             <ReferenceLine y={0} stroke="#dc2626" strokeDasharray="3 3" />
-            <Line type="monotone" dataKey="saving" stroke="#059669" strokeWidth={2} name="חיסכון מצטבר" dot={false} />
+            <Line type="monotone" dataKey="saving" stroke={chart.series} strokeWidth={2} name="חיסכון מצטבר" dot={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>

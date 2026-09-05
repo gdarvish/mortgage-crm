@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Layers, Plus, Trash2 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
+import { useChartTheme } from '@/theme/chartTheme'
 
 interface Loan {
   type: string
@@ -17,6 +18,7 @@ const loanTypes = ['רכב', 'אישי', 'כרטיס אשראי', 'קו אשרא
 const emptyLoan: Loan = { type: 'אישי', balance: 0, monthlyPayment: 0, interestRate: 0, remainingMonths: 0, earlyRepaymentFee: 0 }
 
 export default function ConsolidationCalculatorPage() {
+  const chart = useChartTheme()
   const [loans, setLoans] = useState<Loan[]>([
     { type: 'רכב', balance: 80000, monthlyPayment: 2200, interestRate: 6.5, remainingMonths: 48, earlyRepaymentFee: 1500 },
     { type: 'אישי', balance: 50000, monthlyPayment: 1800, interestRate: 8.0, remainingMonths: 36, earlyRepaymentFee: 800 },
@@ -168,12 +170,12 @@ export default function ConsolidationCalculatorPage() {
           <h2 className="text-[15px] font-bold mb-4" style={{ color: 'var(--color-text)' }}>השוואת החזרים</h2>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
-              <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#a8a29e' }} />
-              <YAxis tickFormatter={v => `₪${v}`} tick={{ fontSize: 12, fill: '#a8a29e' }} />
-              <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 13 }} />
+              <CartesianGrid {...chart.grid} />
+              <XAxis dataKey="name" tick={chart.tick(12)} />
+              <YAxis tickFormatter={v => `₪${v}`} tick={chart.tick(12)} />
+              <Tooltip formatter={(v) => formatCurrency(v as number)} contentStyle={chart.tooltip} />
               <Bar dataKey="current" name="החזר נוכחי" fill="#ef4444" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="share" name="חלק באיחוד" fill="#059669" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="share" name="חלק באיחוד" fill={chart.series} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

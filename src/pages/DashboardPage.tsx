@@ -14,6 +14,7 @@ import { useDashboardData, useCompleteTask, PIPELINE_STATUSES } from '@/hooks/qu
 import TodayMeetingsWidget from '@/components/TodayMeetingsWidget'
 import RefinanceOpportunitiesWidget from '@/components/RefinanceOpportunitiesWidget'
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
+import { useChartTheme } from '@/theme/chartTheme'
 
 const statusOrder = PIPELINE_STATUSES
 const hebrewMonths = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ']
@@ -90,6 +91,7 @@ function KpiCard({
 }
 
 export default function DashboardPage() {
+  const chart = useChartTheme()
   const navigate = useNavigate()
   const [checkedTasks, setCheckedTasks] = useState<Set<string>>(new Set())
 
@@ -416,14 +418,14 @@ export default function DashboardPage() {
           <p className="text-[15px] font-bold mb-4" style={{ color: 'var(--color-text)' }}>לקוחות חדשים לפי חודש</p>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={monthlyDeals}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#a8a29e' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#a8a29e' }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <CartesianGrid {...chart.grid} />
+              <XAxis dataKey="month" tick={chart.tick(11)} axisLine={false} tickLine={false} />
+              <YAxis tick={chart.tick(11)} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip
                 formatter={(v) => [`${v} לקוחות`, 'כמות']}
-                contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 12 }}
+                contentStyle={chart.tooltip}
               />
-              <Bar dataKey="deals" fill="#059669" radius={[6, 6, 0, 0]} animationDuration={750} />
+              <Bar dataKey="deals" fill={chart.series} radius={[6, 6, 0, 0]} animationDuration={750} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -451,7 +453,7 @@ export default function DashboardPage() {
                   outerRadius={90}
                   dataKey="value"
                   label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                  labelLine={{ stroke: '#e7e5e4' }}
+                  labelLine={{ stroke: chart.gridStroke }}
                   animationDuration={750}
                 >
                   {sourceData.map((_, index) => (
@@ -460,7 +462,7 @@ export default function DashboardPage() {
                 </Pie>
                 <Tooltip
                   formatter={(v) => [`${v} לקוחות`, 'כמות']}
-                  contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 12 }}
+                  contentStyle={chart.tooltip}
                 />
               </PieChart>
             </ResponsiveContainer>
