@@ -18,7 +18,7 @@ import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
 import { formatCurrency, formatDate, generateToken, tokenExpiration } from '@/lib/utils'
 import { validatePersonalForm, type FormErrors } from '@/utils/israeliValidations'
-import { toast, ConfirmDialog } from '@/components/ui'
+import { toast, ConfirmDialog, AddressInput } from '@/components/ui'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCustomer } from '@/hooks/queries/useCustomers'
 import { useCaseSnapshot, caseSnapshotKey } from '@/hooks/queries/useCaseSnapshot'
@@ -681,12 +681,14 @@ export default function CustomerDetailPage() {
           {formErrors.email && <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">כתובת</label>
-          <div className="relative">
-            <MapPin size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input className={`${inputClass} pr-9`} value={personal.address}
-              onChange={e => setPersonal({ ...personal, address: e.target.value })} />
-          </div>
+          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="customer-address">כתובת</label>
+          <AddressInput
+            id="customer-address"
+            className={inputClass}
+            icon={<MapPin size={16} />}
+            value={personal.address}
+            onChange={address => setPersonal({ ...personal, address })}
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">מצב משפחתי</label>

@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { MessageSquare, Send, Phone, Mail, Clock, Loader2, Trash2 } from 'lucide-react'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
 import { formatDate } from '@/lib/utils'
-import { customerService } from '@/services/customerService'
 import { messageService } from '@/services/messageService'
 import { toast } from '@/components/ui'
-import type { Customer, Message } from '@/types/database'
+import { useCustomers } from '@/hooks/queries/useCustomers'
+import { useMessages, messagesKey } from '@/hooks/queries/useMessages'
+import { useQueryClient } from '@tanstack/react-query'
+import type { Message } from '@/types/database'
 
 const templates = [
   { id: 'questionnaire', name: 'שלח שאלון',    template: 'שלום {name}, שלחתי לך שאלון קצר לפני הפגישה שלנו. אשמח אם תמלא אותו.' },
@@ -47,29 +49,20 @@ const inputStyle = {
 }
 
 export default function CommunicationPage() {
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [messages, setMessages] = useState<Message[]>([])
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [channel, setChannel] = useState<Message['channel']>('וואטסאפ')
   const [messageText, setMessageText] = useState('')
   const [sending, setSending] = useState(false)
-  const [loadingMessages, setLoadingMessages] = useState(false)
 
-  useEffect(() => {
-    customerService.getAll().then(({ data }) => {
-      if (data) setCustomers(data)
-    })
-  }, [])
+  const qc = useQueryClient()
+  const { data: customers = [] } = useCustomers()
+  const { data: messages = [], isFetching: loadingMessages } =
+    useMessages(selectedCustomerId || undefined)
 
-  const fetchMessages = useCallback(async (customerId: string) => {
-    if (!customerId) { setMessages([]); return }
-    setLoadingMessages(true)
-    const { data } = await messageService.getByCustomer(customerId)
-    setMessages(data ?? [])
-    setLoadingMessages(false)
-  }, [])
-
-  useEffect(() => { fetchMessages(selectedCustomerId) }, [selectedCustomerId, fetchMessages])
+  // The thread is rendered straight from the cache, so a send or a delete
+  // refreshes it from one place. Local copies used to drift: a new message
+  // was prepended while the service returns the thread oldest-first.
+  const refreshMessages = () => qc.invalidateQueries({ queryKey: messagesKey(selectedCustomerId) })
 
   const applyTemplate = (templateId: string) => {
     const t = templates.find(t => t.id === templateId)
@@ -89,7 +82,7 @@ export default function CommunicationPage() {
         const fn = httpsCallable<{ customer_id: string; text: string }, { id: string }>(functions, 'sendWhatsAppMessage')
         const res = await fn({ customer_id: selectedCustomerId, text: messageText })
         if (res.data?.id) {
-          await fetchMessages(selectedCustomerId)
+          await refreshMessages()
           setMessageText('')
           toast.success('ההודעה נשלחה ב-WhatsApp')
         }
@@ -102,7 +95,7 @@ export default function CommunicationPage() {
           content: messageText,
           delivery_status: 'manual',
         })
-        await fetchMessages(selectedCustomerId)
+        await refreshMessages()
         setMessageText('')
         if (cust?.phone) {
           messageService.sendWhatsApp(cust.phone, messageText)
@@ -118,7 +111,7 @@ export default function CommunicationPage() {
         delivery_status: 'manual',
       })
       if (data) {
-        setMessages(prev => [data, ...prev])
+        await refreshMessages()
         setMessageText('')
       } else if (error) {
         toast.error('שגיאה בשליחת הודעה', error.message)
@@ -135,8 +128,12 @@ export default function CommunicationPage() {
   }
 
   const handleDeleteMessage = async (msgId: string) => {
-    await messageService.delete(msgId)
-    setMessages(prev => prev.filter(m => m.id !== msgId))
+    const { error } = await messageService.delete(msgId)
+    if (error) {
+      toast.error('שגיאה במחיקת ההודעה', error.message)
+      return
+    }
+    await refreshMessages()
   }
 
   return (
@@ -155,8 +152,9 @@ export default function CommunicationPage() {
           <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>שלח הודעה</h2>
           <div className="space-y-3">
             <div>
-              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>לקוח</label>
+              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }} htmlFor="message-customer">לקוח</label>
               <select
+                id="message-customer"
                 value={selectedCustomerId}
                 onChange={e => setSelectedCustomerId(e.target.value)}
                 style={inputStyle}
@@ -192,8 +190,9 @@ export default function CommunicationPage() {
             </div>
 
             <div>
-              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>תבנית</label>
+              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }} htmlFor="message-template">תבנית</label>
               <select
+                id="message-template"
                 defaultValue=""
                 onChange={e => applyTemplate(e.target.value)}
                 style={inputStyle}
@@ -204,8 +203,9 @@ export default function CommunicationPage() {
             </div>
 
             <div>
-              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>הודעה</label>
+              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }} htmlFor="message-text">הודעה</label>
               <textarea
+                id="message-text"
                 value={messageText}
                 onChange={e => setMessageText(e.target.value)}
                 rows={4}

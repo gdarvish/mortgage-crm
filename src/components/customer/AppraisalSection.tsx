@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Plus, Trash2, Loader2, AlertTriangle, Upload, FileCheck, Pencil, Home } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { toast } from '@/components/ui'
+import { toast, AddressInput } from '@/components/ui'
 import { appraisalService } from '@/services/appraisalService'
 import { documentService } from '@/services/documentService'
 import { additionalEquityRequired } from '@/utils/mortgageCalculations'
@@ -196,9 +196,13 @@ export default function AppraisalSection({ customerId, mortgageId, loanAmount, p
                 onChange={e => setForm({ ...form, appraiser_phone: e.target.value })} />
             </div>
             <div className="sm:col-span-3">
-              <label className="block text-xs text-gray-500 mb-1">כתובת הנכס</label>
-              <input className={inputClass} value={form.property_address}
-                onChange={e => setForm({ ...form, property_address: e.target.value })} />
+              <label className="block text-xs text-gray-500 mb-1" htmlFor="appraisal-property-address">כתובת הנכס</label>
+              <AddressInput
+                id="appraisal-property-address"
+                className={inputClass}
+                value={form.property_address}
+                onChange={property_address => setForm({ ...form, property_address })}
+              />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">הוזמנה</label>

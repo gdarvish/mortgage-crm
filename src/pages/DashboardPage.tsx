@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Users, TrendingUp, UserPlus, DollarSign, Bell, AlertTriangle,
@@ -9,6 +9,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer,
 } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
+import { useCountUp } from '@/hooks/useCountUp'
 import { useDashboardData, useCompleteTask, PIPELINE_STATUSES } from '@/hooks/queries/useDashboard'
 import TodayMeetingsWidget from '@/components/TodayMeetingsWidget'
 import RefinanceOpportunitiesWidget from '@/components/RefinanceOpportunitiesWidget'
@@ -29,34 +30,6 @@ const PIPELINE_COLORS: Record<string, string> = {
 }
 
 const SOURCE_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6', '#dc2626', '#10b981']
-
-function useCountUp(target: number, duration = 1100, active = true) {
-  const [count, setCount] = useState(0)
-  const frameRef = useRef<number>(0)
-
-  useEffect(() => {
-    let mounted = true
-    if (!active || target === 0) {
-      if (mounted) setCount(prev => prev === target ? prev : target)
-      return
-    }
-    const start = performance.now()
-    const animate = (now: number) => {
-      if (!mounted) return
-      const progress = Math.min((now - start) / duration, 1)
-      const eased = 1 - Math.pow(1 - progress, 3)
-      setCount(Math.round(eased * target))
-      if (progress < 1) frameRef.current = requestAnimationFrame(animate)
-    }
-    frameRef.current = requestAnimationFrame(animate)
-    return () => {
-      mounted = false
-      cancelAnimationFrame(frameRef.current)
-    }
-  }, [target, duration, active])
-
-  return count
-}
 
 function KpiCard({
   label, value, icon: Icon, color, isCurrency = false, trend, index,
