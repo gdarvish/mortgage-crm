@@ -11,9 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # jsdom 30, which the component tests run under, requires
+      # ^22.22.2 || ^24.15.0 || >=26 — its bundled undici crashes on Node 20.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       # The emulator suite runs on the JVM.
       - uses: actions/setup-java@v4
@@ -34,6 +36,8 @@ jobs:
         working-directory: functions
     steps:
       - uses: actions/checkout@v4
+      # Pinned to 20 deliberately: that is the runtime Cloud Functions deploy
+      # to, per functions/package.json engines.
       - uses: actions/setup-node@v4
         with:
           node-version: 20
