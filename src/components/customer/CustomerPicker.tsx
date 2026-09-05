@@ -124,7 +124,7 @@ export function CustomerPicker({
               role="listbox"
               className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl py-1"
               style={{
-                background: 'var(--color-card-bg)',
+                background: 'var(--color-card)',
                 border: '1px solid var(--color-border)',
                 boxShadow: 'var(--shadow-card-hover)',
               }}

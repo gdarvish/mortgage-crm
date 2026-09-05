@@ -2,7 +2,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import { ThemeProvider, useTheme, useThemeControls } from '@/theme/ThemeContext'
 import { THEMES, type ThemeId } from '@/theme/themes'
 
@@ -44,6 +45,7 @@ describe('index.css and themes.ts agree on the default palette', () => {
     ['--color-nav-text-active', earth.navTextActive],
     ['--color-primary', earth.primary],
     ['--color-primary-hover', earth.primaryHover],
+    ['--color-primary-text', earth.primaryText],
     ['--color-bg', earth.bg],
     ['--color-card', earth.cardBg],
     ['--color-border', earth.border],
@@ -166,5 +168,56 @@ describe('useTheme outside a provider', () => {
     }
     vi.spyOn(console, 'error').mockImplementation(() => {})
     expect(() => render(<BareControls />)).toThrow(/ThemeProvider/)
+  })
+})
+
+/**
+ * A `var(--color-x)` nobody defines resolves to nothing — a transparent
+ * background or an inherited colour, with no error anywhere. That is how
+ * --color-card-bg and --color-primary-text shipped invisible-but-broken.
+ */
+describe('every referenced token exists', () => {
+  function sourceFiles(dir: string): string[] {
+    return readdirSync(dir).flatMap(entry => {
+      const full = join(dir, entry)
+      if (statSync(full).isDirectory()) return sourceFiles(full)
+      return /\.tsx?$/.test(entry) ? [full] : []
+    })
+  }
+
+  const css = readFileSync('src/index.css', 'utf8')
+  const context = readFileSync('src/theme/ThemeContext.tsx', 'utf8')
+  const defined = new Set<string>([
+    ...[...css.matchAll(/(--[\w-]+):/g)].map(m => m[1]),
+    ...[...context.matchAll(/'(--[\w-]+)':/g)].map(m => m[1]),
+  ])
+
+  const referenced = new Map<string, string>()
+  for (const file of sourceFiles('src')) {
+    for (const [, name] of readFileSync(file, 'utf8').matchAll(/var\((--[\w-]+)/g)) {
+      if (!referenced.has(name)) referenced.set(name, file)
+    }
+  }
+
+  it('finds tokens to check', () => {
+    expect(referenced.size).toBeGreaterThan(5)
+  })
+
+  for (const [name, file] of referenced) {
+    it(`${name} is defined (used in ${file})`, () => {
+      expect(defined.has(name)).toBe(true)
+    })
+  }
+})
+
+describe('applyCssVars covers the whole palette', () => {
+  it('mirrors every colour token onto :root', () => {
+    const context = readFileSync('src/theme/ThemeContext.tsx', 'utf8')
+    const mirrored = new Set([...context.matchAll(/theme\.(\w+)/g)].map(m => m[1]))
+    // Everything but the theme's own identity fields is a paint value.
+    const paintKeys = Object.keys(THEMES.earth).filter(k => k !== 'id' && k !== 'name')
+    for (const key of paintKeys) {
+      expect(mirrored.has(key), `theme.${key} is never written to a CSS variable`).toBe(true)
+    }
   })
 })

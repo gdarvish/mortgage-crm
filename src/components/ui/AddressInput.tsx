@@ -164,7 +164,7 @@ export function AddressInput({
           role="listbox"
           className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-lg py-1"
           style={{
-            background: 'var(--color-card-bg)',
+            background: 'var(--color-card)',
             border: '1px solid var(--color-border)',
             boxShadow: 'var(--shadow-card-hover)',
           }}

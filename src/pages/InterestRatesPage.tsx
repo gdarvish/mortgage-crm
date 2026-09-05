@@ -182,7 +182,7 @@ export default function InterestRatesPage() {
             onClick={() => void refreshBOI()}
             disabled={boiLoading}
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold disabled:opacity-60"
-            style={{ background: 'var(--color-card-bg)', color: 'var(--color-text-sub)', border: '1px solid var(--color-border)' }}
+            style={{ background: 'var(--color-card)', color: 'var(--color-text-sub)', border: '1px solid var(--color-border)' }}
           >
             <RefreshCw size={12} />
             רענן מבנק ישראל
@@ -375,7 +375,7 @@ function EditRatesModal({ open, onClose, initial, onSave }: EditRatesModalProps)
             <div
               key={idx}
               className="grid grid-cols-[1.4fr_repeat(5,1fr)_auto] gap-2 items-end rounded-xl p-3"
-              style={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)' }}
+              style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)' }}
             >
               <div>
                 <label className={labelClass} style={labelStyle} htmlFor={`bank-name-${idx}`}>בנק</label>
@@ -439,7 +439,7 @@ function EditRatesModal({ open, onClose, initial, onSave }: EditRatesModalProps)
             onClick={onClose}
             disabled={saving}
             className="rounded-lg px-4 py-2 text-[13px] font-semibold disabled:opacity-60"
-            style={{ background: 'var(--color-card-bg)', color: 'var(--color-text-sub)', border: '1px solid var(--color-border)' }}
+            style={{ background: 'var(--color-card)', color: 'var(--color-text-sub)', border: '1px solid var(--color-border)' }}
           >
             ביטול
           </button>

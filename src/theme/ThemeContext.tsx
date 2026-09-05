@@ -22,6 +22,7 @@ function applyCssVars(theme: Theme) {
     '--color-nav-text-active': theme.navTextActive,
     '--color-primary': theme.primary,
     '--color-primary-hover': theme.primaryHover,
+    '--color-primary-text': theme.primaryText,
     '--color-bg': theme.bg,
     '--color-card': theme.cardBg,
     '--color-border': theme.border,
