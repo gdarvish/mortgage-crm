@@ -27,10 +27,10 @@ const mobileExtraItems = [
   { label: 'יומן שינויים', path: '/audit-log',     icon: History },
   { label: 'תקשורת',       path: '/communication', icon: MessageSquare },
   { label: 'שותפי הפניה', path: '/referrals',     icon: Share2 },
-  { label: 'ריביות',       path: '/rates',          icon: TrendingUp },
+  { label: 'ריביות',       path: '/interest-rates',  icon: TrendingUp },
   { label: 'מחזור',        path: '/refinance',      icon: RefreshCw },
   { label: 'איחוד הלוואות', path: '/consolidation', icon: Layers },
-  { label: 'כלכלת משפחה', path: '/family',          icon: Heart },
+  { label: 'כלכלת משפחה', path: '/family-economics', icon: Heart },
 ]
 
 export default function Header(_props: HeaderProps) {

@@ -172,8 +172,22 @@ export interface Customer {
   requested_amount?: number | null
   portal_token?: string | null
   portal_token_expires_at?: string | null
+  /** Household budget captured on the family economics page. */
+  financial_data?: FinancialData | null
   created_at: string
   updated_at: string
+}
+
+/** The expense buckets the family economics calculator works in. */
+export type ExpenseCategory = 'דיור' | 'מזון' | 'רכב' | 'חינוך' | 'בילויים' | 'חיסכון' | 'אחר'
+
+/** A household budget, stored on the customer document. */
+export interface FinancialData {
+  income1?: number
+  income2?: number
+  mortgagePayment?: number
+  expenses?: Array<{ category: ExpenseCategory; amount: number }>
+  updated_at?: string
 }
 
 export type CustomerStatus = 'ליד' | 'פגישה' | 'מסמכים' | 'הגשה' | 'אישור' | 'ביצוע' | 'סגירה'

@@ -24,6 +24,7 @@ import { useCustomer } from '@/hooks/queries/useCustomers'
 import { useCaseSnapshot, caseSnapshotKey } from '@/hooks/queries/useCaseSnapshot'
 import { CaseSummaryBar } from '@/components/customer/CaseSummaryBar'
 import { MixVersions } from '@/components/customer/MixVersions'
+import { FamilyBudgetSummary } from '@/components/customer/FamilyBudgetSummary'
 import { customerService } from '@/services/customerService'
 import { taskService } from '@/services/taskService'
 import { messageService } from '@/services/messageService'
@@ -817,6 +818,9 @@ export default function CustomerDetailPage() {
           {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
           שמור שינויים
         </button>
+      </div>
+      <div className="md:col-span-2">
+        <FamilyBudgetSummary customer={customer} />
       </div>
     </div>
   )

@@ -9,7 +9,7 @@ import { leadService } from '@/services/leadService'
 import { customerService } from '@/services/customerService'
 import { documentService } from '@/services/documentService'
 import { settingsService } from '@/services/settingsService'
-import type { RatesDoc } from '@/types/database'
+import type { FinancialData, RatesDoc } from '@/types/database'
 
 /**
  * Service-layer regressions against a live emulator.
@@ -482,5 +482,44 @@ describe('settingsService rate board', () => {
     await settingsService.saveRates(board)
     const snap = await getDocs(collection(db, 'users', uid, 'settings'))
     expect(snap.docs.map(d => d.id)).toContain('rates')
+  })
+})
+
+describe('family economics budget on the customer', () => {
+  it('round-trips the nested expense array', async () => {
+    const { data: created } = await customerService.create({
+      first_name: 'דנה', last_name: 'כהן', status: 'ליד',
+    })
+    const financial_data: FinancialData = {
+      income1: 21_000,
+      income2: 4_000,
+      mortgagePayment: 6_100,
+      expenses: [
+        { category: 'מזון', amount: 2_200 },
+        { category: 'רכב', amount: 1_800 },
+      ],
+      updated_at: '2026-09-05T00:00:00.000Z',
+    }
+
+    const { error } = await customerService.update(created!.id, { financial_data })
+    expect(error).toBeNull()
+
+    const { data } = await customerService.getById(created!.id)
+    expect(data?.financial_data?.expenses).toEqual(financial_data.expenses)
+    expect(data?.financial_data?.income1).toBe(21_000)
+  })
+
+  it('does not disturb the budget when the financial tab is saved', async () => {
+    const { data: created } = await customerService.create({
+      first_name: 'אבי', last_name: 'לוי', status: 'ליד',
+    })
+    await customerService.update(created!.id, {
+      financial_data: { income1: 12_000, expenses: [{ category: 'מזון', amount: 900 }] },
+    })
+    await customerService.update(created!.id, { monthly_income: 15_000 })
+
+    const { data } = await customerService.getById(created!.id)
+    expect(data?.monthly_income).toBe(15_000)
+    expect(data?.financial_data?.income1).toBe(12_000)
   })
 })
