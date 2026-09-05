@@ -6,7 +6,7 @@ import { customerService } from '@/services/customerService'
 import type { CustomerStatus } from '@/types/database'
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-[var(--color-border)] rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
 
 interface Props {
   customerId: string
@@ -62,39 +62,39 @@ export default function ScheduleMeetingButton({ customerId, customerName, curren
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setOpen(false)}>
-          <div className="w-full max-w-md bg-white rounded-2xl p-6 space-y-3" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-md bg-[var(--color-card)] rounded-2xl p-6 space-y-3" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900">קביעת פגישה — {customerName}</h2>
-              <button onClick={() => setOpen(false)} className="text-gray-400"><X size={18} /></button>
+              <h2 className="text-lg font-bold text-[var(--color-text)]">קביעת פגישה — {customerName}</h2>
+              <button onClick={() => setOpen(false)} className="text-[var(--color-text-muted)]"><X size={18} /></button>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">נושא</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">נושא</label>
               <input className={inputClass} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">תאריך</label>
+                <label className="block text-xs text-[var(--color-text-muted)] mb-1">תאריך</label>
                 <input className={inputClass} type="date" dir="ltr" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">שעה</label>
+                <label className="block text-xs text-[var(--color-text-muted)] mb-1">שעה</label>
                 <input className={inputClass} type="time" dir="ltr" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">משך (דקות)</label>
+                <label className="block text-xs text-[var(--color-text-muted)] mb-1">משך (דקות)</label>
                 <input className={inputClass} type="number" dir="ltr" value={form.duration_minutes} onChange={e => setForm({ ...form, duration_minutes: +e.target.value })} />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">מיקום</label>
+                <label className="block text-xs text-[var(--color-text-muted)] mb-1">מיקום</label>
                 <input className={inputClass} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="כתובת / זום / טלפון" />
               </div>
             </div>
             <div className="flex gap-2 justify-end pt-2">
-              <button onClick={() => setOpen(false)} className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">ביטול</button>
+              <button onClick={() => setOpen(false)} className="px-4 py-2 rounded-lg text-sm text-[var(--color-text-sub)] bg-[var(--color-pill-bg)] hover:bg-[var(--color-border)] transition-colors">ביטול</button>
               <button onClick={save} disabled={saving}
-                className="inline-flex items-center gap-2 bg-[#059669] text-white px-4 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
+                className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm disabled:opacity-50">
                 {saving ? <Loader2 size={15} className="animate-spin" /> : <CalendarPlus size={15} />} קבע
               </button>
             </div>

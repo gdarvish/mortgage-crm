@@ -41,34 +41,34 @@ export function InstallPrompt() {
       <div
         className="flex items-center gap-3"
         style={{
-          background: '#ffffff',
+          background: 'var(--color-card)',
           borderRadius: 16,
           padding: '14px 16px',
           boxShadow: '0 8px 30px rgba(28,25,23,0.18)',
-          border: '1px solid #e7e5e4',
+          border: '1px solid var(--color-border)',
         }}
       >
         <div
           className="flex items-center justify-center shrink-0"
-          style={{ width: 40, height: 40, borderRadius: 12, background: '#d1fae5' }}
+          style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--color-success-bg)' }}
         >
-          <Download size={20} style={{ color: '#059669' }} />
+          <Download size={20} style={{ color: 'var(--color-primary)' }} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-bold" style={{ color: '#1c1917' }}>התקן את MortgageCRM</p>
-          <p className="text-[12px]" style={{ color: '#a8a29e' }}>גישה מהירה ועבודה גם ללא חיבור</p>
+          <p className="text-[14px] font-bold" style={{ color: 'var(--color-text)' }}>התקן את MortgageCRM</p>
+          <p className="text-[12px]" style={{ color: 'var(--color-text-muted)' }}>גישה מהירה ועבודה גם ללא חיבור</p>
         </div>
         <button
           onClick={handleInstall}
           className="text-[13px] font-semibold text-white px-3 py-2 rounded-lg shrink-0 transition-opacity hover:opacity-90"
-          style={{ background: '#059669' }}
+          style={{ background: 'var(--color-primary)' }}
         >
           התקן
         </button>
         <button
           onClick={() => setHidden(true)}
-          className="shrink-0 transition-colors hover:text-stone-600"
-          style={{ color: '#a8a29e' }}
+          className="shrink-0 transition-colors hover:text-[var(--color-text-sub)]"
+          style={{ color: 'var(--color-text-muted)' }}
           aria-label="סגור"
         >
           <X size={16} />

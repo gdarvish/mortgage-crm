@@ -46,20 +46,20 @@ export function ActivityFeed() {
   return (
     <div
       style={{
-        background: '#ffffff',
+        background: 'var(--color-card)',
         borderRadius: 20,
         padding: '22px 26px',
-        boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
+        boxShadow: 'var(--shadow-card)',
       }}
     >
-      <p className="text-[15px] font-bold mb-4 flex items-center gap-2" style={{ color: '#1c1917' }}>
-        <Activity size={16} style={{ color: '#059669' }} />
+      <p className="text-[15px] font-bold mb-4 flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+        <Activity size={16} style={{ color: 'var(--color-primary)' }} />
         פעילות אחרונה
       </p>
       {isLoading ? (
-        <p className="text-[13px] py-6 text-center" style={{ color: '#a8a29e' }}>טוען...</p>
+        <p className="text-[13px] py-6 text-center" style={{ color: 'var(--color-text-muted)' }}>טוען...</p>
       ) : events.length === 0 ? (
-        <p className="text-[13px] py-6 text-center" style={{ color: '#a8a29e' }}>אין פעילות להצגה עדיין</p>
+        <p className="text-[13px] py-6 text-center" style={{ color: 'var(--color-text-muted)' }}>אין פעילות להצגה עדיין</p>
       ) : (
         <div className="space-y-3">
           {events.map((e) => {
@@ -68,13 +68,13 @@ export function ActivityFeed() {
               <div key={e.id} className="flex items-start gap-3">
                 <div
                   className="flex items-center justify-center shrink-0"
-                  style={{ width: 30, height: 30, borderRadius: 9, background: '#d1fae5' }}
+                  style={{ width: 30, height: 30, borderRadius: 9, background: 'var(--color-success-bg)' }}
                 >
-                  <Icon size={14} style={{ color: '#059669' }} />
+                  <Icon size={14} style={{ color: 'var(--color-primary)' }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px]" style={{ color: '#1c1917' }}>{e.description}</p>
-                  <p className="text-[11px] mt-0.5" style={{ color: '#a8a29e' }}>{timeAgo(e.created_at)}</p>
+                  <p className="text-[13px]" style={{ color: 'var(--color-text)' }}>{e.description}</p>
+                  <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{timeAgo(e.created_at)}</p>
                 </div>
               </div>
             )

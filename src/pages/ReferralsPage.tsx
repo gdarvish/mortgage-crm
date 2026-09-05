@@ -7,10 +7,10 @@ import { toast } from '@/components/ui'
 const partnerTypes = ['סוכן נדל"ן', 'עו"ד', 'רו"ח', 'לקוח קיים', 'אחר']
 
 const cardStyle = {
-  background: '#ffffff',
+  background: 'var(--color-card)',
   borderRadius: 20,
-  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-  border: '1px solid #e7e5e4',
+  boxShadow: 'var(--shadow-card)',
+  border: '1px solid var(--color-border)',
 }
 
 export default function ReferralsPage() {
@@ -51,11 +51,11 @@ export default function ReferralsPage() {
   const inputStyle = {
     width: '100%',
     padding: '10px 12px',
-    border: '1.5px solid #e7e5e4',
+    border: '1.5px solid var(--color-border)',
     borderRadius: 10,
     fontSize: 14,
-    color: '#1c1917',
-    background: '#ffffff',
+    color: 'var(--color-text)',
+    background: 'var(--color-card)',
     outline: 'none',
     fontFamily: 'var(--font-heebo)',
   }
@@ -63,22 +63,22 @@ export default function ReferralsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} style={{ color: '#059669' }} className="animate-spin" />
+        <Loader2 size={32} style={{ color: 'var(--color-primary)' }} className="animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
+    <div className="crm-page animate-fade-in space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>שותפי הפניה</h1>
-          <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>{partners.length} שותפים</p>
+          <h1 className="font-black" style={{ fontSize: 24, color: 'var(--color-text)', fontFamily: 'var(--font-heebo)' }}>שותפי הפניה</h1>
+          <p className="mt-1 text-[13px]" style={{ color: 'var(--color-text-muted)' }}>{partners.length} שותפים</p>
         </div>
         <button
           onClick={() => setShowNewModal(true)}
-          className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.96] shrink-0"
-          style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
+          className="crm-btn-primary flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.96] shrink-0"
+          style={{ borderRadius: 12, background: 'var(--color-primary)', boxShadow: '0 4px 14px color-mix(in srgb, var(--color-primary) 27%, transparent)' }}
         >
           <Plus size={15} />
           מפנה חדש
@@ -88,8 +88,8 @@ export default function ReferralsPage() {
       {partners.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center" style={{ ...cardStyle, padding: 48 }}>
           <Share2 size={40} style={{ color: '#d6d3d1' }} className="mb-3" />
-          <p className="text-[15px] font-semibold" style={{ color: '#57534e' }}>אין שותפי הפניה עדיין</p>
-          <p className="text-[13px] mt-1" style={{ color: '#a8a29e' }}>הוסף את שותף ההפניה הראשון שלך</p>
+          <p className="text-[15px] font-semibold" style={{ color: 'var(--color-text-sub)' }}>אין שותפי הפניה עדיין</p>
+          <p className="text-[13px] mt-1" style={{ color: 'var(--color-text-muted)' }}>הוסף את שותף ההפניה הראשון שלך</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -104,40 +104,40 @@ export default function ReferralsPage() {
               >
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="text-[14px] font-bold" style={{ color: '#1c1917' }}>{partner.name}</h3>
+                    <h3 className="text-[14px] font-bold" style={{ color: 'var(--color-text)' }}>{partner.name}</h3>
                     <span
                       className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full mt-1"
-                      style={{ background: '#d1fae5', color: '#065f46' }}
+                      style={{ background: 'var(--color-success-bg)', color: '#065f46' }}
                     >{partner.type}</span>
                   </div>
                   <div className="text-left">
-                    <div className="flex items-center gap-1" style={{ color: '#059669' }}>
+                    <div className="flex items-center gap-1" style={{ color: 'var(--color-primary)' }}>
                       <TrendingUp size={13} />
                       <span className="font-black text-[16px]">{rate}%</span>
                     </div>
-                    <span className="text-[11px]" style={{ color: '#a8a29e' }}>המרה</span>
+                    <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>המרה</span>
                   </div>
                 </div>
 
                 {partner.company && (
-                  <p className="text-[13px] mb-2" style={{ color: '#57534e' }}>{partner.company}</p>
+                  <p className="text-[13px] mb-2" style={{ color: 'var(--color-text-sub)' }}>{partner.company}</p>
                 )}
                 {partner.phone && (
-                  <div className="flex items-center gap-1.5 text-[13px] mb-3" style={{ color: '#57534e' }} dir="ltr">
-                    <Phone size={12} style={{ color: '#a8a29e' }} />
+                  <div className="flex items-center gap-1.5 text-[13px] mb-3" style={{ color: 'var(--color-text-sub)' }} dir="ltr">
+                    <Phone size={12} style={{ color: 'var(--color-text-muted)' }} />
                     {partner.phone}
                   </div>
                 )}
 
                 <div
                   className="flex justify-between text-[13px] pt-3"
-                  style={{ borderTop: '1px solid #f5f4f2' }}
+                  style={{ borderTop: '1px solid var(--color-border-light)' }}
                 >
-                  <span style={{ color: '#a8a29e' }}>הפניות: <strong style={{ color: '#1c1917' }}>{partner.total_referrals}</strong></span>
-                  <span style={{ color: '#059669' }}>נסגרו: <strong>{partner.converted_referrals}</strong></span>
+                  <span style={{ color: 'var(--color-text-muted)' }}>הפניות: <strong style={{ color: 'var(--color-text)' }}>{partner.total_referrals}</strong></span>
+                  <span style={{ color: 'var(--color-primary)' }}>נסגרו: <strong>{partner.converted_referrals}</strong></span>
                 </div>
                 {partner.last_contact && (
-                  <p className="text-[11px] mt-2" style={{ color: '#a8a29e' }}>קשר אחרון: {formatDate(partner.last_contact)}</p>
+                  <p className="text-[11px] mt-2" style={{ color: 'var(--color-text-muted)' }}>קשר אחרון: {formatDate(partner.last_contact)}</p>
                 )}
               </div>
             )
@@ -158,8 +158,8 @@ export default function ReferralsPage() {
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[17px] font-bold" style={{ color: '#1c1917' }}>מפנה חדש</h2>
-              <button onClick={() => setShowNewModal(false)} style={{ color: '#a8a29e' }}>
+              <h2 className="text-[17px] font-bold" style={{ color: 'var(--color-text)' }}>מפנה חדש</h2>
+              <button onClick={() => setShowNewModal(false)} style={{ color: 'var(--color-text-muted)' }}>
                 <X size={18} />
               </button>
             </div>
@@ -172,7 +172,7 @@ export default function ReferralsPage() {
                 { label: 'חברה', field: 'company' as const },
               ].map(({ label, field, required, dir }) => (
                 <div key={field}>
-                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>{label}</label>
+                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>{label}</label>
                   <input
                     required={required}
                     value={newPartner[field]}
@@ -184,7 +184,7 @@ export default function ReferralsPage() {
               ))}
 
               <div>
-                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>סוג</label>
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>סוג</label>
                 <select
                   value={newPartner.type}
                   onChange={e => setNewPartner(p => ({ ...p, type: e.target.value }))}
@@ -199,7 +199,7 @@ export default function ReferralsPage() {
                   type="submit"
                   disabled={createReferral.isPending}
                   className="flex-1 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
-                  style={{ borderRadius: 12, background: '#059669' }}
+                  style={{ borderRadius: 12, background: 'var(--color-primary)' }}
                 >
                   {createReferral.isPending ? 'שומר...' : 'שמור'}
                 </button>
@@ -207,7 +207,7 @@ export default function ReferralsPage() {
                   type="button"
                   onClick={() => setShowNewModal(false)}
                   className="flex-1 py-2.5 text-[13px] font-semibold transition-all hover:opacity-80"
-                  style={{ borderRadius: 12, background: '#f5f4f2', color: '#57534e' }}
+                  style={{ borderRadius: 12, background: 'var(--color-border-light)', color: 'var(--color-text-sub)' }}
                 >
                   ביטול
                 </button>

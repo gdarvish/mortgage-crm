@@ -29,7 +29,7 @@ export default function RefinanceOpportunitiesWidget() {
       onClick={() => navigate('/alerts')}
       className="w-full text-right"
       style={{
-        background: 'linear-gradient(135deg, #ecfdf5, #d1fae5)',
+        background: 'linear-gradient(135deg, #ecfdf5, var(--color-success-bg))',
         borderRadius: 20,
         border: '1px solid #a7f3d0',
         padding: '18px 24px',
@@ -37,7 +37,7 @@ export default function RefinanceOpportunitiesWidget() {
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center rounded-xl" style={{ width: 44, height: 44, background: '#059669' }}>
+          <div className="flex items-center justify-center rounded-xl" style={{ width: 44, height: 44, background: 'var(--color-primary)' }}>
             <TrendingDown size={22} className="text-white" />
           </div>
           <div>
@@ -45,13 +45,13 @@ export default function RefinanceOpportunitiesWidget() {
               הזדמנויות מחזור: {count} {count === 1 ? 'לקוח' : 'לקוחות'}
             </p>
             {totalSaving > 0 && (
-              <p className="text-[13px]" style={{ color: '#059669' }}>
+              <p className="text-[13px]" style={{ color: 'var(--color-primary)' }}>
                 חיסכון חודשי מצטבר ~{formatCurrency(totalSaving)}
               </p>
             )}
           </div>
         </div>
-        <ChevronLeft size={18} style={{ color: '#059669' }} />
+        <ChevronLeft size={18} style={{ color: 'var(--color-primary)' }} />
       </div>
     </button>
   )

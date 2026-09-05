@@ -23,11 +23,11 @@ function EmptyState({ icon, title, description, action, className, ...props }: E
       {...props}
     >
       {icon && (
-        <div className="mb-4 text-gray-400">{icon}</div>
+        <div className="mb-4 text-[var(--color-text-muted)]">{icon}</div>
       )}
-      <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+      <h3 className="text-lg font-semibold text-[var(--color-text)]">{title}</h3>
       {description && (
-        <p className="mt-1 max-w-sm text-sm text-gray-500">{description}</p>
+        <p className="mt-1 max-w-sm text-sm text-[var(--color-text-muted)]">{description}</p>
       )}
       {action && (
         <div className="mt-6">

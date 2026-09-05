@@ -37,10 +37,10 @@ const FIELD_LABELS: Record<string, string> = {
 }
 
 const cardStyle = {
-  background: '#ffffff',
+  background: 'var(--color-card)',
   borderRadius: 20,
-  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-  border: '1px solid #e7e5e4',
+  boxShadow: 'var(--shadow-card)',
+  border: '1px solid var(--color-border)',
 }
 
 function fieldLabel(key: string): string {
@@ -83,19 +83,19 @@ export default function AuditLogPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} style={{ color: '#059669' }} className="animate-spin" />
+        <Loader2 size={32} style={{ color: 'var(--color-primary)' }} className="animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
+    <div className="crm-page animate-fade-in space-y-5">
       <div>
-        <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
-          <History size={22} style={{ color: '#059669' }} />
+        <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: 'var(--color-text)', fontFamily: 'var(--font-heebo)' }}>
+          <History size={22} style={{ color: 'var(--color-primary)' }} />
           יומן שינויים
         </h1>
-        <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>
+        <p className="mt-1 text-[13px]" style={{ color: 'var(--color-text-muted)' }}>
           {entries.length} שינויים אחרונים נרשמו במערכת
         </p>
       </div>
@@ -108,8 +108,8 @@ export default function AuditLogPage() {
             className="px-4 py-2 text-[13px] font-semibold transition-all"
             style={{
               borderRadius: 20,
-              background: entityFilter === label ? '#059669' : '#f5f4f2',
-              color: entityFilter === label ? '#fff' : '#57534e',
+              background: entityFilter === label ? 'var(--color-primary)' : 'var(--color-border-light)',
+              color: entityFilter === label ? 'var(--color-primary-text)' : 'var(--color-text-sub)',
             }}
           >
             {label}
@@ -120,8 +120,8 @@ export default function AuditLogPage() {
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20" style={cardStyle}>
           <History size={40} style={{ color: '#d6d3d1' }} className="mb-3" />
-          <p className="text-[15px] font-semibold" style={{ color: '#57534e' }}>אין שינויים להצגה</p>
-          <p className="text-[13px] mt-1" style={{ color: '#a8a29e' }}>
+          <p className="text-[15px] font-semibold" style={{ color: 'var(--color-text-sub)' }}>אין שינויים להצגה</p>
+          <p className="text-[13px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
             שינויים על לקוחות, לידים ומשכנתאות יופיעו כאן
           </p>
         </div>
@@ -132,23 +132,23 @@ export default function AuditLogPage() {
               <div className="flex items-center justify-between mb-3">
                 <span
                   className="text-[12px] font-semibold px-2.5 py-0.5 rounded-full"
-                  style={{ background: '#d1fae5', color: '#065f46' }}
+                  style={{ background: 'var(--color-success-bg)', color: '#065f46' }}
                 >
                   {ENTITY_LABELS[entry.entity_type] ?? entry.entity_type}
                 </span>
-                <span className="text-[12px]" style={{ color: '#a8a29e' }}>{formatDate(entry.changed_at)}</span>
+                <span className="text-[12px]" style={{ color: 'var(--color-text-muted)' }}>{formatDate(entry.changed_at)}</span>
               </div>
               <div className="space-y-1.5">
                 {entry.changed_fields.map((field) => {
                   const change = entry.changes[field]
                   return (
                     <div key={field} className="flex items-center gap-2 text-[13px] flex-wrap">
-                      <span className="font-semibold" style={{ color: '#1c1917', minWidth: 110 }}>
+                      <span className="font-semibold" style={{ color: 'var(--color-text)', minWidth: 110 }}>
                         {fieldLabel(field)}
                       </span>
-                      <span style={{ color: '#a8a29e' }}>{formatValue(change?.from)}</span>
+                      <span style={{ color: 'var(--color-text-muted)' }}>{formatValue(change?.from)}</span>
                       <ArrowLeft size={13} style={{ color: '#d6d3d1' }} />
-                      <span style={{ color: '#059669' }}>{formatValue(change?.to)}</span>
+                      <span style={{ color: 'var(--color-primary)' }}>{formatValue(change?.to)}</span>
                     </div>
                   )
                 })}

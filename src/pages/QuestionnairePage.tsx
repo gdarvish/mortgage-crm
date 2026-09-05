@@ -117,19 +117,19 @@ export default function QuestionnairePage() {
 
   if (_loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Loader2 size={32} className="text-[#059669] animate-spin" />
+      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center p-4">
+        <Loader2 size={32} className="text-[var(--color-primary)] animate-spin" />
       </div>
     )
   }
 
   if (loadError) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" dir="rtl">
-        <div className="bg-white rounded-2xl shadow-lg p-8 text-center max-w-md">
+      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center p-4" dir="rtl">
+        <div className="bg-[var(--color-card)] rounded-2xl shadow-lg p-8 text-center max-w-md">
           <AlertCircle size={56} className="mx-auto text-red-500 mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">לא ניתן לטעון את השאלון</h1>
-          <p className="text-gray-600">{loadError}</p>
+          <h1 className="text-2xl font-bold text-[var(--color-text)] mb-2">לא ניתן לטעון את השאלון</h1>
+          <p className="text-[var(--color-text-sub)]">{loadError}</p>
         </div>
       </div>
     )
@@ -137,11 +137,11 @@ export default function QuestionnairePage() {
 
   if (_submitted) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" dir="rtl">
-        <div className="bg-white rounded-2xl shadow-lg p-8 text-center max-w-md">
+      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center p-4" dir="rtl">
+        <div className="bg-[var(--color-card)] rounded-2xl shadow-lg p-8 text-center max-w-md">
           <CheckCircle size={64} className="mx-auto text-green-500 mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">תודה!</h1>
-          <p className="text-gray-600">השאלון נשלח בהצלחה. היועץ שלך יצור איתך קשר בהקדם.</p>
+          <h1 className="text-2xl font-bold text-[var(--color-text)] mb-2">תודה!</h1>
+          <p className="text-[var(--color-text-sub)]">השאלון נשלח בהצלחה. היועץ שלך יצור איתך קשר בהקדם.</p>
         </div>
       </div>
     )
@@ -153,114 +153,114 @@ export default function QuestionnairePage() {
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">שם פרטי</label>
+              <label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">שם פרטי</label>
               <input value={form.firstName} onChange={e => update('firstName', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${qErrors.first_name ? 'border-red-500' : ''}`} />
               {qErrors.first_name && <p className="text-xs text-red-600 mt-1">{qErrors.first_name}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">שם משפחה</label>
+              <label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">שם משפחה</label>
               <input value={form.lastName} onChange={e => update('lastName', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${qErrors.last_name ? 'border-red-500' : ''}`} />
               {qErrors.last_name && <p className="text-xs text-red-600 mt-1">{qErrors.last_name}</p>}
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ת.ז</label>
+            <label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">ת.ז</label>
             <input value={form.idNumber} onChange={e => update('idNumber', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${qErrors.id_number ? 'border-red-500' : ''}`} dir="ltr" />
             {qErrors.id_number && <p className="text-xs text-red-600 mt-1">{qErrors.id_number}</p>}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
+            <label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">טלפון</label>
             <input value={form.phone} onChange={e => update('phone', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${qErrors.phone ? 'border-red-500' : ''}`} dir="ltr" />
             {qErrors.phone && <p className="text-xs text-red-600 mt-1">{qErrors.phone}</p>}
           </div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">כתובת</label><input value={form.address} onChange={e => update('address', e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></div>
+          <div><label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">כתובת</label><input value={form.address} onChange={e => update('address', e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></div>
         </div>
       )
       case 1: return (
         <div className="space-y-3">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">מצב משפחתי</label>
-            <select value={form.maritalStatus} onChange={e => update('maritalStatus', e.target.value)} className="w-full px-3 py-2 border rounded-lg bg-white">
+          <div><label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">מצב משפחתי</label>
+            <select value={form.maritalStatus} onChange={e => update('maritalStatus', e.target.value)} className="w-full px-3 py-2 border rounded-lg bg-[var(--color-card)]">
               <option value="">בחר...</option><option>רווק/ה</option><option>נשוי/אה</option><option>גרוש/ה</option><option>אלמן/ה</option>
             </select>
           </div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">מספר ילדים</label><input type="number" value={form.children} onChange={e => update('children', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></div>
+          <div><label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">מספר ילדים</label><input type="number" value={form.children} onChange={e => update('children', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></div>
         </div>
       )
       case 2: return (
         <div className="space-y-3">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">סוג העסקה</label>
-            <select value={form.employmentType} onChange={e => update('employmentType', e.target.value)} className="w-full px-3 py-2 border rounded-lg bg-white">
+          <div><label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">סוג העסקה</label>
+            <select value={form.employmentType} onChange={e => update('employmentType', e.target.value)} className="w-full px-3 py-2 border rounded-lg bg-[var(--color-card)]">
               <option>שכיר</option><option>עצמאי</option><option>שכיר + עצמאי</option>
             </select>
           </div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">הכנסה חודשית נטו</label><input type="number" value={form.income1} onChange={e => update('income1', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">הכנסת בן/בת זוג</label><input type="number" value={form.income2} onChange={e => update('income2', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
+          <div><label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">הכנסה חודשית נטו</label><input type="number" value={form.income1} onChange={e => update('income1', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
+          <div><label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">הכנסת בן/בת זוג</label><input type="number" value={form.income2} onChange={e => update('income2', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
         </div>
       )
       case 3: return (
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <input type="checkbox" checked={form.hasProperty} onChange={e => update('hasProperty', e.target.checked)} className="w-4 h-4" />
-            <label className="text-sm font-medium text-gray-700">יש לי נכס קיים</label>
+            <label className="text-sm font-medium text-[var(--color-text-sub)]">יש לי נכס קיים</label>
           </div>
           {form.hasProperty && (
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">שווי מוערך</label><input type="number" value={form.propertyValue} onChange={e => update('propertyValue', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
+            <div><label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">שווי מוערך</label><input type="number" value={form.propertyValue} onChange={e => update('propertyValue', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
           )}
         </div>
       )
       case 4: return (
         <div className="space-y-3">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">הלוואות קיימות (סה"כ יתרה)</label><input type="number" value={form.existingLoans} onChange={e => update('existingLoans', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">מסגרות אשראי</label><input type="number" value={form.creditCards} onChange={e => update('creditCards', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
+          <div><label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">הלוואות קיימות (סה"כ יתרה)</label><input type="number" value={form.existingLoans} onChange={e => update('existingLoans', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
+          <div><label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">מסגרות אשראי</label><input type="number" value={form.creditCards} onChange={e => update('creditCards', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
         </div>
       )
       case 5: return (
         <div className="space-y-3">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">מטרת המשכנתא</label>
-            <select value={form.purpose} onChange={e => update('purpose', e.target.value)} className="w-full px-3 py-2 border rounded-lg bg-white">
+          <div><label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">מטרת המשכנתא</label>
+            <select value={form.purpose} onChange={e => update('purpose', e.target.value)} className="w-full px-3 py-2 border rounded-lg bg-[var(--color-card)]">
               <option>דירה ראשונה</option><option>שיפור דיור</option><option>להשקעה</option><option>מחזור</option>
             </select>
           </div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">הון עצמי</label><input type="number" value={form.ownCapital} onChange={e => update('ownCapital', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">סכום משכנתא מבוקש</label><input type="number" value={form.requestedAmount} onChange={e => update('requestedAmount', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
+          <div><label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">הון עצמי</label><input type="number" value={form.ownCapital} onChange={e => update('ownCapital', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
+          <div><label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">סכום משכנתא מבוקש</label><input type="number" value={form.requestedAmount} onChange={e => update('requestedAmount', +e.target.value)} className="w-full px-3 py-2 border rounded-lg" dir="ltr" /></div>
         </div>
       )
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4" dir="rtl">
+    <div className="min-h-screen bg-[var(--color-bg)] py-8 px-4" dir="rtl">
       <div className="max-w-lg mx-auto">
         <div className="text-center mb-6">
-          <div className="w-12 h-12 bg-[#059669] rounded-xl mx-auto mb-3 flex items-center justify-center">
+          <div className="w-12 h-12 bg-[var(--color-primary)] rounded-xl mx-auto mb-3 flex items-center justify-center">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
           </div>
-          <h1 className="text-xl font-bold text-gray-900">שאלון פרטים</h1>
-          <p className="text-sm text-gray-500">מלא את הפרטים הבאים כדי שנוכל להכין עבורך הצעה מותאמת</p>
+          <h1 className="text-xl font-bold text-[var(--color-text)]">שאלון פרטים</h1>
+          <p className="text-sm text-[var(--color-text-muted)]">מלא את הפרטים הבאים כדי שנוכל להכין עבורך הצעה מותאמת</p>
         </div>
 
         {/* Progress */}
         <div className="flex items-center gap-1 mb-6">
           {steps.map((step, idx) => (
             <div key={idx} className="flex-1">
-              <div className={`h-1.5 rounded-full ${idx <= currentStep ? 'bg-[#059669]' : 'bg-gray-200'}`} />
-              <p className={`text-[10px] mt-1 text-center ${idx === currentStep ? 'text-[#059669] font-medium' : 'text-gray-400'}`}>{step}</p>
+              <div className={`h-1.5 rounded-full ${idx <= currentStep ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'}`} />
+              <p className={`text-[10px] mt-1 text-center ${idx === currentStep ? 'text-[var(--color-primary)] font-medium' : 'text-[var(--color-text-muted)]'}`}>{step}</p>
             </div>
           ))}
         </div>
 
         {/* Form */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">{steps[currentStep]}</h2>
+        <div className="bg-[var(--color-card)] rounded-2xl shadow-sm p-6">
+          <h2 className="font-semibold text-[var(--color-text)] mb-4">{steps[currentStep]}</h2>
           {renderStep()}
           <div className="flex gap-3 mt-6">
             {currentStep > 0 && (
-              <button onClick={() => setCurrentStep(currentStep - 1)} className="flex-1 flex items-center justify-center gap-1 bg-gray-100 text-gray-700 py-2.5 rounded-lg hover:bg-gray-200">
+              <button onClick={() => setCurrentStep(currentStep - 1)} className="flex-1 flex items-center justify-center gap-1 bg-[var(--color-pill-bg)] text-[var(--color-text-sub)] py-2.5 rounded-lg hover:bg-[var(--color-border)]">
                 <ChevronRight size={16} /> הקודם
               </button>
             )}
             {currentStep < steps.length - 1 ? (
-              <button onClick={handleNext} className="flex-1 flex items-center justify-center gap-1 bg-[#059669] text-white py-2.5 rounded-lg hover:bg-[#047857]">
+              <button onClick={handleNext} className="flex-1 flex items-center justify-center gap-1 bg-[var(--color-primary)] text-white py-2.5 rounded-lg hover:bg-[var(--color-primary-hover)]">
                 הבא <ChevronLeft size={16} />
               </button>
             ) : (

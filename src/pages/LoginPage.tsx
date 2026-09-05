@@ -60,33 +60,33 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-bl from-[#059669] to-[#065f46] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 animate-fade-in">
+    <div className="min-h-screen bg-gradient-to-bl from-[var(--color-primary)] to-[#065f46] flex items-center justify-center p-4">
+      <div className="bg-[var(--color-card)] rounded-2xl shadow-2xl w-full max-w-md p-8 animate-fade-in">
         {/* Logo Area */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-[#059669] rounded-xl mx-auto mb-4 flex items-center justify-center">
+          <div className="w-16 h-16 bg-[var(--color-primary)] rounded-xl mx-auto mb-4 flex items-center justify-center">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
               <polyline points="9 22 9 12 15 12 15 22" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 font-[var(--font-heebo)]">
+          <h1 className="text-2xl font-bold text-[var(--color-text)] font-[var(--font-heebo)]">
             MortgageCRM
           </h1>
-          <p className="text-gray-500 mt-1">מערכת ניהול יועץ משכנתאות</p>
+          <p className="text-[var(--color-text-muted)] mt-1">מערכת ניהול יועץ משכנתאות</p>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">
               אימייל
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none transition-all text-right"
+              className="w-full px-4 py-3 border border-[var(--color-border)] rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none transition-all text-right"
               placeholder="example@email.com"
               required
               dir="ltr"
@@ -94,14 +94,14 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">
               סיסמה
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none transition-all"
+              className="w-full px-4 py-3 border border-[var(--color-border)] rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none transition-all"
               placeholder="••••••••"
               required
               minLength={6}
@@ -117,7 +117,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#059669] text-white py-3 rounded-lg font-medium hover:bg-[#047857] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full bg-[var(--color-primary)] text-white py-3 rounded-lg font-medium hover:bg-[var(--color-primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (
               <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
@@ -131,9 +131,9 @@ export default function LoginPage() {
 
         {/* Divider */}
         <div className="flex items-center my-6">
-          <div className="flex-1 border-t border-gray-200" />
-          <span className="px-3 text-xs text-gray-400">או</span>
-          <div className="flex-1 border-t border-gray-200" />
+          <div className="flex-1 border-t border-[var(--color-border)]" />
+          <span className="px-3 text-xs text-[var(--color-text-muted)]">או</span>
+          <div className="flex-1 border-t border-[var(--color-border)]" />
         </div>
 
         {/* Google Sign-in */}
@@ -141,7 +141,7 @@ export default function LoginPage() {
           type="button"
           onClick={handleGoogleSignIn}
           disabled={loading}
-          className="w-full border border-gray-300 bg-white text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+          className="w-full border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-text-sub)] py-3 rounded-lg font-medium hover:bg-[var(--color-bg)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
         >
           <svg width="20" height="20" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -159,7 +159,7 @@ export default function LoginPage() {
               setIsSignUp(!isSignUp)
               setError('')
             }}
-            className="text-[#059669] hover:underline text-sm"
+            className="text-[var(--color-primary)] hover:underline text-sm"
           >
             {isSignUp ? 'יש לך חשבון? התחבר' : 'אין לך חשבון? הירשם'}
           </button>

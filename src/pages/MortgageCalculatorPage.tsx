@@ -32,6 +32,7 @@ import { regulatoryService } from '@/services/regulatoryService'
 import { useCaseSnapshot } from '@/hooks/queries/useCaseSnapshot'
 import { FALLBACK_REGULATORY_PARAMS, type RegulatoryParams } from '@/utils/regulatoryParams'
 import { toast, ConfirmDialog } from '@/components/ui'
+import { useChartTheme } from '@/theme/chartTheme'
 
 const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
 
@@ -66,20 +67,20 @@ function InputField({
   const [focused, setFocused] = useState(false)
   return (
     <div>
-      <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e', letterSpacing: '0.03em' }}>
+      <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)', letterSpacing: '0.03em' }}>
         {label}
       </label>
       <div
         className="flex items-center overflow-hidden transition-all duration-150"
         style={{
-          border: `1.5px solid ${focused ? '#059669' : '#e7e5e4'}`,
+          border: `1.5px solid ${focused ? 'var(--color-primary)' : 'var(--color-border)'}`,
           borderRadius: 10,
-          background: readOnly ? '#faf9f7' : '#ffffff',
+          background: readOnly ? 'var(--color-bg)' : 'var(--color-card)',
           boxShadow: focused ? '0 0 0 3px rgba(5,150,105,0.12)' : 'none',
         }}
       >
         {prefix && (
-          <span className="px-3 text-[14px] font-semibold shrink-0" style={{ color: '#a8a29e' }}>{prefix}</span>
+          <span className="px-3 text-[14px] font-semibold shrink-0" style={{ color: 'var(--color-text-muted)' }}>{prefix}</span>
         )}
         <input
           type={type}
@@ -90,7 +91,7 @@ function InputField({
           onBlur={() => setFocused(false)}
           className="flex-1 py-2.5 bg-transparent outline-none text-[14px]"
           style={{
-            color: readOnly ? '#57534e' : '#1c1917',
+            color: readOnly ? 'var(--color-text-sub)' : 'var(--color-text)',
             paddingRight: prefix ? 4 : 12,
             paddingLeft: suffix ? 4 : 12,
             fontFamily: 'var(--font-heebo)',
@@ -98,7 +99,7 @@ function InputField({
           dir="ltr"
         />
         {suffix && (
-          <span className="px-3 text-[13px] shrink-0" style={{ color: '#a8a29e' }}>{suffix}</span>
+          <span className="px-3 text-[13px] shrink-0" style={{ color: 'var(--color-text-muted)' }}>{suffix}</span>
         )}
       </div>
     </div>
@@ -106,6 +107,7 @@ function InputField({
 }
 
 export default function MortgageCalculatorPage() {
+  const chart = useChartTheme()
   const [propertyPrice, setPropertyPrice] = useState(1500000)
   const [ownCapital, setOwnCapital] = useState(300000)
   const [propertyType, setPropertyType] = useState<PropertyType>('דירה_ראשונה')
@@ -463,21 +465,21 @@ export default function MortgageCalculatorPage() {
   }
 
   const cardStyle = {
-    background: '#ffffff',
+    background: 'var(--color-card)',
     borderRadius: 20,
-    boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-    border: '1px solid #e7e5e4',
+    boxShadow: 'var(--shadow-card)',
+    border: '1px solid var(--color-border)',
   }
 
   return (
-    <div className="animate-fade-in max-w-[1360px] mx-auto">
+    <div className="crm-page animate-fade-in">
       {/* Case banner — only when the calculator was opened from a case */}
       {customerId && (
         <div
           className="mb-4 flex items-center justify-between gap-3 px-4 py-3"
           style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 14 }}
         >
-          <p className="text-[13px] font-semibold" style={{ color: '#047857' }}>
+          <p className="text-[13px] font-semibold" style={{ color: 'var(--color-primary-hover)' }}>
             {caseLoading
               ? 'טוען את התיק...'
               : `בונה תמהיל עבור ${caseName ?? 'הלקוח'}${mortgageId ? ' — עריכת תמהיל קיים' : ''}`}
@@ -485,7 +487,7 @@ export default function MortgageCalculatorPage() {
           <button
             onClick={() => navigate(`/customers/${customerId}`)}
             className="inline-flex items-center gap-1 text-[13px] font-semibold hover:opacity-80 transition-opacity shrink-0"
-            style={{ color: '#047857' }}
+            style={{ color: 'var(--color-primary-hover)' }}
           >
             <ArrowRight size={14} />
             חזרה לתיק
@@ -495,10 +497,10 @@ export default function MortgageCalculatorPage() {
 
       {/* Header */}
       <div className="mb-6">
-        <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
+        <h1 className="font-black" style={{ fontSize: 24, color: 'var(--color-text)', fontFamily: 'var(--font-heebo)' }}>
           מחשבון משכנתא
         </h1>
-        <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>חשב תשלום חודשי לפי מסלולים</p>
+        <p className="mt-1 text-[13px]" style={{ color: 'var(--color-text-muted)' }}>חשב תשלום חודשי לפי מסלולים</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-5">
@@ -506,7 +508,7 @@ export default function MortgageCalculatorPage() {
         <div className="flex flex-col gap-4">
           {/* Property inputs */}
           <div style={{ ...cardStyle, padding: '22px 24px' }}>
-            <h3 className="text-[14px] font-bold mb-4" style={{ color: '#1c1917' }}>נתוני הנכס</h3>
+            <h3 className="text-[14px] font-bold mb-4" style={{ color: 'var(--color-text)' }}>נתוני הנכס</h3>
             <div className="flex flex-col gap-3">
               <InputField label="מחיר הנכס" value={propertyPrice} onChange={v => setPropertyPrice(Number(v) || 0)} prefix="₪" />
               <InputField label="הון עצמי" value={ownCapital} onChange={v => setOwnCapital(Number(v) || 0)} prefix="₪" />
@@ -514,7 +516,7 @@ export default function MortgageCalculatorPage() {
               <div className="grid grid-cols-2 gap-3">
                 <InputField label="סכום הלוואה" value={formatCurrency(loanAmount)} readOnly />
                 <div>
-                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e', letterSpacing: '0.03em' }}>LTV</label>
+                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)', letterSpacing: '0.03em' }}>LTV</label>
                   <div
                     className="flex items-center justify-center"
                     style={{
@@ -531,16 +533,16 @@ export default function MortgageCalculatorPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e', letterSpacing: '0.03em' }}>סוג נכס</label>
+                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)', letterSpacing: '0.03em' }}>סוג נכס</label>
                   <select
                     value={propertyType}
                     onChange={e => setPropertyType(e.target.value as PropertyType)}
                     className="w-full py-2.5 px-3 text-[14px] outline-none transition-all duration-150"
                     style={{
-                      border: '1.5px solid #e7e5e4',
+                      border: '1.5px solid var(--color-border)',
                       borderRadius: 10,
-                      background: '#ffffff',
-                      color: '#1c1917',
+                      background: 'var(--color-card)',
+                      color: 'var(--color-text)',
                       fontFamily: 'var(--font-heebo)',
                     }}
                   >
@@ -560,21 +562,21 @@ export default function MortgageCalculatorPage() {
                 <InputField label="הנחת מדד שנתי" value={expectedCpi} onChange={v => setExpectedCpi(Number(v) || 0)} suffix="%" />
               </div>
               {obligationCount > 0 ? (
-                <p className="mt-2 text-[12px] flex flex-wrap items-center gap-1" style={{ color: '#a8a29e' }}>
+                <p className="mt-2 text-[12px] flex flex-wrap items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
                   <span>מקור: {obligationCount} התחייבויות מהתיק</span>
                   {obligationsEditedManually && (
-                    <span className="font-semibold" style={{ color: '#d97706' }}>· שונה ידנית</span>
+                    <span className="font-semibold" style={{ color: 'var(--color-accent)' }}>· שונה ידנית</span>
                   )}
                   <button
                     onClick={() => navigate(`/customers/${customerId}`)}
                     className="font-semibold hover:opacity-80 transition-opacity"
-                    style={{ color: '#059669' }}
+                    style={{ color: 'var(--color-primary)' }}
                   >
                     ערוך בתיק
                   </button>
                 </p>
               ) : monthlyObligations > 0 && (
-                <p className="mt-2 text-[12px]" style={{ color: '#a8a29e' }}>
+                <p className="mt-2 text-[12px]" style={{ color: 'var(--color-text-muted)' }}>
                   התחייבויות חודשיות: {formatCurrency(monthlyObligations)} — נכללות ביחס ההחזר
                 </p>
               )}
@@ -583,8 +585,8 @@ export default function MortgageCalculatorPage() {
 
           {/* Summary */}
           <div style={{ ...cardStyle, padding: '22px 24px' }}>
-            <h3 className="text-[14px] font-bold mb-4" style={{ color: '#1c1917' }}>סיכום</h3>
-            <div className="flex flex-col divide-y" style={{ borderColor: '#f5f4f2' }}>
+            <h3 className="text-[14px] font-bold mb-4" style={{ color: 'var(--color-text)' }}>סיכום</h3>
+            <div className="flex flex-col divide-y" style={{ borderColor: 'var(--color-border-light)' }}>
               {[
                 { label: 'תשלום חודשי', value: formatCurrency(Math.round(totalMonthlyPayment)), highlight: true },
                 {
@@ -606,16 +608,16 @@ export default function MortgageCalculatorPage() {
                 ] : []),
               ].map((row: { label: string; value: string; highlight?: boolean; note?: string | null; warn?: boolean }) => (
                 <div key={row.label} className="flex items-center justify-between py-3">
-                  <span className="text-[13px]" style={{ color: '#a8a29e' }}>{row.label}</span>
+                  <span className="text-[13px]" style={{ color: 'var(--color-text-muted)' }}>{row.label}</span>
                   <div className="flex items-center gap-2">
                     {row.note && (
-                      <span className="text-[11px] font-medium" style={{ color: '#d97706' }}>{row.note}</span>
+                      <span className="text-[11px] font-medium" style={{ color: 'var(--color-accent)' }}>{row.note}</span>
                     )}
                     <span
                       className="font-black tabular-nums"
                       style={{
                         fontSize: row.highlight ? 22 : 15,
-                        color: row.highlight ? '#059669' : row.warn ? '#d97706' : '#1c1917',
+                        color: row.highlight ? 'var(--color-primary)' : row.warn ? 'var(--color-accent)' : 'var(--color-text)',
                         fontFamily: 'var(--font-heebo)',
                       }}
                     >
@@ -626,7 +628,7 @@ export default function MortgageCalculatorPage() {
               ))}
             </div>
             {hasLinkedTracks && (
-              <p className="text-[11px] mt-3" style={{ color: '#a8a29e' }}>
+              <p className="text-[11px] mt-3" style={{ color: 'var(--color-text-muted)' }}>
                 תחזית לפי הנחת מדד {expectedCpi}% — אינה התחייבות.
               </p>
             )}
@@ -634,10 +636,10 @@ export default function MortgageCalculatorPage() {
 
           {/* Compliance */}
           <div style={{ ...cardStyle, padding: '22px 24px' }}>
-            <h3 className="text-[14px] font-bold mb-4 flex items-center gap-2" style={{ color: '#1c1917' }}>
+            <h3 className="text-[14px] font-bold mb-4 flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
               {compliance.isValid
-                ? <CheckCircle size={16} style={{ color: '#059669' }} />
-                : <AlertTriangle size={16} style={{ color: '#dc2626' }} />
+                ? <CheckCircle size={16} style={{ color: 'var(--color-primary)' }} />
+                : <AlertTriangle size={16} style={{ color: 'var(--color-danger)' }} />
               }
               בדיקת Compliance
             </h3>
@@ -649,10 +651,10 @@ export default function MortgageCalculatorPage() {
                 return (
                   <div key={idx}>
                     <div className="flex items-center justify-between text-[13px] mb-1">
-                      <span style={{ color: '#57534e' }}>{check.name}</span>
+                      <span style={{ color: 'var(--color-text-sub)' }}>{check.name}</span>
                       <span className="font-semibold" style={{ color }}>{formatCheckValue(check)}</span>
                     </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#f5f4f2' }}>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--color-border-light)' }}>
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{
@@ -676,7 +678,7 @@ export default function MortgageCalculatorPage() {
               onClick={handleAiAdvice}
               disabled={aiAdvising}
               className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-50"
-              style={{ borderRadius: 12, background: '#fef3c7', color: '#d97706' }}
+              style={{ borderRadius: 12, background: 'var(--color-accent-bg)', color: 'var(--color-accent)' }}
             >
               {aiAdvising ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
               {aiAdvising ? 'מנתח...' : 'המלצת AI לתמהיל'}
@@ -685,8 +687,8 @@ export default function MortgageCalculatorPage() {
               onClick={handleSaveMix}
               disabled={!customerId || savingMix || caseLoading}
               title={customerId ? undefined : 'פתח את המחשבון מתוך תיק לקוח כדי לשמור תמהיל'}
-              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
+              className="crm-btn-primary w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ borderRadius: 12, background: 'var(--color-primary)', boxShadow: '0 4px 14px color-mix(in srgb, var(--color-primary) 27%, transparent)' }}
             >
               {savingMix ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
               {savingMix
@@ -696,7 +698,7 @@ export default function MortgageCalculatorPage() {
                   : 'שמור תמהיל ללקוח'}
             </button>
             {!customerId && (
-              <p className="text-[11px] text-center" style={{ color: '#a8a29e' }}>
+              <p className="text-[11px] text-center" style={{ color: 'var(--color-text-muted)' }}>
                 פתח את המחשבון מתוך תיק לקוח כדי לשמור תמהיל
               </p>
             )}
@@ -708,15 +710,15 @@ export default function MortgageCalculatorPage() {
                   placeholder='שם הגרסה — למשל "אחרי מו"מ מזרחי"'
                   className="w-full py-2 px-3 text-[13px] outline-none"
                   style={{
-                    border: '1.5px solid #e7e5e4',
+                    border: '1.5px solid var(--color-border)',
                     borderRadius: 10,
-                    background: '#ffffff',
-                    color: '#1c1917',
+                    background: 'var(--color-card)',
+                    color: 'var(--color-text)',
                     fontFamily: 'var(--font-heebo)',
                   }}
                 />
                 {mortgageId && (
-                  <label className="flex items-start gap-2 text-[12px]" style={{ color: '#57534e' }}>
+                  <label className="flex items-start gap-2 text-[12px]" style={{ color: 'var(--color-text-sub)' }}>
                     <input
                       type="checkbox"
                       className="mt-0.5"
@@ -725,7 +727,7 @@ export default function MortgageCalculatorPage() {
                     />
                     <span>
                       שמור כגרסה חדשה
-                      <span className="block" style={{ color: '#a8a29e' }}>
+                      <span className="block" style={{ color: 'var(--color-text-muted)' }}>
                         הגרסה הקיימת נשמרת כפי שהיא — כך אפשר להשוות בין הסבבים
                       </span>
                     </span>
@@ -737,7 +739,7 @@ export default function MortgageCalculatorPage() {
               onClick={handleExportPdf}
               disabled={generatingPdf}
               className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold transition-all hover:opacity-80 disabled:opacity-50"
-              style={{ borderRadius: 12, background: '#f5f4f2', color: '#57534e' }}
+              style={{ borderRadius: 12, background: 'var(--color-border-light)', color: 'var(--color-text-sub)' }}
             >
               <Download size={15} />
               {generatingPdf ? 'מכין PDF...' : 'הורד PDF'}
@@ -747,26 +749,26 @@ export default function MortgageCalculatorPage() {
           {/* AI advice */}
           {aiAdvice && (
             <div style={{ ...cardStyle, padding: '20px 24px' }}>
-              <h3 className="text-[14px] font-bold mb-2 flex items-center gap-2" style={{ color: '#1c1917' }}>
-                <Sparkles size={15} style={{ color: '#d97706' }} />
+              <h3 className="text-[14px] font-bold mb-2 flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+                <Sparkles size={15} style={{ color: 'var(--color-accent)' }} />
                 המלצת AI
               </h3>
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-[12px]" style={{ color: '#a8a29e' }}>רמת סיכון:</span>
+                <span className="text-[12px]" style={{ color: 'var(--color-text-muted)' }}>רמת סיכון:</span>
                 <span
                   className="text-[12px] font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: '#fef3c7', color: '#d97706' }}
+                  style={{ background: 'var(--color-accent-bg)', color: 'var(--color-accent)' }}
                 >
                   {aiAdvice.risk_level}
                 </span>
               </div>
-              <p className="text-[13px] leading-relaxed" style={{ color: '#57534e' }}>{aiAdvice.rationale}</p>
+              <p className="text-[13px] leading-relaxed" style={{ color: 'var(--color-text-sub)' }}>{aiAdvice.rationale}</p>
             </div>
           )}
 
           {/* Sensitivity */}
           <div style={{ ...cardStyle, padding: '22px 24px' }}>
-            <h3 className="text-[14px] font-bold mb-3" style={{ color: '#1c1917' }}>ניתוח רגישות</h3>
+            <h3 className="text-[14px] font-bold mb-3" style={{ color: 'var(--color-text)' }}>ניתוח רגישות</h3>
             <div className="space-y-2">
               {[0, 0.5, 1, 1.5, 2].map(delta => {
                 const adjusted = tracks.reduce((sum, t) =>
@@ -775,10 +777,10 @@ export default function MortgageCalculatorPage() {
                 const isCurrent = delta === 0
                 return (
                   <div key={delta} className="flex justify-between items-center text-[13px]">
-                    <span style={{ color: '#a8a29e' }}>{isCurrent ? 'נוכחי' : `+${delta}%`}</span>
+                    <span style={{ color: 'var(--color-text-muted)' }}>{isCurrent ? 'נוכחי' : `+${delta}%`}</span>
                     <span
                       className="font-bold tabular-nums"
-                      style={{ color: isCurrent ? '#059669' : '#1c1917' }}
+                      style={{ color: isCurrent ? 'var(--color-primary)' : 'var(--color-text)' }}
                     >
                       {formatCurrency(Math.round(adjusted))}
                     </span>
@@ -793,14 +795,14 @@ export default function MortgageCalculatorPage() {
         <div className="flex flex-col gap-4">
           {/* Track header */}
           <div className="flex items-center justify-between">
-            <h3 className="text-[15px] font-bold" style={{ color: '#1c1917' }}>
+            <h3 className="text-[15px] font-bold" style={{ color: 'var(--color-text)' }}>
               מסלולים ({tracks.length})
             </h3>
             <div className="flex gap-2">
               <button
                 onClick={() => applyRecommendation(1)}
                 className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold transition-all hover:opacity-80"
-                style={{ borderRadius: 10, background: '#fef3c7', color: '#d97706' }}
+                style={{ borderRadius: 10, background: 'var(--color-accent-bg)', color: 'var(--color-accent)' }}
               >
                 <Sparkles size={13} />
                 תמהילים מומלצים
@@ -809,7 +811,7 @@ export default function MortgageCalculatorPage() {
                 onClick={addTrack}
                 disabled={tracks.length >= 6}
                 className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-40"
-                style={{ borderRadius: 10, background: '#059669', boxShadow: '0 3px 10px rgba(5,150,105,0.35)' }}
+                style={{ borderRadius: 10, background: 'var(--color-primary)', boxShadow: '0 3px 10px rgba(5,150,105,0.35)' }}
               >
                 <Plus size={13} />
                 הוסף מסלול
@@ -847,25 +849,25 @@ export default function MortgageCalculatorPage() {
                       value={track.type}
                       onChange={e => updateTrack(idx, 'type', e.target.value)}
                       className="text-[15px] font-bold outline-none bg-transparent cursor-pointer"
-                      style={{ color: '#1c1917', fontFamily: 'var(--font-heebo)', border: 'none' }}
+                      style={{ color: 'var(--color-text)', fontFamily: 'var(--font-heebo)', border: 'none' }}
                     >
                       {trackTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
                     {isCpiLinked(track.type) && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: '#fef3c7', color: '#d97706' }}>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: 'var(--color-accent-bg)', color: 'var(--color-accent)' }}>
                         צמוד מדד
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[12px] px-2.5 py-1 rounded-full" style={{ background: '#f5f4f2', color: '#a8a29e' }}>
+                    <span className="text-[12px] px-2.5 py-1 rounded-full" style={{ background: 'var(--color-border-light)', color: 'var(--color-text-muted)' }}>
                       {pct}% מהלוואה
                     </span>
                     <button
                       onClick={() => removeTrack(idx)}
                       aria-label="הסר מסלול"
                       className="transition-colors hover:text-red-500"
-                      style={{ color: '#a8a29e' }}
+                      style={{ color: 'var(--color-text-muted)' }}
                     >
                       <X size={15} />
                     </button>
@@ -888,12 +890,12 @@ export default function MortgageCalculatorPage() {
                   />
                   {hasGrace && (
                     <div>
-                      <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e', letterSpacing: '0.03em' }}>סוג גרייס</label>
+                      <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)', letterSpacing: '0.03em' }}>סוג גרייס</label>
                       <select
                         value={track.graceType ?? 'חלקי'}
                         onChange={e => updateTrack(idx, 'graceType', e.target.value as GraceType)}
                         className="w-full py-2.5 px-3 text-[14px] outline-none"
-                        style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, background: '#fff', color: '#1c1917', fontFamily: 'var(--font-heebo)' }}
+                        style={{ border: '1.5px solid var(--color-border)', borderRadius: 10, background: 'var(--color-card)', color: 'var(--color-text)', fontFamily: 'var(--font-heebo)' }}
                       >
                         <option value="חלקי">חלקי (ריבית בלבד)</option>
                         <option value="מלא">מלא (קרן + ריבית נדחים)</option>
@@ -903,7 +905,7 @@ export default function MortgageCalculatorPage() {
                 </div>
 
                 {hasGrace && gracePayments && (
-                  <div className="mb-4 text-[12px] px-3 py-2 rounded-lg" style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}>
+                  <div className="mb-4 text-[12px] px-3 py-2 rounded-lg" style={{ background: 'var(--color-accent-bg)', color: '#b45309', border: '1px solid #fde68a' }}>
                     <span className="font-semibold">גרייס {track.graceType} · {track.graceMonths} חודשים: </span>
                     {track.graceType === 'מלא'
                       ? `ללא תשלום → ${formatCurrency(gracePayments.afterGrace)}/חודש לאחר מכן`
@@ -917,7 +919,7 @@ export default function MortgageCalculatorPage() {
                   className="flex items-center justify-between px-4 py-2.5 rounded-xl"
                   style={{ background: col + '12' }}
                 >
-                  <span className="text-[13px]" style={{ color: '#57534e' }}>תשלום חודשי</span>
+                  <span className="text-[13px]" style={{ color: 'var(--color-text-sub)' }}>תשלום חודשי</span>
                   <span className="font-black tabular-nums" style={{ fontSize: 18, color: col, fontFamily: 'var(--font-heebo)' }}>
                     {formatCurrency(Math.round(monthly))}
                   </span>
@@ -929,21 +931,21 @@ export default function MortgageCalculatorPage() {
           {/* Recommendations */}
           <div style={{ ...cardStyle, padding: '22px 24px' }}>
             <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 className="text-[14px] font-bold flex items-center gap-2" style={{ color: '#1c1917' }}>
-                <Sparkles size={15} style={{ color: '#d97706' }} />
+              <h3 className="text-[14px] font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+                <Sparkles size={15} style={{ color: 'var(--color-accent)' }} />
                 תמהילים מומלצים
               </h3>
               <div className="flex items-center gap-2">
-                <span className="text-[12px]" style={{ color: '#a8a29e' }}>תקופה</span>
+                <span className="text-[12px]" style={{ color: 'var(--color-text-muted)' }}>תקופה</span>
                 <select
                   value={recommendationMonths}
                   onChange={e => setRecommendationMonths(Number(e.target.value))}
                   className="py-1.5 px-2 text-[13px] outline-none"
                   style={{
-                    border: '1.5px solid #e7e5e4',
+                    border: '1.5px solid var(--color-border)',
                     borderRadius: 8,
-                    background: '#ffffff',
-                    color: '#1c1917',
+                    background: 'var(--color-card)',
+                    color: 'var(--color-text)',
                     fontFamily: 'var(--font-heebo)',
                   }}
                 >
@@ -966,19 +968,19 @@ export default function MortgageCalculatorPage() {
                     className="text-right p-3 transition-all duration-150"
                     style={{
                       borderRadius: 12,
-                      border: `2px solid ${active ? '#059669' : '#e7e5e4'}`,
-                      background: active ? '#d1fae5' : '#faf9f7',
+                      border: `2px solid ${active ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                      background: active ? 'var(--color-success-bg)' : 'var(--color-bg)',
                     }}
                   >
-                    <p className="text-[13px] font-semibold" style={{ color: '#1c1917' }}>{rec.name}</p>
-                    <p className="text-[13px] font-black mt-1" style={{ color: '#059669' }}>{formatCurrency(Math.round(monthly))}/חודש</p>
-                    <p className="text-[11px] mt-1" style={{ color: '#a8a29e' }}>{rec.tracks.length} מסלולים</p>
+                    <p className="text-[13px] font-semibold" style={{ color: 'var(--color-text)' }}>{rec.name}</p>
+                    <p className="text-[13px] font-black mt-1" style={{ color: 'var(--color-primary)' }}>{formatCurrency(Math.round(monthly))}/חודש</p>
+                    <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-muted)' }}>{rec.tracks.length} מסלולים</p>
                   </button>
                 )
               })}
             </div>
             {(!liveRates || liveRates.prime == null) && (
-              <p className="text-[11px] mt-3" style={{ color: '#a8a29e' }}>
+              <p className="text-[11px] mt-3" style={{ color: 'var(--color-text-muted)' }}>
                 ריביות להמחשה בלבד — לא נטענו ריביות מערכת עדכניות לכל המסלולים (כולל פריים).
               </p>
             )}
@@ -987,11 +989,11 @@ export default function MortgageCalculatorPage() {
           {/* Amortization chart */}
           <div style={{ ...cardStyle, padding: '22px 24px' }}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[14px] font-bold" style={{ color: '#1c1917' }}>גרף החזרים לאורך זמן</h3>
+              <h3 className="text-[14px] font-bold" style={{ color: 'var(--color-text)' }}>גרף החזרים לאורך זמן</h3>
               <button
                 onClick={() => setShowAmortization(!showAmortization)}
                 className="text-[13px] font-medium underline transition-colors"
-                style={{ color: '#059669' }}
+                style={{ color: 'var(--color-primary)' }}
               >
                 {showAmortization ? 'הסתר' : 'הצג'} לוח סילוקין
               </button>
@@ -999,20 +1001,20 @@ export default function MortgageCalculatorPage() {
             {showAmortization && amortizationData.length > 0 && (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={amortizationData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
-                  <XAxis dataKey="year" label={{ value: 'שנה', position: 'bottom' }} tick={{ fontSize: 11, fill: '#a8a29e' }} />
-                  <YAxis tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 11, fill: '#a8a29e' }} axisLine={false} tickLine={false} />
+                  <CartesianGrid {...chart.grid} />
+                  <XAxis dataKey="year" label={{ value: 'שנה', position: 'bottom' }} tick={chart.tick(11)} />
+                  <YAxis tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} tick={chart.tick(11)} axisLine={false} tickLine={false} />
                   <Tooltip
                     formatter={(v) => formatCurrency(v as number)}
-                    contentStyle={{ borderRadius: 10, border: '1px solid #e7e5e4', fontSize: 12 }}
+                    contentStyle={chart.tooltip}
                   />
-                  <Bar dataKey="principal" name="קרן"   fill="#059669" stackId="a" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="principal" name="קרן"   fill={chart.series} stackId="a" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="interest"  name="ריבית" fill="#d97706" stackId="a" />
                 </BarChart>
               </ResponsiveContainer>
             )}
             {!showAmortization && (
-              <div className="flex items-center justify-center h-16 text-[13px]" style={{ color: '#a8a29e' }}>
+              <div className="flex items-center justify-center h-16 text-[13px]" style={{ color: 'var(--color-text-muted)' }}>
                 לחץ "הצג לוח סילוקין" כדי לראות את הגרף
               </div>
             )}

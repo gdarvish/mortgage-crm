@@ -3,13 +3,19 @@ import Header from '@/components/layout/Header'
 
 export default function AppLayout() {
   return (
-    <div className="min-h-screen overflow-x-hidden" style={{ background: '#faf9f7' }} dir="rtl">
+    <div
+      className="min-h-screen overflow-x-hidden"
+      style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}
+      dir="rtl"
+    >
 
       {/* Full-width layout: TopNav + content */}
       <div className="flex flex-col min-h-screen">
         <Header />
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-7 w-full max-w-full overflow-x-hidden">
+        {/* Padding belongs to the page shell (.crm-page), so a page can
+            run edge to edge when it needs to. */}
+        <main className="flex-1 w-full max-w-full overflow-x-hidden">
           <Outlet />
         </main>
       </div>

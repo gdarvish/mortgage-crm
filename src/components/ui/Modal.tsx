@@ -10,7 +10,7 @@ export interface ModalProps {
   description?: string
   children: React.ReactNode
   className?: string
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 }
 
 const sizeClasses = {
@@ -18,6 +18,8 @@ const sizeClasses = {
   md: 'max-w-md',
   lg: 'max-w-lg',
   xl: 'max-w-xl',
+  // Wide enough for the multi-column rate editor.
+  '2xl': 'max-w-3xl',
 }
 
 function Modal({ open, onClose, title, description, children, className, size = 'md' }: ModalProps) {
@@ -57,21 +59,21 @@ function Modal({ open, onClose, title, description, children, className, size = 
         aria-labelledby={title ? 'modal-title' : undefined}
         aria-describedby={description ? 'modal-description' : undefined}
         className={cn(
-          'relative z-10 w-full rounded-xl bg-white shadow-xl animate-in zoom-in-95 fade-in duration-200',
+          'relative z-10 w-full rounded-xl bg-[var(--color-card)] shadow-xl animate-in zoom-in-95 fade-in duration-200',
           sizeClasses[size],
           className
         )}
       >
         {/* Header */}
         {(title || description) && (
-          <div className="border-b border-gray-100 p-6 pb-4">
+          <div className="border-b border-[var(--color-border-light)] p-6 pb-4">
             {title && (
-              <h2 id="modal-title" className="text-lg font-semibold text-gray-900">
+              <h2 id="modal-title" className="text-lg font-semibold text-[var(--color-text)]">
                 {title}
               </h2>
             )}
             {description && (
-              <p id="modal-description" className="mt-1 text-sm text-gray-500">
+              <p id="modal-description" className="mt-1 text-sm text-[var(--color-text-muted)]">
                 {description}
               </p>
             )}
@@ -81,7 +83,7 @@ function Modal({ open, onClose, title, description, children, className, size = 
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute start-4 top-4 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          className="absolute start-4 top-4 rounded-md p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-pill-bg)] hover:text-[var(--color-text-sub)]"
           aria-label="סגור"
         >
           <X className="h-4 w-4" />

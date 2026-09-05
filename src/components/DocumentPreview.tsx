@@ -31,28 +31,28 @@ export function DocumentPreview({ url, filename, onClose }: DocumentPreviewProps
       dir="rtl"
     >
       <div
-        className="bg-white w-full max-w-4xl max-h-[90vh] overflow-auto"
+        className="bg-[var(--color-card)] w-full max-w-4xl max-h-[90vh] overflow-auto"
         style={{ borderRadius: 16 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: '#f5f4f2' }}>
-          <h3 className="font-semibold text-sm truncate" style={{ color: '#1c1917' }}>{filename}</h3>
+        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--color-border-light)' }}>
+          <h3 className="font-semibold text-sm truncate" style={{ color: 'var(--color-text)' }}>{filename}</h3>
           <div className="flex gap-1">
             <a
               href={url}
               download={filename}
               target="_blank"
               rel="noreferrer"
-              className="p-2 rounded-lg hover:bg-gray-100"
-              style={{ color: '#57534e' }}
+              className="p-2 rounded-lg hover:bg-[var(--color-pill-bg)]"
+              style={{ color: 'var(--color-text-sub)' }}
               aria-label="הורד"
             >
               <Download size={18} />
             </a>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-gray-100"
-              style={{ color: '#57534e' }}
+              className="p-2 rounded-lg hover:bg-[var(--color-pill-bg)]"
+              style={{ color: 'var(--color-text-sub)' }}
               aria-label="סגור"
             >
               <X size={18} />
@@ -66,8 +66,8 @@ export function DocumentPreview({ url, filename, onClose }: DocumentPreviewProps
               <Document
                 file={url}
                 onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-                loading={<div className="py-12 text-sm" style={{ color: '#a8a29e' }}>טוען מסמך...</div>}
-                error={<div className="py-12 text-sm" style={{ color: '#dc2626' }}>לא ניתן להציג את המסמך</div>}
+                loading={<div className="py-12 text-sm" style={{ color: 'var(--color-text-muted)' }}>טוען מסמך...</div>}
+                error={<div className="py-12 text-sm" style={{ color: 'var(--color-danger)' }}>לא ניתן להציג את המסמך</div>}
               >
                 <Page pageNumber={pageNumber} width={Math.min(760, window.innerWidth - 96)} />
               </Document>
@@ -76,18 +76,18 @@ export function DocumentPreview({ url, filename, onClose }: DocumentPreviewProps
                   <button
                     disabled={pageNumber <= 1}
                     onClick={() => setPageNumber((p) => p - 1)}
-                    className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-40"
-                    style={{ color: '#57534e' }}
+                    className="p-1.5 rounded-lg hover:bg-[var(--color-pill-bg)] disabled:opacity-40"
+                    style={{ color: 'var(--color-text-sub)' }}
                     aria-label="עמוד קודם"
                   >
                     <ChevronRight size={20} />
                   </button>
-                  <span className="text-sm" style={{ color: '#57534e' }}>{pageNumber} / {numPages}</span>
+                  <span className="text-sm" style={{ color: 'var(--color-text-sub)' }}>{pageNumber} / {numPages}</span>
                   <button
                     disabled={pageNumber >= numPages}
                     onClick={() => setPageNumber((p) => p + 1)}
-                    className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-40"
-                    style={{ color: '#57534e' }}
+                    className="p-1.5 rounded-lg hover:bg-[var(--color-pill-bg)] disabled:opacity-40"
+                    style={{ color: 'var(--color-text-sub)' }}
                     aria-label="עמוד הבא"
                   >
                     <ChevronLeft size={20} />
@@ -101,8 +101,8 @@ export function DocumentPreview({ url, filename, onClose }: DocumentPreviewProps
 
           {!isPdf && !isImage && (
             <div className="text-center py-12">
-              <p className="text-sm mb-2" style={{ color: '#57534e' }}>תצוגה מקדימה לא זמינה עבור סוג קובץ זה.</p>
-              <a href={url} target="_blank" rel="noreferrer" className="text-sm underline" style={{ color: '#059669' }}>
+              <p className="text-sm mb-2" style={{ color: 'var(--color-text-sub)' }}>תצוגה מקדימה לא זמינה עבור סוג קובץ זה.</p>
+              <a href={url} target="_blank" rel="noreferrer" className="text-sm underline" style={{ color: 'var(--color-primary)' }}>
                 הורד את הקובץ
               </a>
             </div>

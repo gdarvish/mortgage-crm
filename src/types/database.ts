@@ -172,8 +172,22 @@ export interface Customer {
   requested_amount?: number | null
   portal_token?: string | null
   portal_token_expires_at?: string | null
+  /** Household budget captured on the family economics page. */
+  financial_data?: FinancialData | null
   created_at: string
   updated_at: string
+}
+
+/** The expense buckets the family economics calculator works in. */
+export type ExpenseCategory = 'דיור' | 'מזון' | 'רכב' | 'חינוך' | 'בילויים' | 'חיסכון' | 'אחר'
+
+/** A household budget, stored on the customer document. */
+export interface FinancialData {
+  income1?: number
+  income2?: number
+  mortgagePayment?: number
+  expenses?: Array<{ category: ExpenseCategory; amount: number }>
+  updated_at?: string
 }
 
 export type CustomerStatus = 'ליד' | 'פגישה' | 'מסמכים' | 'הגשה' | 'אישור' | 'ביצוע' | 'סגירה'
@@ -579,4 +593,36 @@ export interface AuditLogEntry {
   changes: Record<string, { from: unknown; to: unknown }>
   changed_fields: string[]
   changed_at: string
+}
+
+/** One bank's quoted rates, as maintained by the advisor. */
+export interface BankRate {
+  bank: string
+  /** פריים */
+  prime: number
+  /** קל"צ — קבועה לא צמודה */
+  fixedNonLinked: number
+  /** קל"ב — קבועה צמודה */
+  fixedLinked: number
+  /** מ"צ — משתנה צמודה */
+  variableLinked: number
+  /** מ"ל — משתנה לא צמודה */
+  variableNotLinked: number
+}
+
+/**
+ * The advisor's own rate board, stored at users/{uid}/settings/rates.
+ *
+ * Distinct from the `interest_rates` collection: that one holds the
+ * admin-published rates the calculator and the refinance engine consume,
+ * while this is the per-advisor comparison table shown on the rates page.
+ */
+export interface RatesDoc {
+  bankRates: BankRate[]
+  prime: number
+  boiRate: number
+  /** Last published CPI, in percent. */
+  lastCpi: number
+  /** ISO timestamp of the last save; empty string means never saved. */
+  updated_at: string
 }

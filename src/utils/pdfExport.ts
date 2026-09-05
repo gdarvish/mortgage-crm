@@ -407,3 +407,85 @@ export async function exportVersionComparisonPdf(data: VersionComparisonPdfData)
     `mix-versions-${new Date().toISOString().slice(0, 10)}.pdf`,
   )
 }
+
+// ── Family economics PDF ─────────────────────────────────────────────────────
+
+export interface FamilyEconomicsPdfData {
+  customerName?: string
+  income1: number
+  income2: number
+  mortgagePayment: number
+  expenses: { label: string; amount: number }[]
+  totalIncome: number
+  totalExpenses: number
+  totalWithMortgage: number
+  remaining: number
+  dti: number
+  message: string
+}
+
+function buildFamilyEconomicsHtml(data: FamilyEconomicsPdfData): string {
+  const date = new Date().toLocaleDateString('he-IL')
+  const th = `padding:8px 10px;font-size:12px;font-weight:700;color:#ffffff;background:${GREEN};text-align:right;`
+  const td = `padding:8px 10px;font-size:13px;color:${INK};border-bottom:1px solid ${LINE};text-align:right;`
+  const amountTd = `${td}text-align:left;font-weight:700;`
+
+  const expenseRows = data.expenses
+    .map(e => `<tr><td style="${td}">${esc(e.label)}</td><td style="${amountTd}">${formatCurrency(e.amount)}</td></tr>`)
+    .join('')
+
+  const summaryRow = (label: string, value: string, strong = false) =>
+    `<tr><td style="${td}${strong ? 'font-weight:700;' : ''}">${esc(label)}</td><td style="${amountTd}">${value}</td></tr>`
+
+  return `<div dir="rtl" style="font-family:'Heebo','Arial',sans-serif;background:#ffffff;color:${INK};padding:40px;width:794px;box-sizing:border-box;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid ${GREEN};padding-bottom:16px;margin-bottom:22px;">
+      <div>
+        <div style="font-size:24px;font-weight:800;color:${GREEN};">כלכלת המשפחה</div>
+        <div style="font-size:12px;color:${MUTED};margin-top:4px;">ניתוח הכנסות, הוצאות ויכולת עמידה במשכנתא</div>
+      </div>
+      <div style="font-size:13px;color:#57534e;text-align:left;">
+        ${data.customerName ? `<div style="font-weight:700;">${esc(data.customerName)}</div>` : ''}
+        <div>תאריך: ${date}</div>
+      </div>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;margin-bottom:22px;">
+      <thead><tr><th style="${th}">הכנסות</th><th style="${th}text-align:left;">סכום</th></tr></thead>
+      <tbody>
+        ${summaryRow('הכנסה לווה 1', formatCurrency(data.income1))}
+        ${summaryRow('הכנסה לווה 2', formatCurrency(data.income2))}
+        ${summaryRow('סה"כ הכנסות', formatCurrency(data.totalIncome), true)}
+      </tbody>
+    </table>
+
+    <table style="width:100%;border-collapse:collapse;margin-bottom:22px;">
+      <thead><tr><th style="${th}">הוצאות חודשיות</th><th style="${th}text-align:left;">סכום</th></tr></thead>
+      <tbody>
+        ${expenseRows}
+        ${summaryRow('החזר משכנתא', formatCurrency(data.mortgagePayment))}
+        ${summaryRow('סה"כ הוצאות כולל משכנתא', formatCurrency(data.totalWithMortgage), true)}
+      </tbody>
+    </table>
+
+    <table style="width:100%;border-collapse:collapse;margin-bottom:18px;">
+      <tbody>
+        ${summaryRow('נשאר פנוי בחודש', formatCurrency(data.remaining), true)}
+        ${summaryRow('שיעור ההחזר מההכנסה', `${data.dti.toFixed(1)}%`, true)}
+      </tbody>
+    </table>
+
+    <div style="font-size:14px;font-weight:700;color:${GREEN};margin-bottom:18px;">${esc(data.message)}</div>
+
+    <div style="font-size:11px;color:${MUTED};border-top:1px solid ${LINE};padding-top:12px;line-height:1.6;">
+      הנתונים מבוססים על הצהרת הלקוח נכון לתאריך ההפקה ואינם מהווים אישור אשראי.
+      שיעור ההחזר בפועל ייקבע על ידי הבנק בהתאם לבדיקת הזכאות.
+    </div>
+  </div>`
+}
+
+export async function exportFamilyEconomicsPdf(data: FamilyEconomicsPdfData): Promise<void> {
+  await renderHtmlToPdf(
+    buildFamilyEconomicsHtml(data),
+    `family-economics-${new Date().toISOString().slice(0, 10)}.pdf`,
+  )
+}

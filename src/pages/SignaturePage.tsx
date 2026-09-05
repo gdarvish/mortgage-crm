@@ -107,7 +107,7 @@ export default function SignaturePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center p-4">
         <Loader2 size={32} className="text-emerald-600 animate-spin" />
       </div>
     )
@@ -115,11 +115,11 @@ export default function SignaturePage() {
 
   if (loadError) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" dir="rtl">
-        <div className="bg-white rounded-2xl shadow-lg p-8 text-center max-w-md">
+      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center p-4" dir="rtl">
+        <div className="bg-[var(--color-card)] rounded-2xl shadow-lg p-8 text-center max-w-md">
           <AlertCircle size={56} className="mx-auto text-red-500 mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">לא ניתן לטעון את המסמך</h1>
-          <p className="text-gray-600">{loadError}</p>
+          <h1 className="text-2xl font-bold text-[var(--color-text)] mb-2">לא ניתן לטעון את המסמך</h1>
+          <p className="text-[var(--color-text-sub)]">{loadError}</p>
         </div>
       </div>
     )
@@ -128,62 +128,62 @@ export default function SignaturePage() {
   if (submitted) {
     return (
       <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-4" dir="rtl">
-        <div className="bg-white rounded-2xl shadow-lg p-8 text-center max-w-md">
+        <div className="bg-[var(--color-card)] rounded-2xl shadow-lg p-8 text-center max-w-md">
           <CheckCircle size={64} className="mx-auto text-emerald-600 mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">המסמך נחתם!</h1>
-          <p className="text-gray-600">החתימה שלך נשמרה בהצלחה. יועץ המשכנתאות שלך יקבל על כך הודעה. תודה!</p>
+          <h1 className="text-2xl font-bold text-[var(--color-text)] mb-2">המסמך נחתם!</h1>
+          <p className="text-[var(--color-text-sub)]">החתימה שלך נשמרה בהצלחה. יועץ המשכנתאות שלך יקבל על כך הודעה. תודה!</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4" dir="rtl">
+    <div className="min-h-screen bg-[var(--color-bg)] py-8 px-4" dir="rtl">
       <div className="max-w-lg mx-auto">
         <div className="text-center mb-6">
           <div className="w-12 h-12 bg-emerald-600 rounded-xl mx-auto mb-3 flex items-center justify-center">
             <PenTool size={24} className="text-white" />
           </div>
-          <h1 className="text-xl font-bold text-gray-900">חתימה דיגיטלית</h1>
-          <p className="text-sm text-gray-500">{request?.document_name}</p>
+          <h1 className="text-xl font-bold text-[var(--color-text)]">חתימה דיגיטלית</h1>
+          <p className="text-sm text-[var(--color-text-muted)]">{request?.document_name}</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h2 className="font-semibold text-gray-900 mb-1">{request?.document_name || 'מסמך לחתימה'}</h2>
+        <div className="bg-[var(--color-card)] rounded-2xl shadow-sm p-6 space-y-4">
+          <div className="bg-[var(--color-bg)] rounded-lg p-4">
+            <h2 className="font-semibold text-[var(--color-text)] mb-1">{request?.document_name || 'מסמך לחתימה'}</h2>
             {request?.customer_name && (
-              <p className="text-sm text-gray-600">לקוח: {request.customer_name}</p>
+              <p className="text-sm text-[var(--color-text-sub)]">לקוח: {request.customer_name}</p>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">שם מלא *</label>
+            <label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">שם מלא *</label>
             <input
               type="text"
               value={signerName}
               onChange={(e) => setSignerName(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               placeholder="ישראל ישראלי"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ת.ז *</label>
+            <label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">ת.ז *</label>
             <input
               type="text"
               dir="ltr"
               value={signerId}
               onChange={(e) => setSignerId(e.target.value)}
               maxLength={9}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               placeholder="000000000"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">חתימה *</label>
+            <label className="block text-sm font-medium text-[var(--color-text-sub)] mb-1">חתימה *</label>
             <div
               ref={wrapRef}
-              className="border-2 border-dashed border-gray-300 rounded-lg overflow-hidden bg-white"
+              className="border-2 border-dashed border-[var(--color-border)] rounded-lg overflow-hidden bg-[var(--color-card)]"
               style={{ touchAction: 'none' }}
             >
               <SignatureCanvas
@@ -195,7 +195,7 @@ export default function SignaturePage() {
             </div>
             <button
               onClick={clearCanvas}
-              className="mt-2 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-800"
+              className="mt-2 inline-flex items-center gap-1 text-sm text-[var(--color-text-sub)] hover:text-[var(--color-text)]"
             >
               <RotateCcw size={14} /> נקה חתימה
             </button>

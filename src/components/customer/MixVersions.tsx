@@ -215,16 +215,16 @@ export function MixVersions({ snapshot, customerName, onOpenVersion }: Props) {
   if (columns.length < 2) return null
 
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
-      <div className="bg-gray-50 px-4 py-3 flex items-center justify-between gap-3">
-        <h4 className="font-medium text-gray-900 flex items-center gap-2">
-          <GitBranch size={16} className="text-[#059669]" />
+    <div className="border border-[var(--color-border)] rounded-xl overflow-hidden">
+      <div className="bg-[var(--color-bg)] px-4 py-3 flex items-center justify-between gap-3">
+        <h4 className="font-medium text-[var(--color-text)] flex items-center gap-2">
+          <GitBranch size={16} className="text-[var(--color-primary)]" />
           השוואת גרסאות תמהיל
         </h4>
         <button
           onClick={exportPdf}
           disabled={exporting}
-          className="inline-flex items-center gap-1.5 text-sm text-[#059669] hover:text-[#047857] transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition-colors disabled:opacity-50"
         >
           {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
           ייצוא PDF
@@ -234,18 +234,18 @@ export function MixVersions({ snapshot, customerName, onOpenVersion }: Props) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100">
-              <th className="text-right p-3 font-medium text-gray-600 whitespace-nowrap">מדד</th>
+            <tr className="border-b border-[var(--color-border-light)]">
+              <th className="text-right p-3 font-medium text-[var(--color-text-sub)] whitespace-nowrap">מדד</th>
               {columns.map(c => (
-                <th key={c.mortgage.id} className="text-right p-3 font-medium text-gray-900 whitespace-nowrap">
+                <th key={c.mortgage.id} className="text-right p-3 font-medium text-[var(--color-text)] whitespace-nowrap">
                   <button
                     onClick={() => onOpenVersion(c.mortgage.id)}
-                    className="text-right hover:text-[#059669] transition-colors"
+                    className="text-right hover:text-[var(--color-primary)] transition-colors"
                   >
                     <span className="block">
                       v{c.mortgage.version ?? 1} {c.mortgage.version_label ?? ''}
                     </span>
-                    <span className="block text-xs font-normal text-gray-400">
+                    <span className="block text-xs font-normal text-[var(--color-text-muted)]">
                       {SOURCE_LABELS[c.mortgage.source ?? 'advisor']} · {formatDate(c.mortgage.created_at)}
                     </span>
                   </button>
@@ -257,21 +257,21 @@ export function MixVersions({ snapshot, customerName, onOpenVersion }: Props) {
             {rows.map(row => {
               const best = bestIndex(row)
               return (
-                <tr key={row.label} className="border-b border-gray-50">
-                  <td className="p-3 text-gray-600 whitespace-nowrap">{row.label}</td>
+                <tr key={row.label} className="border-b border-[var(--color-border-light)]">
+                  <td className="p-3 text-[var(--color-text-sub)] whitespace-nowrap">{row.label}</td>
                   {columns.map((c, i) => {
                     const delta = deltaFromFirst(row, i)
                     const isBest = best === i
                     return (
                       <td
                         key={c.mortgage.id}
-                        className={`p-3 whitespace-nowrap ${isBest ? 'font-bold text-[#047857]' : 'text-gray-900'}`}
+                        className={`p-3 whitespace-nowrap ${isBest ? 'font-bold text-[var(--color-primary-hover)]' : 'text-[var(--color-text)]'}`}
                       >
                         {row.value(c)}
                         {delta && (
                           <span
                             className="block text-xs font-normal"
-                            style={{ color: delta.startsWith('+') ? '#b45309' : '#059669' }}
+                            style={{ color: delta.startsWith('+') ? 'var(--color-warning)' : 'var(--color-primary)' }}
                           >
                             {delta}
                           </span>
@@ -287,7 +287,7 @@ export function MixVersions({ snapshot, customerName, onOpenVersion }: Props) {
       </div>
 
       {columns.some(c => !c.fromSnapshot) && (
-        <p className="px-4 py-2 text-xs text-gray-400 border-t border-gray-100">
+        <p className="px-4 py-2 text-xs text-[var(--color-text-muted)] border-t border-[var(--color-border-light)]">
           גרסאות שנשמרו לפני הוספת ההיסטוריה מחושבות מחדש לפי נתוני התיק הנוכחיים.
         </p>
       )}

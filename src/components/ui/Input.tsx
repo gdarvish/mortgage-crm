@@ -18,7 +18,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="mb-1.5 block text-sm font-medium text-gray-700"
+            className="mb-1.5 block text-sm font-medium text-[var(--color-text-sub)]"
           >
             {label}
           </label>
@@ -27,8 +27,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           id={inputId}
           className={cn(
-            'block w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-0 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-50',
-            computedVariant === 'default' && 'border-gray-300 focus:border-[#059669] focus:ring-[#059669]/20',
+            'block w-full rounded-lg border bg-[var(--color-card)] px-3 py-2 text-sm text-[var(--color-text)] transition-colors placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-offset-0 disabled:cursor-not-allowed disabled:bg-[var(--color-bg)] disabled:opacity-50',
+            computedVariant === 'default' && 'border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)]/20',
             computedVariant === 'error' && 'border-red-500 focus:border-red-500 focus:ring-red-500/20',
             computedVariant === 'success' && 'border-green-500 focus:border-green-500 focus:ring-green-500/20',
             className
@@ -39,7 +39,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <p className="mt-1 text-sm text-red-600">{error}</p>
         )}
         {helperText && !error && (
-          <p className="mt-1 text-sm text-gray-500">{helperText}</p>
+          <p className="mt-1 text-sm text-[var(--color-text-muted)]">{helperText}</p>
         )}
       </div>
     )

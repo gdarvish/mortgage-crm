@@ -10,6 +10,7 @@
   /* Brand */
   --color-primary: #059669;
   --color-primary-hover: #047857;
+  --color-primary-text: #ffffff;
 
   /* Page */
   --color-bg: #faf9f7;
@@ -29,73 +30,103 @@
   --color-danger-bg: #fee2e2;
   --color-success: #059669;
   --color-success-bg: #d1fae5;
+  --color-warning: #d97706;
+  --color-warning-bg: #fef3c7;
+  --color-info: #0ea5e9;
+  --color-info-bg: #e0f2fe;
+
+  /* Surfaces */
+  --color-input-bg: #faf9f7;
+  --color-pill-bg: #f5f4f2;
+  --color-pill-text: #57534e;
 
   /* Fonts */
   --font-heebo: "Heebo", sans-serif;
   --font-assistant: "Assistant", sans-serif;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/*
+ * These values are the "earth" theme, and ThemeProvider overwrites every one
+ * of them on :root at runtime when another theme is chosen — so anything
+ * styled with var(--color-*) follows the theme automatically. The literals
+ * above are the pre-paint default and must stay in step with THEMES.earth.
+ */
+:root {
+  --shadow-card: 0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07);
+  --shadow-card-hover: 0 4px 24px rgba(28,25,23,0.14);
 }
 
-html {
-  direction: rtl;
-  overflow-x: hidden;
-  max-width: 100vw;
-}
+/*
+ * The element reset lives inside @layer base on purpose. Tailwind 4 puts its
+ * utilities in @layer utilities, and *unlayered CSS beats every layer* — an
+ * unlayered `* { padding: 0 }` silently wins over p-8, px-4 and every other
+ * spacing utility in the app. Same for the input font-size and the heading
+ * font-family below.
+ */
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 
-body {
-  font-family: var(--font-heebo);
-  background-color: #faf9f7;
-  color: #1c1917;
-  min-height: 100vh;
-  overflow-x: hidden;
-  max-width: 100vw;
-}
+  html {
+    direction: rtl;
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
 
-#root {
-  overflow-x: hidden;
-  max-width: 100vw;
+  body {
+    font-family: var(--font-heebo);
+    background-color: #faf9f7;
+    color: #1c1917;
+    min-height: 100vh;
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  #root {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  /* 16px keeps iOS Safari from zooming the page on focus. */
+  input, select, textarea {
+    font-size: 16px;
+  }
+
+  @media (min-width: 640px) {
+    input, select, textarea {
+      font-size: 14px;
+    }
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heebo);
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--color-border-light);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #d6d3d1;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
+  }
 }
 
 .table-responsive {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-}
-
-input, select, textarea {
-  font-size: 16px;
-}
-
-@media (min-width: 640px) {
-  input, select, textarea {
-    font-size: 14px;
-  }
-}
-
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-heebo);
-}
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f5f4f2;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #d6d3d1;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #a8a29e;
 }
 
 @keyframes fadeUp {
@@ -108,8 +139,9 @@ h1, h2, h3, h4, h5, h6 {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* The document is dir="rtl", so content enters from the right: positive X. */
 @keyframes slideInRight {
-  from { opacity: 0; transform: translateX(-16px); }
+  from { opacity: 0; transform: translateX(16px); }
   to   { opacity: 1; transform: translateX(0); }
 }
 
@@ -145,6 +177,11 @@ h1, h2, h3, h4, h5, h6 {
   50% { opacity: 0.7; }
 }
 
+@keyframes navUnderlineSlide {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
 }
@@ -162,4 +199,97 @@ h1, h2, h3, h4, h5, h6 {
   background-size: 200% 100%;
   animation: pulse-soft 1.5s ease-in-out infinite;
   border-radius: 4px;
+}
+
+/* ── Design system ─────────────────────────────────────────────────────────
+ * Everything below draws on the theme tokens, so a theme switch carries the
+ * whole surface with it. Prefer these classes over repeating a `cardStyle`
+ * object in each page.
+ */
+
+/* The standard page shell: centred, with padding that opens up on wider
+ * screens. Replaces the per-page `max-w-[1360px] mx-auto`. */
+.crm-page {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+.crm-page-narrow {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+@media (min-width: 640px) {
+  .crm-page, .crm-page-narrow { padding: 28px 24px; }
+}
+@media (min-width: 1024px) {
+  .crm-page, .crm-page-narrow { padding: 28px 32px; }
+}
+
+.crm-card {
+  background: var(--color-card, var(--color-card));
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-card);
+}
+
+.crm-btn {
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.crm-btn:active { transform: scale(0.95); }
+
+/* A light sweep across a primary button on hover. */
+.crm-btn-primary {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+.crm-btn-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.28) 50%, transparent 100%);
+  transform: translateX(150%);
+  pointer-events: none;
+}
+.crm-btn-primary:hover::after { animation: shimmerSlide 0.55s ease; }
+.crm-btn-primary:active { transform: scale(0.96); }
+
+.crm-card-lift {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+}
+.crm-card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.crm-urgent { animation: urgentPulse 2s ease-in-out infinite; }
+.crm-row-hover { transition: background 0.12s ease; }
+.crm-row-hover:hover { background: var(--color-bg); }
+.crm-check-bounce { animation: checkBounce 0.38s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.crm-trend-pop { animation: trendPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.6s backwards; }
+
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Slim, visible horizontal scrollbar for the dark nav strip. */
+.crm-nav-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.25) transparent; }
+.crm-nav-scroll::-webkit-scrollbar { height: 5px; }
+.crm-nav-scroll::-webkit-scrollbar-track { background: transparent; }
+.crm-nav-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.22); border-radius: 3px; }
+.crm-nav-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+
+/*
+ * Motion is decoration here — none of it carries meaning that the static
+ * page does not. A viewer who has asked the OS for less of it gets none.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .crm-card-lift:hover { transform: none; }
+  .crm-btn:active, .crm-btn-primary:active { transform: none; }
 }

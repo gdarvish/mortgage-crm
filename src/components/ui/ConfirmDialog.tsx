@@ -43,8 +43,8 @@ export function ConfirmDialog({
           <AlertTriangle className={styles.icon} size={22} />
         </div>
         <div>
-          <h3 className="text-lg font-bold text-gray-900 mb-1">{title}</h3>
-          <p className="text-sm text-gray-600">{message}</p>
+          <h3 className="text-lg font-bold text-[var(--color-text)] mb-1">{title}</h3>
+          <p className="text-sm text-[var(--color-text-sub)]">{message}</p>
         </div>
       </div>
       <div className="mt-6 flex justify-end gap-2">

@@ -11,7 +11,7 @@ import type { BankOffer, BankOfferTrack, LoanTrackType, MortgageWithTracks } fro
 const TRACK_TYPES: LoanTrackType[] = ['פריים', 'קל"צ', 'קל"ב', 'משתנה_צמודה', 'משתנה_לא_צמודה', 'זכאות']
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-[var(--color-border)] rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
 
 interface Props {
   customerId: string
@@ -175,7 +175,7 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center py-8"><Loader2 size={24} className="text-[#059669] animate-spin" /></div>
+    return <div className="flex items-center justify-center py-8"><Loader2 size={24} className="text-[var(--color-primary)] animate-spin" /></div>
   }
 
   const latest = latestOffersPerBank(offers)
@@ -185,25 +185,25 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
   const bestTotal = latest.length ? Math.min(...latest.map(o => totalsByBank.get(o.id)!.total)) : 0
 
   return (
-    <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+    <div className="border border-[var(--color-border)] rounded-xl p-4 space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h4 className="font-medium text-gray-900">השוואת הצעות בנקים</h4>
+        <h4 className="font-medium text-[var(--color-text)]">השוואת הצעות בנקים</h4>
         <div className="flex items-center gap-2">
           {offers.length > 0 && (
             <>
               <button onClick={() => setShowHistory(v => !v)}
-                className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+                className="inline-flex items-center gap-1.5 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-sub)] transition-colors">
                 <History size={15} /> {showHistory ? 'הסתר סבבים' : 'הצג היסטוריית סבבים'}
               </button>
               <button onClick={exportPdf}
-                className="inline-flex items-center gap-1.5 text-sm text-[#059669] hover:text-[#047857] transition-colors">
+                className="inline-flex items-center gap-1.5 text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition-colors">
                 <Download size={15} /> ייצא השוואה
               </button>
             </>
           )}
           {!showForm && (
             <button onClick={() => setShowForm(true)}
-              className="inline-flex items-center gap-1.5 bg-[#059669] text-white px-3 py-1.5 rounded-lg text-sm hover:bg-[#047857] transition-colors">
+              className="inline-flex items-center gap-1.5 bg-[var(--color-primary)] text-white px-3 py-1.5 rounded-lg text-sm hover:bg-[var(--color-primary-hover)] transition-colors">
               <Plus size={15} /> הצעה
             </button>
           )}
@@ -212,31 +212,31 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
 
       {/* Enter offer form */}
       {showForm && (
-        <div className="bg-gray-50 rounded-lg p-3 space-y-3">
+        <div className="bg-[var(--color-bg)] rounded-lg p-3 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">בנק</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">בנק</label>
               <input className={inputClass} value={bankName} onChange={e => setBankName(e.target.value)} placeholder="שם הבנק" />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">סבב</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">סבב</label>
               <input className={inputClass} type="number" min={1} dir="ltr" value={round} onChange={e => setRound(Math.max(1, +e.target.value))} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">תוקף ההצעה</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">תוקף ההצעה</label>
               <input className={inputClass} type="date" dir="ltr" value={validUntil} onChange={e => setValidUntil(e.target.value)} />
             </div>
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-gray-600">מסלולים</span>
-            <button onClick={copyFromMix} className="inline-flex items-center gap-1 text-xs text-[#059669] hover:underline">
+            <span className="text-xs font-medium text-[var(--color-text-sub)]">מסלולים</span>
+            <button onClick={copyFromMix} className="inline-flex items-center gap-1 text-xs text-[var(--color-primary)] hover:underline">
               <Copy size={13} /> העתק מהתמהיל
             </button>
           </div>
           {tracks.map((t, i) => (
             <div key={i} className="grid grid-cols-12 gap-2 items-center">
-              <select className={`${inputClass} col-span-4 bg-white`} value={t.type}
+              <select className={`${inputClass} col-span-4 bg-[var(--color-card)]`} value={t.type}
                 onChange={e => setTracks(tracks.map((x, j) => j === i ? { ...x, type: e.target.value as LoanTrackType } : x))}>
                 {TRACK_TYPES.map(tt => <option key={tt} value={tt}>{tt}</option>)}
               </select>
@@ -246,17 +246,17 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
                 onChange={e => setTracks(tracks.map((x, j) => j === i ? { ...x, interest_rate: +e.target.value } : x))} />
               <input className={`${inputClass} col-span-2`} type="number" dir="ltr" placeholder="חוד'" value={t.period_months || ''}
                 onChange={e => setTracks(tracks.map((x, j) => j === i ? { ...x, period_months: +e.target.value } : x))} />
-              <button onClick={() => setTracks(tracks.filter((_, j) => j !== i))} className="col-span-1 text-gray-300 hover:text-red-500">
+              <button onClick={() => setTracks(tracks.filter((_, j) => j !== i))} className="col-span-1 text-[var(--color-text-muted)] hover:text-red-500">
                 <Trash2 size={15} />
               </button>
             </div>
           ))}
-          <button onClick={() => setTracks([...tracks, emptyTrack()])} className="text-xs text-[#059669] hover:underline">+ הוסף מסלול</button>
+          <button onClick={() => setTracks([...tracks, emptyTrack()])} className="text-xs text-[var(--color-primary)] hover:underline">+ הוסף מסלול</button>
 
           <div className="flex gap-2 justify-end">
-            <button onClick={resetForm} className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">ביטול</button>
+            <button onClick={resetForm} className="px-4 py-2 rounded-lg text-sm text-[var(--color-text-sub)] bg-[var(--color-pill-bg)] hover:bg-[var(--color-border)] transition-colors">ביטול</button>
             <button onClick={save} disabled={saving}
-              className="inline-flex items-center gap-2 bg-[#059669] text-white px-4 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
+              className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm disabled:opacity-50">
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} שמור הצעה
             </button>
           </div>
@@ -264,7 +264,7 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
       )}
 
       {offers.length === 0 && !showForm && (
-        <p className="text-center text-sm text-gray-400 py-4">לא הוזנו הצעות בנקים</p>
+        <p className="text-center text-sm text-[var(--color-text-muted)] py-4">לא הוזנו הצעות בנקים</p>
       )}
 
       {/* Comparison table — latest round per bank */}
@@ -273,12 +273,12 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr>
-                <th className="text-right p-2 font-medium text-gray-600 border-b border-gray-100">מסלול</th>
+                <th className="text-right p-2 font-medium text-[var(--color-text-sub)] border-b border-[var(--color-border-light)]">מסלול</th>
                 {latest.map(o => (
-                  <th key={o.id} className="p-2 font-medium text-gray-700 border-b border-gray-100 text-center">
+                  <th key={o.id} className="p-2 font-medium text-[var(--color-text-sub)] border-b border-[var(--color-border-light)] text-center">
                     <div className="flex flex-col items-center gap-0.5">
                       <span>{o.bank_name}</span>
-                      <span className="text-[10px] text-gray-400">סבב {o.round}</span>
+                      <span className="text-[10px] text-[var(--color-text-muted)]">סבב {o.round}</span>
                       {o.status === 'נבחרה' && <span className="text-[10px] text-green-600 font-semibold">✓ נבחרה</span>}
                     </div>
                   </th>
@@ -288,25 +288,25 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
             <tbody>
               {trackTypesInComparison.map(type => (
                 <tr key={type}>
-                  <td className="p-2 text-gray-900 border-b border-gray-50">{type}</td>
+                  <td className="p-2 text-[var(--color-text)] border-b border-[var(--color-border-light)]">{type}</td>
                   {latest.map(o => {
                     const t = o.tracks.find(tr => tr.type === type)
-                    return <td key={o.id} className="p-2 text-center text-gray-700 border-b border-gray-50" dir="ltr">{t ? `${t.interest_rate.toFixed(2)}%` : '—'}</td>
+                    return <td key={o.id} className="p-2 text-center text-[var(--color-text-sub)] border-b border-[var(--color-border-light)]" dir="ltr">{t ? `${t.interest_rate.toFixed(2)}%` : '—'}</td>
                   })}
                 </tr>
               ))}
-              <tr className="bg-gray-50">
-                <td className="p-2 font-bold text-gray-900">החזר חודשי</td>
+              <tr className="bg-[var(--color-bg)]">
+                <td className="p-2 font-bold text-[var(--color-text)]">החזר חודשי</td>
                 {latest.map(o => {
                   const m = totalsByBank.get(o.id)!.monthly
-                  return <td key={o.id} className={`p-2 text-center font-bold ${m === bestMonthly ? 'bg-emerald-100 text-[#059669]' : 'text-gray-900'}`}>{formatCurrency(m)}</td>
+                  return <td key={o.id} className={`p-2 text-center font-bold ${m === bestMonthly ? 'bg-emerald-100 text-[var(--color-primary)]' : 'text-[var(--color-text)]'}`}>{formatCurrency(m)}</td>
                 })}
               </tr>
-              <tr className="bg-gray-50">
-                <td className="p-2 font-bold text-gray-900">עלות כוללת</td>
+              <tr className="bg-[var(--color-bg)]">
+                <td className="p-2 font-bold text-[var(--color-text)]">עלות כוללת</td>
                 {latest.map(o => {
                   const tot = totalsByBank.get(o.id)!.total
-                  return <td key={o.id} className={`p-2 text-center font-bold ${tot === bestTotal ? 'bg-emerald-100 text-[#059669]' : 'text-gray-900'}`}>{formatCurrency(tot)}</td>
+                  return <td key={o.id} className={`p-2 text-center font-bold ${tot === bestTotal ? 'bg-emerald-100 text-[var(--color-primary)]' : 'text-[var(--color-text)]'}`}>{formatCurrency(tot)}</td>
                 })}
               </tr>
               <tr>
@@ -316,11 +316,11 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
                     <div className="flex items-center justify-center gap-1">
                       {o.status !== 'נבחרה' && (
                         <button onClick={() => setChoosing(o)}
-                          className="inline-flex items-center gap-1 text-xs bg-[#059669] text-white px-2 py-1 rounded-lg hover:bg-[#047857] transition-colors">
+                          className="inline-flex items-center gap-1 text-xs bg-[var(--color-primary)] text-white px-2 py-1 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors">
                           <Award size={12} /> בחר
                         </button>
                       )}
-                      <button onClick={() => remove(o.id)} className="text-gray-300 hover:text-red-500"><Trash2 size={13} /></button>
+                      <button onClick={() => remove(o.id)} className="text-[var(--color-text-muted)] hover:text-red-500"><Trash2 size={13} /></button>
                     </div>
                   </td>
                 ))}
@@ -332,21 +332,21 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
 
       {/* Rounds history */}
       {showHistory && offers.length > 0 && (
-        <div className="border-t border-gray-100 pt-3">
-          <h5 className="text-xs font-semibold text-gray-500 mb-2">היסטוריית סבבים</h5>
+        <div className="border-t border-[var(--color-border-light)] pt-3">
+          <h5 className="text-xs font-semibold text-[var(--color-text-muted)] mb-2">היסטוריית סבבים</h5>
           <div className="space-y-2">
             {Array.from(new Set(offers.map(o => o.bank_name))).map(bank => {
               const bankOffers = offers.filter(o => o.bank_name === bank).sort((a, b) => a.round - b.round)
               return (
                 <div key={bank} className="text-sm">
-                  <span className="font-medium text-gray-700">{bank}:</span>{' '}
+                  <span className="font-medium text-[var(--color-text-sub)]">{bank}:</span>{' '}
                   {bankOffers.map((o, idx) => {
                     const prev = idx > 0 ? bankOffers[idx - 1] : null
                     const m = offerTotals(o).monthly
                     const improved = prev && m < offerTotals(prev).monthly
                     return (
                       <span key={o.id} className="inline-flex items-center gap-1 mr-2">
-                        <span className="text-gray-500">סבב {o.round}: {formatCurrency(m)}/חודש</span>
+                        <span className="text-[var(--color-text-muted)]">סבב {o.round}: {formatCurrency(m)}/חודש</span>
                         {improved && <ArrowDown size={12} className="text-green-600" />}
                       </span>
                     )
