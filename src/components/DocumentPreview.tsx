@@ -31,7 +31,7 @@ export function DocumentPreview({ url, filename, onClose }: DocumentPreviewProps
       dir="rtl"
     >
       <div
-        className="bg-white w-full max-w-4xl max-h-[90vh] overflow-auto"
+        className="bg-[var(--color-card)] w-full max-w-4xl max-h-[90vh] overflow-auto"
         style={{ borderRadius: 16 }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -43,7 +43,7 @@ export function DocumentPreview({ url, filename, onClose }: DocumentPreviewProps
               download={filename}
               target="_blank"
               rel="noreferrer"
-              className="p-2 rounded-lg hover:bg-gray-100"
+              className="p-2 rounded-lg hover:bg-[var(--color-pill-bg)]"
               style={{ color: 'var(--color-text-sub)' }}
               aria-label="הורד"
             >
@@ -51,7 +51,7 @@ export function DocumentPreview({ url, filename, onClose }: DocumentPreviewProps
             </a>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-gray-100"
+              className="p-2 rounded-lg hover:bg-[var(--color-pill-bg)]"
               style={{ color: 'var(--color-text-sub)' }}
               aria-label="סגור"
             >
@@ -76,7 +76,7 @@ export function DocumentPreview({ url, filename, onClose }: DocumentPreviewProps
                   <button
                     disabled={pageNumber <= 1}
                     onClick={() => setPageNumber((p) => p - 1)}
-                    className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-40"
+                    className="p-1.5 rounded-lg hover:bg-[var(--color-pill-bg)] disabled:opacity-40"
                     style={{ color: 'var(--color-text-sub)' }}
                     aria-label="עמוד קודם"
                   >
@@ -86,7 +86,7 @@ export function DocumentPreview({ url, filename, onClose }: DocumentPreviewProps
                   <button
                     disabled={pageNumber >= numPages}
                     onClick={() => setPageNumber((p) => p + 1)}
-                    className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-40"
+                    className="p-1.5 rounded-lg hover:bg-[var(--color-pill-bg)] disabled:opacity-40"
                     style={{ color: 'var(--color-text-sub)' }}
                     aria-label="עמוד הבא"
                   >

@@ -69,7 +69,7 @@ export default function ConsolidationCalculatorPage() {
     boxShadow: 'var(--shadow-card)',
     border: '1px solid var(--color-border)',
   }
-  const inputCls = 'w-full px-2 py-1.5 border border-[var(--color-border)] rounded-lg bg-white text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]'
+  const inputCls = 'w-full px-2 py-1.5 border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]'
 
   return (
     <div className="crm-page animate-fade-in space-y-5">
@@ -129,11 +129,11 @@ export default function ConsolidationCalculatorPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>ריבית איחוד %</label>
-            <input type="number" step="0.1" value={consolidatedRate} onChange={e => setConsolidatedRate(+e.target.value)} className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] bg-white" dir="ltr" />
+            <input type="number" step="0.1" value={consolidatedRate} onChange={e => setConsolidatedRate(+e.target.value)} className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] bg-[var(--color-card)]" dir="ltr" />
           </div>
           <div>
             <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>תקופה (חודשים)</label>
-            <input type="number" value={consolidatedMonths} onChange={e => setConsolidatedMonths(+e.target.value)} className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] bg-white" dir="ltr" />
+            <input type="number" value={consolidatedMonths} onChange={e => setConsolidatedMonths(+e.target.value)} className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] bg-[var(--color-card)]" dir="ltr" />
           </div>
         </div>
       </div>

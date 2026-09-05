@@ -95,14 +95,14 @@ function ToastCard({ item }: { item: ToastItem }) {
     >
       <span className="shrink-0 mt-0.5">{iconMap[item.type]}</span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900">{item.title}</p>
+        <p className="text-sm font-medium text-[var(--color-text)]">{item.title}</p>
         {item.description && (
-          <p className="mt-1 text-sm text-gray-600">{item.description}</p>
+          <p className="mt-1 text-sm text-[var(--color-text-sub)]">{item.description}</p>
         )}
       </div>
       <button
         onClick={() => removeToast(item.id)}
-        className="shrink-0 rounded p-0.5 text-gray-400 transition-colors hover:text-gray-600"
+        className="shrink-0 rounded p-0.5 text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-sub)]"
         aria-label="סגור"
       >
         <X className="h-4 w-4" />

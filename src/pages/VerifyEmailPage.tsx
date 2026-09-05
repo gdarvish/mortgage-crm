@@ -45,15 +45,15 @@ export default function VerifyEmailPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-emerald-100 p-4">
-      <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full" dir="rtl">
+      <div className="bg-[var(--color-card)] rounded-2xl shadow-lg p-8 max-w-md w-full" dir="rtl">
         <div className="text-center">
           <div className="w-16 h-16 bg-emerald-100 rounded-full mx-auto flex items-center justify-center">
             <Mail className="text-emerald-600" size={32} />
           </div>
-          <h1 className="text-2xl font-bold mt-4 mb-2 text-gray-900">אימות כתובת מייל</h1>
-          <p className="text-gray-600 mb-1">שלחנו מייל אימות לכתובת:</p>
-          <p className="font-semibold text-gray-900 mb-4 break-all">{user?.email}</p>
-          <p className="text-sm text-gray-500 mb-6">
+          <h1 className="text-2xl font-bold mt-4 mb-2 text-[var(--color-text)]">אימות כתובת מייל</h1>
+          <p className="text-[var(--color-text-sub)] mb-1">שלחנו מייל אימות לכתובת:</p>
+          <p className="font-semibold text-[var(--color-text)] mb-4 break-all">{user?.email}</p>
+          <p className="text-sm text-[var(--color-text-muted)] mb-6">
             לחץ על הקישור שבמייל כדי להפעיל את החשבון. אם המייל לא הגיע, בדוק את תיקיית הספאם.
           </p>
         </div>
@@ -76,7 +76,7 @@ export default function VerifyEmailPage() {
           </button>
           <button
             onClick={handleSignOut}
-            className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium text-gray-500 hover:bg-gray-100 transition-colors"
+            className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-pill-bg)] transition-colors"
           >
             <LogOut size={16} />
             יציאה

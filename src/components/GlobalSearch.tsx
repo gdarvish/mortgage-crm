@@ -84,7 +84,7 @@ export function GlobalSearch() {
           dir="rtl"
         >
           <div
-            className="w-full max-w-xl bg-white overflow-hidden animate-fade-in"
+            className="w-full max-w-xl bg-[var(--color-card)] overflow-hidden animate-fade-in"
             style={{ borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
             onClick={(e) => e.stopPropagation()}
           >

@@ -45,7 +45,7 @@ function TabList({ className, ...props }: TabListProps) {
     <div
       role="tablist"
       className={cn(
-        'flex gap-1 border-b border-gray-200',
+        'flex gap-1 border-b border-[var(--color-border)]',
         className
       )}
       {...props}
@@ -70,7 +70,7 @@ function Tab({ value, className, children, ...props }: TabProps) {
         'relative px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/20',
         isActive
           ? 'text-[var(--color-primary)]'
-          : 'text-gray-500 hover:text-gray-700',
+          : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-sub)]',
         className
       )}
       {...props}

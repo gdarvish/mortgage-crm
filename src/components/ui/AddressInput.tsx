@@ -140,7 +140,7 @@ export function AddressInput({
   return (
     <div ref={containerRef} className="relative w-full">
       {icon && (
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none">
           {icon}
         </span>
       )}

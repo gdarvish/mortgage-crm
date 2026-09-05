@@ -70,7 +70,7 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }: 
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-0 right-0 z-50 flex h-full flex-col bg-white border-l border-gray-200 transition-all duration-300',
+          'fixed top-0 right-0 z-50 flex h-full flex-col bg-[var(--color-card)] border-l border-[var(--color-border)] transition-all duration-300',
           sidebarWidth,
           // Mobile: slide in/out
           'lg:translate-x-0',
@@ -78,7 +78,7 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }: 
         )}
       >
         {/* Logo / Brand area */}
-        <div className="flex h-16 items-center justify-between border-b border-gray-100 px-4">
+        <div className="flex h-16 items-center justify-between border-b border-[var(--color-border-light)] px-4">
           {!collapsed && (
             <div className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white font-bold text-sm font-[var(--font-heebo)]">
@@ -98,7 +98,7 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }: 
           {/* Close button on mobile */}
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 lg:hidden"
+            className="rounded-lg p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-pill-bg)] hover:text-[var(--color-text-sub)] lg:hidden"
             aria-label="סגור תפריט"
           >
             <X className="h-5 w-5" />
@@ -108,7 +108,7 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }: 
         {/* Collapse toggle - desktop only */}
         <button
           onClick={onToggleCollapse}
-          className="hidden lg:flex absolute top-[18px] -left-3 z-10 h-6 w-6 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 shadow-sm hover:text-gray-600 transition-colors"
+          className="hidden lg:flex absolute top-[18px] -left-3 z-10 h-6 w-6 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-text-muted)] shadow-sm hover:text-[var(--color-text-sub)] transition-colors"
           aria-label={collapsed ? 'הרחב תפריט' : 'צמצם תפריט'}
         >
           {collapsed ? (
@@ -137,7 +137,7 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }: 
                       collapsed && 'justify-center px-2',
                       isActive
                         ? 'bg-[#e8f0fe] text-[var(--color-primary)]'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        : 'text-[var(--color-text-sub)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text)]'
                     )
                   }
                   title={collapsed ? item.label : undefined}
@@ -151,21 +151,21 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }: 
         </nav>
 
         {/* User info & logout */}
-        <div className="border-t border-gray-100 p-3">
+        <div className="border-t border-[var(--color-border-light)] p-3">
           {!collapsed ? (
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8f0fe] text-[var(--color-primary)] text-sm font-bold">
                 {user?.email?.charAt(0).toUpperCase() ?? 'U'}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-gray-900">
+                <p className="truncate text-sm font-medium text-[var(--color-text)]">
                   {user?.email ?? 'משתמש'}
                 </p>
-                <p className="truncate text-xs text-gray-500">יועץ משכנתאות</p>
+                <p className="truncate text-xs text-[var(--color-text-muted)]">יועץ משכנתאות</p>
               </div>
               <button
                 onClick={handleSignOut}
-                className="shrink-0 rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                className="shrink-0 rounded-lg p-2 text-[var(--color-text-muted)] hover:bg-red-50 hover:text-red-600 transition-colors"
                 title="התנתק"
                 aria-label="התנתק"
               >
@@ -175,7 +175,7 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }: 
           ) : (
             <button
               onClick={handleSignOut}
-              className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+              className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:bg-red-50 hover:text-red-600 transition-colors"
               title="התנתק"
               aria-label="התנתק"
             >

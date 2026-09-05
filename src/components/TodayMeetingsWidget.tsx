@@ -41,8 +41,8 @@ export default function TodayMeetingsWidget() {
               {new Date(m.starts_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-900">{m.title}</p>
-              <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
+              <p className="text-sm font-medium text-[var(--color-text)]">{m.title}</p>
+              <div className="flex items-center gap-3 text-xs text-[var(--color-text-muted)] flex-wrap">
                 {m.customer && <span className="inline-flex items-center gap-1"><User size={11} /> {m.customer.first_name} {m.customer.last_name}</span>}
                 {m.location && <span className="inline-flex items-center gap-1"><MapPin size={11} /> {m.location}</span>}
               </div>

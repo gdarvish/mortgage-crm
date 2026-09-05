@@ -67,7 +67,7 @@ export function InstallPrompt() {
         </button>
         <button
           onClick={() => setHidden(true)}
-          className="shrink-0 transition-colors hover:text-stone-600"
+          className="shrink-0 transition-colors hover:text-[var(--color-text-sub)]"
           style={{ color: 'var(--color-text-muted)' }}
           aria-label="סגור"
         >

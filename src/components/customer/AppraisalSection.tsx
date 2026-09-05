@@ -16,7 +16,7 @@ const statusColors: Record<AppraisalStatus, string> = {
 }
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-[var(--color-border)] rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
 
 interface Props {
   customerId: string
@@ -161,10 +161,10 @@ export default function AppraisalSection({ customerId, mortgageId, loanAmount, p
   }
 
   return (
-    <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+    <div className="border border-[var(--color-border)] rounded-xl p-4 space-y-3">
       <input ref={fileRef} type="file" hidden accept="image/*,application/pdf" onChange={handleFile} />
       <div className="flex items-center justify-between">
-        <h4 className="font-medium text-gray-900 flex items-center gap-2">
+        <h4 className="font-medium text-[var(--color-text)] flex items-center gap-2">
           <Home size={16} className="text-[var(--color-primary)]" /> שמאות
         </h4>
         {!showForm && (
@@ -176,27 +176,27 @@ export default function AppraisalSection({ customerId, mortgageId, loanAmount, p
       </div>
 
       {showForm && (
-        <div className="bg-gray-50 rounded-lg p-3 space-y-3">
+        <div className="bg-[var(--color-bg)] rounded-lg p-3 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">סטטוס</label>
-              <select className={`${inputClass} bg-white`} value={form.status}
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">סטטוס</label>
+              <select className={`${inputClass} bg-[var(--color-card)]`} value={form.status}
                 onChange={e => setForm({ ...form, status: e.target.value as AppraisalStatus })}>
                 {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">שמאי</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">שמאי</label>
               <input className={inputClass} value={form.appraiser_name}
                 onChange={e => setForm({ ...form, appraiser_name: e.target.value })} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">טלפון שמאי</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">טלפון שמאי</label>
               <input className={inputClass} dir="ltr" value={form.appraiser_phone}
                 onChange={e => setForm({ ...form, appraiser_phone: e.target.value })} />
             </div>
             <div className="sm:col-span-3">
-              <label className="block text-xs text-gray-500 mb-1" htmlFor="appraisal-property-address">כתובת הנכס</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1" htmlFor="appraisal-property-address">כתובת הנכס</label>
               <AddressInput
                 id="appraisal-property-address"
                 className={inputClass}
@@ -205,33 +205,33 @@ export default function AppraisalSection({ customerId, mortgageId, loanAmount, p
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">הוזמנה</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">הוזמנה</label>
               <input className={inputClass} type="date" dir="ltr" value={form.ordered_at}
                 onChange={e => setForm({ ...form, ordered_at: e.target.value })} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">מועד ביקור</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">מועד ביקור</label>
               <input className={inputClass} type="date" dir="ltr" value={form.scheduled_at}
                 onChange={e => setForm({ ...form, scheduled_at: e.target.value })} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">התקבלה</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">התקבלה</label>
               <input className={inputClass} type="date" dir="ltr" value={form.received_at}
                 onChange={e => setForm({ ...form, received_at: e.target.value })} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">מחיר רכישה (₪)</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">מחיר רכישה (₪)</label>
               <input className={inputClass} type="number" dir="ltr" value={form.purchase_price || ''}
                 onChange={e => setForm({ ...form, purchase_price: +e.target.value })} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">שווי שמאות (₪)</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">שווי שמאות (₪)</label>
               <input className={inputClass} type="number" dir="ltr" value={form.appraised_value || ''}
                 onChange={e => setForm({ ...form, appraised_value: +e.target.value })} />
             </div>
           </div>
           <div className="flex gap-2 justify-end">
-            <button onClick={resetForm} className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">ביטול</button>
+            <button onClick={resetForm} className="px-4 py-2 rounded-lg text-sm text-[var(--color-text-sub)] bg-[var(--color-pill-bg)] hover:bg-[var(--color-border)] transition-colors">ביטול</button>
             <button onClick={save} disabled={saving}
               className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm disabled:opacity-50">
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
@@ -242,7 +242,7 @@ export default function AppraisalSection({ customerId, mortgageId, loanAmount, p
       )}
 
       {appraisals.length === 0 && !showForm && (
-        <p className="text-center text-sm text-gray-400 py-4">לא הוזמנה שמאות</p>
+        <p className="text-center text-sm text-[var(--color-text-muted)] py-4">לא הוזמנה שמאות</p>
       )}
 
       {appraisals.map(a => {
@@ -252,23 +252,23 @@ export default function AppraisalSection({ customerId, mortgageId, loanAmount, p
           ? additionalEquityRequired(loanAmount, a.purchase_price!, a.appraised_value!, propertyType)
           : 0
         return (
-          <div key={a.id} className="border border-gray-100 rounded-lg p-3 space-y-2">
+          <div key={a.id} className="border border-[var(--color-border-light)] rounded-lg p-3 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[a.status]}`}>{a.status}</span>
-                {a.appraiser_name && <span className="text-sm text-gray-700">{a.appraiser_name}</span>}
-                {a.property_address && <span className="text-xs text-gray-400">· {a.property_address}</span>}
+                {a.appraiser_name && <span className="text-sm text-[var(--color-text-sub)]">{a.appraiser_name}</span>}
+                {a.property_address && <span className="text-xs text-[var(--color-text-muted)]">· {a.property_address}</span>}
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => startEdit(a)} className="text-gray-300 hover:text-[var(--color-primary)] transition-colors"><Pencil size={14} /></button>
-                <button onClick={() => remove(a.id)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                <button onClick={() => startEdit(a)} className="text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors"><Pencil size={14} /></button>
+                <button onClick={() => remove(a.id)} className="text-[var(--color-text-muted)] hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-              <div><span className="text-xs text-gray-400 block">מחיר רכישה</span>{a.purchase_price ? formatCurrency(a.purchase_price) : '—'}</div>
-              <div><span className="text-xs text-gray-400 block">שווי שמאות</span>{a.appraised_value ? formatCurrency(a.appraised_value) : '—'}</div>
-              <div><span className="text-xs text-gray-400 block">מועד ביקור</span><span dir="ltr">{a.scheduled_at ? formatDate(a.scheduled_at) : '—'}</span></div>
-              <div><span className="text-xs text-gray-400 block">התקבלה</span><span dir="ltr">{a.received_at ? formatDate(a.received_at) : '—'}</span></div>
+              <div><span className="text-xs text-[var(--color-text-muted)] block">מחיר רכישה</span>{a.purchase_price ? formatCurrency(a.purchase_price) : '—'}</div>
+              <div><span className="text-xs text-[var(--color-text-muted)] block">שווי שמאות</span>{a.appraised_value ? formatCurrency(a.appraised_value) : '—'}</div>
+              <div><span className="text-xs text-[var(--color-text-muted)] block">מועד ביקור</span><span dir="ltr">{a.scheduled_at ? formatDate(a.scheduled_at) : '—'}</span></div>
+              <div><span className="text-xs text-[var(--color-text-muted)] block">התקבלה</span><span dir="ltr">{a.received_at ? formatDate(a.received_at) : '—'}</span></div>
             </div>
 
             {isLow && (
@@ -288,7 +288,7 @@ export default function AppraisalSection({ customerId, mortgageId, loanAmount, p
                 </span>
               ) : (
                 <button onClick={() => triggerUpload(a.id)} disabled={uploadingFor === a.id}
-                  className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-[var(--color-primary)] transition-colors disabled:opacity-50">
+                  className="inline-flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-50">
                   {uploadingFor === a.id ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
                   העלה דוח שמאות
                 </button>

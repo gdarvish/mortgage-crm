@@ -18,7 +18,7 @@ const OBLIGATION_TYPES: ObligationType[] = [
 ]
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-[var(--color-border)] rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
 
 interface Props {
   customerId: string
@@ -165,40 +165,40 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
 
       {/* Add / edit form */}
       {showForm ? (
-        <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
-          <h4 className="text-sm font-medium text-gray-700">{editingId ? 'עריכת התחייבות' : 'התחייבות חדשה'}</h4>
+        <div className="bg-[var(--color-bg)] rounded-xl p-4 border border-[var(--color-border-light)] space-y-3">
+          <h4 className="text-sm font-medium text-[var(--color-text-sub)]">{editingId ? 'עריכת התחייבות' : 'התחייבות חדשה'}</h4>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">סוג</label>
-              <select className={`${inputClass} bg-white`} value={form.type}
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">סוג</label>
+              <select className={`${inputClass} bg-[var(--color-card)]`} value={form.type}
                 onChange={e => setForm({ ...form, type: e.target.value as ObligationType })}>
                 {OBLIGATION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">מלווה</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">מלווה</label>
               <input className={inputClass} value={form.lender}
                 onChange={e => setForm({ ...form, lender: e.target.value })} placeholder="שם הבנק / הגוף" />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">החזר חודשי (₪)</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">החזר חודשי (₪)</label>
               <input className={inputClass} type="number" dir="ltr" value={form.monthly_payment || ''}
                 onChange={e => setForm({ ...form, monthly_payment: +e.target.value })} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">יתרה (₪)</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">יתרה (₪)</label>
               <input className={inputClass} type="number" dir="ltr" value={form.balance || ''}
                 onChange={e => setForm({ ...form, balance: +e.target.value })} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">מועד סיום</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">מועד סיום</label>
               <input className={inputClass} type="date" dir="ltr" value={form.end_date}
                 onChange={e => onEndDateChange(e.target.value)} />
             </div>
             <div className="flex flex-col justify-end">
-              <label className="block text-xs text-gray-500 mb-1">נכלל ביחס ההחזר</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">נכלל ביחס ההחזר</label>
               <select
-                className={`${inputClass} bg-white`}
+                className={`${inputClass} bg-[var(--color-card)]`}
                 value={form.dti_override === null ? 'auto' : form.dti_override ? 'yes' : 'no'}
                 onChange={e => setForm({
                   ...form,
@@ -215,7 +215,7 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
             </div>
           </div>
           <div className="flex gap-2 justify-end">
-            <button onClick={resetForm} className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+            <button onClick={resetForm} className="px-4 py-2 rounded-lg text-sm text-[var(--color-text-sub)] bg-[var(--color-pill-bg)] hover:bg-[var(--color-border)] transition-colors">
               ביטול
             </button>
             <button onClick={save} disabled={saving}
@@ -234,12 +234,12 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
 
       {/* Table */}
       {obligations.length === 0 ? (
-        <p className="text-center text-sm text-gray-400 py-8">אין התחייבויות רשומות</p>
+        <p className="text-center text-sm text-[var(--color-text-muted)] py-8">אין התחייבויות רשומות</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 text-gray-600">
+              <tr className="border-b border-[var(--color-border-light)] text-[var(--color-text-sub)]">
                 <th className="text-right pb-2 font-medium">סוג</th>
                 <th className="text-right pb-2 font-medium">מלווה</th>
                 <th className="text-right pb-2 font-medium">החזר חודשי</th>
@@ -255,12 +255,12 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
                 const overridden = o.dti_override !== null && o.dti_override !== undefined
                 const monthsLeft = monthsUntilEnd(o.end_date)
                 return (
-                  <tr key={o.id} className="border-b border-gray-50">
-                    <td className="py-2 text-gray-900">{o.type}</td>
-                    <td className="py-2 text-gray-700">{o.lender || '—'}</td>
-                    <td className="py-2 text-gray-900 font-medium">{formatCurrency(o.monthly_payment || 0)}</td>
-                    <td className="py-2 text-gray-600">{o.balance ? formatCurrency(o.balance) : '—'}</td>
-                    <td className="py-2 text-gray-600" dir="ltr">{o.end_date ? formatDate(o.end_date) : '—'}</td>
+                  <tr key={o.id} className="border-b border-[var(--color-border-light)]">
+                    <td className="py-2 text-[var(--color-text)]">{o.type}</td>
+                    <td className="py-2 text-[var(--color-text-sub)]">{o.lender || '—'}</td>
+                    <td className="py-2 text-[var(--color-text)] font-medium">{formatCurrency(o.monthly_payment || 0)}</td>
+                    <td className="py-2 text-[var(--color-text-sub)]">{o.balance ? formatCurrency(o.balance) : '—'}</td>
+                    <td className="py-2 text-[var(--color-text-sub)]" dir="ltr">{o.end_date ? formatDate(o.end_date) : '—'}</td>
                     <td className="py-2">
                       <div className="flex flex-col items-start gap-0.5">
                         <div className="flex items-center gap-1.5">
@@ -268,7 +268,7 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
                             onClick={() => setOverride(o, !counted)}
                             title="לחץ כדי לקבוע ידנית"
                             className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                              counted ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                              counted ? 'bg-green-100 text-green-700' : 'bg-[var(--color-pill-bg)] text-[var(--color-text-muted)]'
                             }`}
                           >
                             {counted ? '✓ נספר ב-DTI' : '✗ לא נספר'}
@@ -282,12 +282,12 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
                         {overridden ? (
                           <button
                             onClick={() => setOverride(o, null)}
-                            className="text-[11px] text-gray-400 hover:text-[var(--color-primary)] transition-colors"
+                            className="text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors"
                           >
                             החזר לחישוב אוטומטי
                           </button>
                         ) : !counted && monthsLeft !== null ? (
-                          <span className="text-[11px] text-gray-400">
+                          <span className="text-[11px] text-[var(--color-text-muted)]">
                             {monthsLeft > 0 ? `מסתיים בעוד ${monthsLeft} חודשים` : 'הסתיים'}
                           </span>
                         ) : null}
@@ -295,10 +295,10 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
                     </td>
                     <td className="py-2">
                       <div className="flex items-center gap-2 justify-end">
-                        <button onClick={() => startEdit(o)} className="text-gray-300 hover:text-[var(--color-primary)] transition-colors">
+                        <button onClick={() => startEdit(o)} className="text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors">
                           <Pencil size={14} />
                         </button>
-                        <button onClick={() => remove(o.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                        <button onClick={() => remove(o.id)} className="text-[var(--color-text-muted)] hover:text-red-500 transition-colors">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -309,7 +309,7 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
             </tbody>
             <tfoot>
               <tr className="bg-emerald-50">
-                <td colSpan={2} className="py-2 font-bold text-gray-900">סה"כ החזרים חודשיים הנכללים</td>
+                <td colSpan={2} className="py-2 font-bold text-[var(--color-text)]">סה"כ החזרים חודשיים הנכללים</td>
                 <td className="py-2 font-bold text-[var(--color-primary)]">{formatCurrency(total)}</td>
                 <td colSpan={4} />
               </tr>

@@ -552,7 +552,7 @@ function AdminLiveRatesSection() {
                   {loading ? '…' : rates[t.key] != null ? `${rates[t.key].toFixed(2)}%` : '—'}
                 </span>
                 {isAdmin && (
-                  <button onClick={() => startEdit(t.key)} className="p-1.5 rounded-lg hover:bg-gray-100" style={{ color: 'var(--color-text-muted)' }} aria-label="עדכן ריבית">
+                  <button onClick={() => startEdit(t.key)} className="p-1.5 rounded-lg hover:bg-[var(--color-pill-bg)]" style={{ color: 'var(--color-text-muted)' }} aria-label="עדכן ריבית">
                     <Pencil size={14} />
                   </button>
                 )}

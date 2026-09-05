@@ -29,7 +29,7 @@ const cardStyle = {
   border: '1px solid var(--color-border)',
 }
 
-const inputClass = 'w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] bg-white'
+const inputClass = 'w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] bg-[var(--color-card)]'
 
 export default function FamilyEconomicsPage() {
   const qc = useQueryClient()

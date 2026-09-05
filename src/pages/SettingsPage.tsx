@@ -125,11 +125,11 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Logo Upload */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">לוגו</h2>
+        <div className="bg-[var(--color-card)] rounded-xl shadow-sm border border-[var(--color-border-light)] p-5">
+          <h2 className="font-semibold text-[var(--color-text)] mb-4">לוגו</h2>
           <input ref={logoInputRef} type="file" accept="image/*" hidden onChange={handleLogoUpload} />
           <div
-            className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-[var(--color-primary)] transition-colors cursor-pointer"
+            className="border-2 border-dashed border-[var(--color-border)] rounded-xl p-8 text-center hover:border-[var(--color-primary)] transition-colors cursor-pointer"
             onClick={() => logoInputRef.current?.click()}
           >
             {uploadingLogo ? (
@@ -137,23 +137,23 @@ export default function SettingsPage() {
             ) : settings.logo_url ? (
               <img src={settings.logo_url} alt="לוגו" className="h-16 mx-auto mb-2 object-contain" />
             ) : (
-              <Upload size={32} className="mx-auto text-gray-400 mb-2" />
+              <Upload size={32} className="mx-auto text-[var(--color-text-muted)] mb-2" />
             )}
-            <p className="text-gray-600">{settings.logo_url ? 'לחץ להחלפת לוגו' : 'גרור או לחץ להעלאת לוגו'}</p>
-            <p className="text-xs text-gray-400 mt-1">PNG, JPG, SVG עד 5MB</p>
+            <p className="text-[var(--color-text-sub)]">{settings.logo_url ? 'לחץ להחלפת לוגו' : 'גרור או לחץ להעלאת לוגו'}</p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">PNG, JPG, SVG עד 5MB</p>
           </div>
           <div className="grid grid-cols-2 gap-3 mt-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">גודל</label>
-              <select value={settings.logoSize} onChange={e => updateField('logoSize', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white">
+              <label className="block text-sm text-[var(--color-text-sub)] mb-1">גודל</label>
+              <select value={settings.logoSize} onChange={e => updateField('logoSize', e.target.value)} className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg bg-[var(--color-card)]">
                 <option value="small">קטן</option>
                 <option value="medium">בינוני</option>
                 <option value="large">גדול</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-1">מיקום</label>
-              <select value={settings.logoPosition} onChange={e => updateField('logoPosition', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white">
+              <label className="block text-sm text-[var(--color-text-sub)] mb-1">מיקום</label>
+              <select value={settings.logoPosition} onChange={e => updateField('logoPosition', e.target.value)} className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg bg-[var(--color-card)]">
                 <option value="right">ימין</option>
                 <option value="center">מרכז</option>
                 <option value="left">שמאל</option>
@@ -163,50 +163,50 @@ export default function SettingsPage() {
         </div>
 
         {/* Business Info */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">פרטי עסק</h2>
+        <div className="bg-[var(--color-card)] rounded-xl shadow-sm border border-[var(--color-border-light)] p-5">
+          <h2 className="font-semibold text-[var(--color-text)] mb-4">פרטי עסק</h2>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="block text-sm text-gray-600 mb-1">שם מלא</label><input value={settings.name} onChange={e => updateField('name', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" /></div>
-              <div><label className="block text-sm text-gray-600 mb-1">תואר</label><input value={settings.title} onChange={e => updateField('title', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" /></div>
+              <div><label className="block text-sm text-[var(--color-text-sub)] mb-1">שם מלא</label><input value={settings.name} onChange={e => updateField('name', e.target.value)} className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg" /></div>
+              <div><label className="block text-sm text-[var(--color-text-sub)] mb-1">תואר</label><input value={settings.title} onChange={e => updateField('title', e.target.value)} className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg" /></div>
             </div>
-            <div><label className="block text-sm text-gray-600 mb-1">מספר רישיון</label><input value={settings.licenseNumber} onChange={e => updateField('licenseNumber', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" dir="ltr" /></div>
+            <div><label className="block text-sm text-[var(--color-text-sub)] mb-1">מספר רישיון</label><input value={settings.licenseNumber} onChange={e => updateField('licenseNumber', e.target.value)} className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg" dir="ltr" /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="block text-sm text-gray-600 mb-1">טלפון</label><input value={settings.phone} onChange={e => updateField('phone', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" dir="ltr" /></div>
-              <div><label className="block text-sm text-gray-600 mb-1">אימייל</label><input value={settings.email} onChange={e => updateField('email', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" dir="ltr" /></div>
+              <div><label className="block text-sm text-[var(--color-text-sub)] mb-1">טלפון</label><input value={settings.phone} onChange={e => updateField('phone', e.target.value)} className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg" dir="ltr" /></div>
+              <div><label className="block text-sm text-[var(--color-text-sub)] mb-1">אימייל</label><input value={settings.email} onChange={e => updateField('email', e.target.value)} className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg" dir="ltr" /></div>
             </div>
-            <div><label className="block text-sm text-gray-600 mb-1">אתר</label><input value={settings.website} onChange={e => updateField('website', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" dir="ltr" /></div>
+            <div><label className="block text-sm text-[var(--color-text-sub)] mb-1">אתר</label><input value={settings.website} onChange={e => updateField('website', e.target.value)} className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg" dir="ltr" /></div>
           </div>
         </div>
 
         {/* Colors */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">צבעים</h2>
+        <div className="bg-[var(--color-card)] rounded-xl shadow-sm border border-[var(--color-border-light)] p-5">
+          <h2 className="font-semibold text-[var(--color-text)] mb-4">צבעים</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">צבע ראשי</label>
+              <label className="block text-sm text-[var(--color-text-sub)] mb-1">צבע ראשי</label>
               <div className="flex items-center gap-2">
                 <input type="color" value={settings.primaryColor} onChange={e => updateField('primaryColor', e.target.value)} className="w-10 h-10 rounded cursor-pointer" />
-                <input value={settings.primaryColor} onChange={e => updateField('primaryColor', e.target.value)} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
+                <input value={settings.primaryColor} onChange={e => updateField('primaryColor', e.target.value)} className="flex-1 px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm" dir="ltr" />
               </div>
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-1">צבע משני</label>
+              <label className="block text-sm text-[var(--color-text-sub)] mb-1">צבע משני</label>
               <div className="flex items-center gap-2">
                 <input type="color" value={settings.secondaryColor} onChange={e => updateField('secondaryColor', e.target.value)} className="w-10 h-10 rounded cursor-pointer" />
-                <input value={settings.secondaryColor} onChange={e => updateField('secondaryColor', e.target.value)} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" dir="ltr" />
+                <input value={settings.secondaryColor} onChange={e => updateField('secondaryColor', e.target.value)} className="flex-1 px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm" dir="ltr" />
               </div>
             </div>
           </div>
           <div className="mt-4">
-            <label className="block text-sm text-gray-600 mb-1">טקסט תחתית</label>
-            <input value={settings.footerText} onChange={e => updateField('footerText', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
+            <label className="block text-sm text-[var(--color-text-sub)] mb-1">טקסט תחתית</label>
+            <input value={settings.footerText} onChange={e => updateField('footerText', e.target.value)} className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg" />
           </div>
         </div>
 
         {/* Theme picker */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">ערכת נושא</h2>
+        <div className="bg-[var(--color-card)] rounded-xl shadow-sm border border-[var(--color-border-light)] p-5">
+          <h2 className="font-semibold text-[var(--color-text)] mb-4">ערכת נושא</h2>
           <div className="flex flex-col gap-2.5">
             {Object.values(THEMES).map(th => {
               const active = themeId === th.id
@@ -219,60 +219,60 @@ export default function SettingsPage() {
                   className={`flex items-center gap-3 w-full px-3.5 py-3 rounded-xl border text-right transition-all ${
                     active
                       ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/15 bg-[var(--color-primary)]/[0.06]'
-                      : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+                      : 'border-[var(--color-border)] bg-[var(--color-bg)] hover:bg-[var(--color-pill-bg)]'
                   }`}
                 >
                   <span
-                    className="w-5.5 h-5.5 rounded-full shrink-0 border-2 border-white"
+                    className="w-5.5 h-5.5 rounded-full shrink-0 border-2 border-[var(--color-card)]"
                     style={{ width: 22, height: 22, background: th.primary, boxShadow: '0 0 0 1px var(--color-border)' }}
                   />
-                  <span className="flex-1 text-sm font-semibold text-gray-900">{th.name}</span>
+                  <span className="flex-1 text-sm font-semibold text-[var(--color-text)]">{th.name}</span>
                   {active && <Check size={16} strokeWidth={3} className="text-[var(--color-primary)]" />}
                 </button>
               )
             })}
           </div>
-          <p className="text-xs text-gray-400 mt-3">
+          <p className="text-xs text-[var(--color-text-muted)] mt-3">
             ערכת הנושא נשמרת במכשיר זה ומשנה את מראה כל המערכת.
           </p>
         </div>
 
         {/* Alert Settings */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">הגדרות התראות</h2>
+        <div className="bg-[var(--color-card)] rounded-xl shadow-sm border border-[var(--color-border-light)] p-5">
+          <h2 className="font-semibold text-[var(--color-text)] mb-4">הגדרות התראות</h2>
           <div>
-            <label className="block text-sm text-gray-600 mb-1">חלון התראות מסלולים (חודשים)</label>
-            <input type="number" value={settings.alertWindowMonths} onChange={e => updateField('alertWindowMonths', +e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
-            <p className="text-xs text-gray-400 mt-1">מסלולים שמסתיימים בתוך {settings.alertWindowMonths} חודשים יוצגו בהתראות</p>
+            <label className="block text-sm text-[var(--color-text-sub)] mb-1">חלון התראות מסלולים (חודשים)</label>
+            <input type="number" value={settings.alertWindowMonths} onChange={e => updateField('alertWindowMonths', +e.target.value)} className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg" />
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">מסלולים שמסתיימים בתוך {settings.alertWindowMonths} חודשים יוצגו בהתראות</p>
           </div>
         </div>
 
         {/* Compliance thresholds */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">ספי יחס החזר (DTI)</h2>
+        <div className="bg-[var(--color-card)] rounded-xl shadow-sm border border-[var(--color-border-light)] p-5">
+          <h2 className="font-semibold text-[var(--color-text)] mb-4">ספי יחס החזר (DTI)</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">סף אזהרה (%)</label>
+              <label className="block text-sm text-[var(--color-text-sub)] mb-1">סף אזהרה (%)</label>
               <input
                 type="number"
                 value={settings.dtiWarnThreshold}
                 onChange={e => updateField('dtiWarnThreshold', +e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg"
                 dir="ltr"
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-1">סף חריגה (%)</label>
+              <label className="block text-sm text-[var(--color-text-sub)] mb-1">סף חריגה (%)</label>
               <input
                 type="number"
                 value={settings.dtiHardThreshold}
                 onChange={e => updateField('dtiHardThreshold', +e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg"
                 dir="ltr"
               />
             </div>
           </div>
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-xs text-[var(--color-text-muted)] mt-2">
             מעל {settings.dtiWarnThreshold}% התיק מסומן באזהרה כתומה; מעל {settings.dtiHardThreshold}% כחריגה אדומה.
             ברירת המחדל מגיעה מהפרמטרים הרגולטוריים המפורסמים; ערך שנקבע כאן גובר עליהם.
           </p>
@@ -288,7 +288,7 @@ export default function SettingsPage() {
           {saving ? <Loader2 size={18} className="animate-spin" /> : saved ? <CheckCircle size={18} /> : <Save size={18} />}
           {saved ? 'נשמר!' : 'שמור הגדרות'}
         </button>
-        <button className="flex items-center gap-2 bg-gray-100 text-gray-700 px-6 py-2.5 rounded-lg hover:bg-gray-200 transition-colors">
+        <button className="flex items-center gap-2 bg-[var(--color-pill-bg)] text-[var(--color-text-sub)] px-6 py-2.5 rounded-lg hover:bg-[var(--color-border)] transition-colors">
           <Eye size={18} /> תצוגה מקדימה
         </button>
       </div>
@@ -319,11 +319,11 @@ function DangerZone() {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-red-200 p-5">
+    <div className="bg-[var(--color-card)] rounded-xl border border-red-200 p-5">
       <h2 className="font-semibold text-red-700 mb-1 flex items-center gap-2">
         <Trash2 size={17} /> אזור מסוכן
       </h2>
-      <p className="text-sm text-gray-500 mb-4">מחיקת כל הנתונים מהמערכת — פעולה בלתי הפיכה</p>
+      <p className="text-sm text-[var(--color-text-muted)] mb-4">מחיקת כל הנתונים מהמערכת — פעולה בלתי הפיכה</p>
       {done ? (
         <p className="text-sm font-medium text-green-600">✓ כל נתוני הלקוחות נמחקו (יומן הביקורת נשמר)</p>
       ) : confirm ? (
@@ -338,7 +338,7 @@ function DangerZone() {
           </button>
           <button
             onClick={() => setConfirm(false)}
-            className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+            className="px-4 py-2 rounded-lg text-sm text-[var(--color-text-sub)] bg-[var(--color-pill-bg)] hover:bg-[var(--color-border)] transition-colors"
           >
             ביטול
           </button>

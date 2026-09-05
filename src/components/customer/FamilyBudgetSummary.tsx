@@ -34,7 +34,7 @@ export function FamilyBudgetSummary({ customer }: { customer: Customer }) {
   const savedAt = customer.financial_data?.updated_at
 
   return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-white p-4">
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4">
       <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-text)]">
           <PieChart size={16} className="text-[var(--color-primary)]" />

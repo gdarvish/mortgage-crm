@@ -11,11 +11,11 @@ const DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמיש
 const statusColors: Record<string, string> = {
   'מתוכננת': 'bg-blue-100 text-blue-700',
   'התקיימה': 'bg-green-100 text-green-700',
-  'בוטלה': 'bg-gray-100 text-gray-500',
+  'בוטלה': 'bg-[var(--color-pill-bg)] text-[var(--color-text-muted)]',
 }
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-[var(--color-border)] rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
 
 function startOfWeek(d: Date): Date {
   const date = new Date(d)
@@ -107,15 +107,15 @@ export default function MeetingsPage() {
       </div>
 
       {/* Week navigation */}
-      <div className="flex items-center justify-between bg-white rounded-xl shadow-sm border border-gray-100 p-3">
+      <div className="flex items-center justify-between bg-[var(--color-card)] rounded-xl shadow-sm border border-[var(--color-border-light)] p-3">
         <button onClick={() => setWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })}
-          className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"><ChevronRight size={18} /></button>
-        <div className="text-sm font-medium text-gray-700">
+          className="p-2 rounded-lg hover:bg-[var(--color-pill-bg)] text-[var(--color-text-sub)]"><ChevronRight size={18} /></button>
+        <div className="text-sm font-medium text-[var(--color-text-sub)]">
           {weekStart.toLocaleDateString('he-IL')} – {new Date(weekEnd.getTime() - 1).toLocaleDateString('he-IL')}
           <button onClick={() => setWeekStart(startOfWeek(new Date()))} className="mr-3 text-xs text-[var(--color-primary)] hover:underline">היום</button>
         </div>
         <button onClick={() => setWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })}
-          className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"><ChevronLeft size={18} /></button>
+          className="p-2 rounded-lg hover:bg-[var(--color-pill-bg)] text-[var(--color-text-sub)]"><ChevronLeft size={18} /></button>
       </div>
 
       {loading ? (
@@ -126,26 +126,26 @@ export default function MeetingsPage() {
             const dayMeetings = meetingsForDay(day)
             const isToday = day.toDateString() === new Date().toDateString()
             return (
-              <div key={day.toISOString()} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className={`px-4 py-2 border-b border-gray-100 flex items-center gap-2 ${isToday ? 'bg-emerald-50' : 'bg-gray-50'}`}>
-                  <span className="text-sm font-bold text-gray-900">יום {DAY_NAMES[day.getDay()]}</span>
-                  <span className="text-xs text-gray-400">{day.toLocaleDateString('he-IL')}</span>
+              <div key={day.toISOString()} className="bg-[var(--color-card)] rounded-xl shadow-sm border border-[var(--color-border-light)] overflow-hidden">
+                <div className={`px-4 py-2 border-b border-[var(--color-border-light)] flex items-center gap-2 ${isToday ? 'bg-emerald-50' : 'bg-[var(--color-bg)]'}`}>
+                  <span className="text-sm font-bold text-[var(--color-text)]">יום {DAY_NAMES[day.getDay()]}</span>
+                  <span className="text-xs text-[var(--color-text-muted)]">{day.toLocaleDateString('he-IL')}</span>
                   {isToday && <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-primary)] text-white">היום</span>}
                 </div>
                 {dayMeetings.length === 0 ? (
-                  <p className="text-xs text-gray-300 px-4 py-3">אין פגישות</p>
+                  <p className="text-xs text-[var(--color-text-muted)] px-4 py-3">אין פגישות</p>
                 ) : (
-                  <div className="divide-y divide-gray-50">
+                  <div className="divide-y divide-[var(--color-border-light)]">
                     {dayMeetings.map(m => (
                       <div key={m.id} className="flex items-center justify-between px-4 py-3 gap-3">
                         <div className="flex items-start gap-3 min-w-0">
                           <span className="text-sm font-bold text-[var(--color-primary)] tabular-nums shrink-0" dir="ltr">{timeStr(m.starts_at)}</span>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-medium text-gray-900">{m.title}</span>
+                              <span className="text-sm font-medium text-[var(--color-text)]">{m.title}</span>
                               <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusColors[m.status]}`}>{m.status}</span>
                             </div>
-                            <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5 flex-wrap">
+                            <div className="flex items-center gap-3 text-xs text-[var(--color-text-muted)] mt-0.5 flex-wrap">
                               {m.customer && (
                                 <Link to={`/customers/${m.customer_id}`} className="inline-flex items-center gap-1 hover:text-[var(--color-primary)]">
                                   <User size={11} /> {m.customer.first_name} {m.customer.last_name}
@@ -160,10 +160,10 @@ export default function MeetingsPage() {
                           {m.status === 'מתוכננת' && (
                             <>
                               <button onClick={() => setStatus(m, 'התקיימה')} title="התקיימה" className="p-1.5 rounded-lg text-green-600 hover:bg-green-50"><Check size={14} /></button>
-                              <button onClick={() => setStatus(m, 'בוטלה')} title="בטל" className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100"><X size={14} /></button>
+                              <button onClick={() => setStatus(m, 'בוטלה')} title="בטל" className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-pill-bg)]"><X size={14} /></button>
                             </>
                           )}
-                          <button onClick={() => remove(m.id)} className="p-1.5 rounded-lg text-gray-300 hover:text-red-500"><Trash2 size={14} /></button>
+                          <button onClick={() => remove(m.id)} className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-red-500"><Trash2 size={14} /></button>
                         </div>
                       </div>
                     ))}
@@ -178,44 +178,44 @@ export default function MeetingsPage() {
       {/* New meeting modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowForm(false)}>
-          <div className="w-full max-w-md bg-white rounded-2xl p-6 space-y-3" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-md bg-[var(--color-card)] rounded-2xl p-6 space-y-3" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900">קביעת פגישה</h2>
-              <button onClick={() => setShowForm(false)} className="text-gray-400"><X size={18} /></button>
+              <h2 className="text-lg font-bold text-[var(--color-text)]">קביעת פגישה</h2>
+              <button onClick={() => setShowForm(false)} className="text-[var(--color-text-muted)]"><X size={18} /></button>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">נושא</label>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">נושא</label>
               <input className={inputClass} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="פגישת ייעוץ" />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">לקוח (אופציונלי)</label>
-              <select className={`${inputClass} bg-white`} value={form.customer_id} onChange={e => setForm({ ...form, customer_id: e.target.value })}>
+              <label className="block text-xs text-[var(--color-text-muted)] mb-1">לקוח (אופציונלי)</label>
+              <select className={`${inputClass} bg-[var(--color-card)]`} value={form.customer_id} onChange={e => setForm({ ...form, customer_id: e.target.value })}>
                 <option value="">ללא לקוח</option>
                 {customers.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">תאריך</label>
+                <label className="block text-xs text-[var(--color-text-muted)] mb-1">תאריך</label>
                 <input className={inputClass} type="date" dir="ltr" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">שעה</label>
+                <label className="block text-xs text-[var(--color-text-muted)] mb-1">שעה</label>
                 <input className={inputClass} type="time" dir="ltr" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">משך (דקות)</label>
+                <label className="block text-xs text-[var(--color-text-muted)] mb-1">משך (דקות)</label>
                 <input className={inputClass} type="number" dir="ltr" value={form.duration_minutes} onChange={e => setForm({ ...form, duration_minutes: +e.target.value })} />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">מיקום</label>
+                <label className="block text-xs text-[var(--color-text-muted)] mb-1">מיקום</label>
                 <input className={inputClass} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="כתובת / זום / טלפון" />
               </div>
             </div>
             <div className="flex gap-2 justify-end pt-2">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">ביטול</button>
+              <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-sm text-[var(--color-text-sub)] bg-[var(--color-pill-bg)] hover:bg-[var(--color-border)] transition-colors">ביטול</button>
               <button onClick={save} disabled={saving}
                 className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm disabled:opacity-50">
                 {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} קבע פגישה
