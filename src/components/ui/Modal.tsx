@@ -10,7 +10,7 @@ export interface ModalProps {
   description?: string
   children: React.ReactNode
   className?: string
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 }
 
 const sizeClasses = {
@@ -18,6 +18,8 @@ const sizeClasses = {
   md: 'max-w-md',
   lg: 'max-w-lg',
   xl: 'max-w-xl',
+  // Wide enough for the multi-column rate editor.
+  '2xl': 'max-w-3xl',
 }
 
 function Modal({ open, onClose, title, description, children, className, size = 'md' }: ModalProps) {

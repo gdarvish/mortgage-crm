@@ -8,6 +8,8 @@ import { commissionService } from '@/services/commissionService'
 import { leadService } from '@/services/leadService'
 import { customerService } from '@/services/customerService'
 import { documentService } from '@/services/documentService'
+import { settingsService } from '@/services/settingsService'
+import type { RatesDoc } from '@/types/database'
 
 /**
  * Service-layer regressions against a live emulator.
@@ -439,5 +441,46 @@ describe('documentService.upload (PR-L.2 regression)', () => {
     const { data, error } = await documentService.upload('cust-1', big, 'הסכם רכישה', 'נכס')
     expect(data).toBeNull()
     expect(error!.message).toContain('גדול')
+  })
+})
+
+describe('settingsService rate board', () => {
+  const board: RatesDoc = {
+    bankRates: [
+      { bank: 'בנק הפועלים', prime: 6, fixedNonLinked: 4.45, fixedLinked: 3.75, variableLinked: 3.2, variableNotLinked: 5.15 },
+      { bank: 'בנק לאומי', prime: 6, fixedNonLinked: 4.5, fixedLinked: 3.8, variableLinked: 3.25, variableNotLinked: 5.2 },
+    ],
+    prime: 6,
+    boiRate: 4.5,
+    lastCpi: 0.3,
+    updated_at: '2026-09-05T00:00:00.000Z',
+  }
+
+  it('reports no board before anything is saved', async () => {
+    const { data, error } = await settingsService.getRates()
+    expect(error).toBeNull()
+    expect(data).toBeNull()
+  })
+
+  it('round-trips a board, including the מ"ל column', async () => {
+    expect((await settingsService.saveRates(board)).error).toBeNull()
+    const { data, error } = await settingsService.getRates()
+    expect(error).toBeNull()
+    expect(data?.bankRates).toHaveLength(2)
+    expect(data?.bankRates[0].variableNotLinked).toBe(5.15)
+    expect(data?.updated_at).toBe(board.updated_at)
+  })
+
+  it('replaces the board rather than merging, so a removed bank stays removed', async () => {
+    await settingsService.saveRates(board)
+    await settingsService.saveRates({ ...board, bankRates: [board.bankRates[0]] })
+    const { data } = await settingsService.getRates()
+    expect(data?.bankRates.map(b => b.bank)).toEqual(['בנק הפועלים'])
+  })
+
+  it('stores the board under the signed-in advisor', async () => {
+    await settingsService.saveRates(board)
+    const snap = await getDocs(collection(db, 'users', uid, 'settings'))
+    expect(snap.docs.map(d => d.id)).toContain('rates')
   })
 })

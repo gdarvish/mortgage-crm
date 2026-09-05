@@ -580,3 +580,35 @@ export interface AuditLogEntry {
   changed_fields: string[]
   changed_at: string
 }
+
+/** One bank's quoted rates, as maintained by the advisor. */
+export interface BankRate {
+  bank: string
+  /** פריים */
+  prime: number
+  /** קל"צ — קבועה לא צמודה */
+  fixedNonLinked: number
+  /** קל"ב — קבועה צמודה */
+  fixedLinked: number
+  /** מ"צ — משתנה צמודה */
+  variableLinked: number
+  /** מ"ל — משתנה לא צמודה */
+  variableNotLinked: number
+}
+
+/**
+ * The advisor's own rate board, stored at users/{uid}/settings/rates.
+ *
+ * Distinct from the `interest_rates` collection: that one holds the
+ * admin-published rates the calculator and the refinance engine consume,
+ * while this is the per-advisor comparison table shown on the rates page.
+ */
+export interface RatesDoc {
+  bankRates: BankRate[]
+  prime: number
+  boiRate: number
+  /** Last published CPI, in percent. */
+  lastCpi: number
+  /** ISO timestamp of the last save; empty string means never saved. */
+  updated_at: string
+}
