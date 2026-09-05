@@ -3,6 +3,8 @@ import { Settings, Upload, Save, Eye, Trash2, Loader2, CheckCircle } from 'lucid
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
 import { settingsService } from '@/services/settingsService'
+import { regulatoryService } from '@/services/regulatoryService'
+import { FALLBACK_REGULATORY_PARAMS } from '@/utils/regulatoryParams'
 import { toast } from '@/components/ui'
 
 export default function SettingsPage() {
@@ -19,6 +21,8 @@ export default function SettingsPage() {
     logoSize: 'medium',
     logoPosition: 'right',
     alertWindowMonths: 6,
+    dtiWarnThreshold: FALLBACK_REGULATORY_PARAMS.dti_warn_threshold,
+    dtiHardThreshold: FALLBACK_REGULATORY_PARAMS.dti_hard_threshold,
     logo_url: '',
   })
   const [saving, setSaving] = useState(false)
@@ -27,6 +31,15 @@ export default function SettingsPage() {
   const logoInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
+    // Seed the thresholds from the regulator's published values, so an advisor
+    // who never touches them still sees the numbers the app is actually using.
+    regulatoryService.getInForceAt().then(params => {
+      setSettings(prev => ({
+        ...prev,
+        dtiWarnThreshold: prev.dtiWarnThreshold || params.dti_warn_threshold,
+        dtiHardThreshold: prev.dtiHardThreshold || params.dti_hard_threshold,
+      }))
+    })
     settingsService.get().then(({ data }) => {
       if (data) {
         setSettings(prev => ({
@@ -43,6 +56,8 @@ export default function SettingsPage() {
           logoSize: data.logo_size ?? 'medium',
           logoPosition: data.logo_position ?? 'right',
           alertWindowMonths: data.alert_window_months ?? 6,
+          dtiWarnThreshold: data.dti_warn_threshold ?? prev.dtiWarnThreshold,
+          dtiHardThreshold: data.dti_hard_threshold ?? prev.dtiHardThreshold,
           logo_url: data.logo_url ?? '',
         }))
       }
@@ -68,6 +83,8 @@ export default function SettingsPage() {
       logo_size: settings.logoSize,
       logo_position: settings.logoPosition,
       alert_window_months: settings.alertWindowMonths,
+      dti_warn_threshold: settings.dtiWarnThreshold,
+      dti_hard_threshold: settings.dtiHardThreshold,
       logo_url: settings.logo_url,
     })
     setSaving(false)
@@ -192,6 +209,37 @@ export default function SettingsPage() {
             <input type="number" value={settings.alertWindowMonths} onChange={e => updateField('alertWindowMonths', +e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
             <p className="text-xs text-gray-400 mt-1">מסלולים שמסתיימים בתוך {settings.alertWindowMonths} חודשים יוצגו בהתראות</p>
           </div>
+        </div>
+
+        {/* Compliance thresholds */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+          <h2 className="font-semibold text-gray-900 mb-4">ספי יחס החזר (DTI)</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">סף אזהרה (%)</label>
+              <input
+                type="number"
+                value={settings.dtiWarnThreshold}
+                onChange={e => updateField('dtiWarnThreshold', +e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                dir="ltr"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">סף חריגה (%)</label>
+              <input
+                type="number"
+                value={settings.dtiHardThreshold}
+                onChange={e => updateField('dtiHardThreshold', +e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                dir="ltr"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            מעל {settings.dtiWarnThreshold}% התיק מסומן באזהרה כתומה; מעל {settings.dtiHardThreshold}% כחריגה אדומה.
+            ברירת המחדל מגיעה מהפרמטרים הרגולטוריים המפורסמים; ערך שנקבע כאן גובר עליהם.
+          </p>
         </div>
       </div>
 

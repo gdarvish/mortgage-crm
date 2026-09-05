@@ -1,4 +1,5 @@
 import { formatCurrency } from '@/lib/utils'
+import type { ComplianceUnit } from '@/utils/mortgageCalculations'
 
 function esc(s: string | undefined | null): string {
   return String(s ?? '')
@@ -21,6 +22,17 @@ export interface MortgagePdfComplianceCheck {
   value: number
   limit: number
   isValid: boolean
+  /** Defaults to '%' for callers that predate per-check units. */
+  unit?: ComplianceUnit
+}
+
+/** Renders a value with its own unit — "300 חודשים", not "300%". */
+function withUnit(value: number, unit: ComplianceUnit = '%'): string {
+  switch (unit) {
+    case 'months': return `${value} חו'`
+    case 'years': return `${value}`
+    default: return `${value}%`
+  }
 }
 
 export interface MortgagePdfData {
@@ -69,8 +81,8 @@ function buildHtml(data: MortgagePdfData): string {
     .map(
       (c) => `<tr>
         <td style="${td}">${esc(c.name)}</td>
-        <td style="${td}" dir="ltr">${c.value}%</td>
-        <td style="${td}" dir="ltr">${c.limit}%</td>
+        <td style="${td}" dir="ltr">${withUnit(c.value, c.unit)}</td>
+        <td style="${td}" dir="ltr">${withUnit(c.limit, c.unit)}</td>
         <td style="${td}font-weight:700;color:${c.isValid ? GREEN : '#dc2626'};">${c.isValid ? '✓ תקין' : '✗ חריגה'}</td>
       </tr>`
     )
@@ -268,4 +280,130 @@ function buildComparisonHtml(data: BankComparisonPdfData): string {
 
 export async function exportBankComparisonPdf(data: BankComparisonPdfData): Promise<void> {
   await renderHtmlToPdf(buildComparisonHtml(data), `bank-comparison-${new Date().toISOString().slice(0, 10)}.pdf`)
+}
+
+// ── Mix version comparison PDF ───────────────────────────────────────────────
+
+/** Advisor branding, from advisor_settings. */
+export interface PdfBranding {
+  name?: string | null
+  title?: string | null
+  licenseNumber?: string | null
+  phone?: string | null
+  email?: string | null
+  logoUrl?: string | null
+  primaryColor?: string | null
+  footerText?: string | null
+}
+
+export interface VersionComparisonRow {
+  version: number
+  label: string | null
+  source: string
+  monthlyPayment: number
+  totalCost: number
+  loanAmount: number
+  dti: number
+  ltv: number
+  compliant: boolean
+}
+
+export interface VersionComparisonPdfData {
+  customerName?: string
+  versions: VersionComparisonRow[]
+  branding?: PdfBranding
+}
+
+function buildVersionComparisonHtml(data: VersionComparisonPdfData): string {
+  const date = new Date().toLocaleDateString('he-IL')
+  const brand = data.branding ?? {}
+  const accent = brand.primaryColor || GREEN
+
+  const th = `padding:8px 10px;font-size:12px;font-weight:700;color:#ffffff;background:${accent};text-align:center;`
+  const td = `padding:8px 10px;font-size:13px;color:${INK};border-bottom:1px solid ${LINE};text-align:center;`
+  const labelTd = `padding:8px 10px;font-size:13px;color:${INK};border-bottom:1px solid ${LINE};text-align:right;font-weight:700;`
+
+  const versions = data.versions
+  const bestMonthly = Math.min(...versions.map(v => v.monthlyPayment))
+  const bestTotal = Math.min(...versions.map(v => v.totalCost))
+
+  const headerCells = versions
+    .map(v => `<th style="${th}">v${v.version}${v.label ? `<div style="font-size:10px;font-weight:400;opacity:0.9;">${esc(v.label)}</div>` : ''}<div style="font-size:10px;font-weight:400;opacity:0.75;">${esc(v.source)}</div></th>`)
+    .join('')
+
+  /** One row, marking the best cell when the row has a direction. */
+  const row = (
+    label: string,
+    format: (v: VersionComparisonRow) => string,
+    best?: (v: VersionComparisonRow) => boolean,
+  ) => {
+    const cells = versions
+      .map(v => `<td style="${td}${best?.(v) ? `background:#d1fae5;color:${accent};font-weight:700;` : ''}">${format(v)}</td>`)
+      .join('')
+    return `<tr><td style="${labelTd}">${esc(label)}</td>${cells}</tr>`
+  }
+
+  // The saving the negotiation actually produced, first version to best.
+  const firstTotal = versions[0]?.totalCost ?? 0
+  const savedTotal = firstTotal - bestTotal
+  const firstMonthly = versions[0]?.monthlyPayment ?? 0
+  const savedMonthly = firstMonthly - bestMonthly
+
+  return `<div dir="rtl" style="font-family:'Heebo','Arial',sans-serif;background:#ffffff;color:${INK};padding:40px;width:794px;box-sizing:border-box;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid ${accent};padding-bottom:16px;margin-bottom:22px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        ${brand.logoUrl ? `<img src="${esc(brand.logoUrl)}" style="max-height:48px;max-width:140px;object-fit:contain;" />` : ''}
+        <div>
+          <div style="font-size:24px;font-weight:800;color:${accent};">מסלול המשא ומתן</div>
+          <div style="font-size:12px;color:${MUTED};margin-top:4px;">
+            ${brand.name ? esc(brand.name) : 'MortgageCRM'}${brand.title ? ` — ${esc(brand.title)}` : ''}
+          </div>
+        </div>
+      </div>
+      <div style="font-size:13px;color:#57534e;text-align:left;">
+        ${data.customerName ? `<div style="font-weight:700;">${esc(data.customerName)}</div>` : ''}
+        <div>תאריך: ${date}</div>
+        ${brand.phone ? `<div>${esc(brand.phone)}</div>` : ''}
+      </div>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;margin-bottom:18px;">
+      <thead><tr>
+        <th style="${th}text-align:right;">מדד</th>
+        ${headerCells}
+      </tr></thead>
+      <tbody>
+        ${row('החזר חודשי', v => formatCurrency(v.monthlyPayment), v => v.monthlyPayment === bestMonthly)}
+        ${row('עלות כוללת', v => formatCurrency(v.totalCost), v => v.totalCost === bestTotal)}
+        ${row('סכום הלוואה', v => formatCurrency(v.loanAmount))}
+        ${row('יחס החזר (DTI)', v => (v.dti > 0 ? `${v.dti}%` : '—'))}
+        ${row('LTV', v => (v.ltv > 0 ? `${v.ltv}%` : '—'))}
+        ${row('Compliance', v => (v.compliant ? '✓ תקין' : '⚠ חריגה'))}
+      </tbody>
+    </table>
+
+    ${versions.length > 1 && (savedTotal > 0 || savedMonthly > 0) ? `
+    <div style="background:#d1fae5;border-radius:10px;padding:14px 16px;margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:700;color:${accent};margin-bottom:4px;">מה הושג במשא ומתן</div>
+      <div style="font-size:13px;color:${INK};">
+        ${savedMonthly > 0 ? `חיסכון של ${formatCurrency(savedMonthly)} בהחזר החודשי` : ''}
+        ${savedMonthly > 0 && savedTotal > 0 ? ' · ' : ''}
+        ${savedTotal > 0 ? `${formatCurrency(savedTotal)} בעלות הכוללת` : ''}
+      </div>
+    </div>` : ''}
+
+    <div style="font-size:11px;color:${MUTED};border-top:1px solid ${LINE};padding-top:12px;line-height:1.6;">
+      כל גרסה משקפת את הנתונים כפי שהיו בעת שמירתה. הערכים הטובים ביותר מודגשים.
+      התנאים הסופיים כפופים לאישור הבנק ולבדיקת זכאות.
+      ${brand.licenseNumber ? `<br/>רישיון יועץ: ${esc(brand.licenseNumber)}` : ''}
+      ${brand.footerText ? `<br/>${esc(brand.footerText)}` : ''}
+    </div>
+  </div>`
+}
+
+export async function exportVersionComparisonPdf(data: VersionComparisonPdfData): Promise<void> {
+  await renderHtmlToPdf(
+    buildVersionComparisonHtml(data),
+    `mix-versions-${new Date().toISOString().slice(0, 10)}.pdf`,
+  )
 }

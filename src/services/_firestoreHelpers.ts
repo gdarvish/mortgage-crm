@@ -3,7 +3,10 @@ import {
   type QueryDocumentSnapshot,
   Timestamp,
   serverTimestamp,
+  doc,
+  getDoc,
 } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 
@@ -62,6 +65,27 @@ export async function withUserId<T extends Record<string, unknown>>(
 ): Promise<T & { user_id: string }> {
   const uid = await awaitUserId()
   return { ...payload, user_id: uid }
+}
+
+/**
+ * Loads a related document, tolerating one that cannot be read.
+ *
+ * Rules like `allow read: if isOwner(resource.data.user_id)` raise an
+ * evaluation error on a document that no longer exists, which the client
+ * surfaces as `permission-denied`. Left unguarded inside a Promise.all, a
+ * single deleted customer takes down the whole commissions or tasks list
+ * rather than leaving one row without a name.
+ */
+export async function loadRelated<T>(
+  collectionName: string,
+  id: string,
+): Promise<T | null> {
+  try {
+    const snap = await getDoc(doc(db, collectionName, id))
+    return snap.exists() ? fromDoc<T>(snap) : null
+  } catch {
+    return null
+  }
 }
 
 export const sentinels = {

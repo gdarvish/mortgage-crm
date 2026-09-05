@@ -9,7 +9,11 @@
 export function validateIsraeliId(id: string): boolean {
   if (!id) return false
   const clean = id.trim().replace(/[\s-]/g, '')
-  if (!/^\d{1,9}$/.test(clean)) return false
+  // Anything shorter than five digits is a typo, not a short ID; and a string
+  // of zeros passes the check digit while identifying nobody. "0" used to be
+  // accepted as a valid national ID.
+  if (!/^\d{5,9}$/.test(clean)) return false
+  if (/^0+$/.test(clean)) return false
   const padded = clean.padStart(9, '0')
   return (
     padded

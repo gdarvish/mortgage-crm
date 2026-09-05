@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Sparkles, AlertTriangle, CheckCircle, Download, Save, X, Loader2 } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Plus, Sparkles, AlertTriangle, CheckCircle, Download, Save, X, Loader2, ArrowRight } from 'lucide-react'
 import { httpsCallable } from 'firebase/functions'
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -7,21 +8,30 @@ import { formatCurrency } from '@/lib/utils'
 import {
   calculateMonthlyPayment,
   calculateAmortizationSchedule,
-  checkCompliance,
   generateRecommendedMixes,
   calculateGracePayments,
   effectiveMonthlyPayment,
+  formatCheckValue,
+  checkBarWidth,
   isCpiLinked,
   mixMonthlyPaymentAfterYears,
   mixTotalCostWithCpi,
   type TrackInput,
   type GraceType,
   type LiveRates,
+  type DtiLimits,
 } from '@/utils/mortgageCalculations'
-import type { LoanTrackType, PropertyType } from '@/types/database'
+import { evaluateMix } from '@/utils/caseEvaluation'
+import type {
+  LoanTrackType, Mortgage, MortgageVersionSnapshot, PropertyType,
+} from '@/types/database'
 import { db, functions } from '@/lib/firebase'
 import { settingsService } from '@/services/settingsService'
-import { toast } from '@/components/ui'
+import { mortgageService } from '@/services/mortgageService'
+import { regulatoryService } from '@/services/regulatoryService'
+import { useCaseSnapshot } from '@/hooks/queries/useCaseSnapshot'
+import { FALLBACK_REGULATORY_PARAMS, type RegulatoryParams } from '@/utils/regulatoryParams'
+import { toast, ConfirmDialog } from '@/components/ui'
 
 const TRACK_COLORS = ['#059669', '#2563eb', '#d97706', '#8b5cf6']
 
@@ -112,11 +122,87 @@ export default function MortgageCalculatorPage() {
   const [aiAdvising, setAiAdvising] = useState(false)
   const [aiAdvice, setAiAdvice] = useState<{ rationale: string; risk_level: string } | null>(null)
   const [liveRates, setLiveRates] = useState<LiveRates | undefined>()
+  // Term used to build the recommended mixes — 300 months was hard-coded.
+  const [recommendationMonths, setRecommendationMonths] = useState(300)
+
+  // ── Case context (PR-A) ───────────────────────────────────────────────────
+  // The calculator is reachable both standalone and from inside a case. With
+  // ?customerId (and optionally ?mortgageId) it seeds itself from the case and
+  // can write the mix back; without them it stays a scratch calculator.
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const customerId = searchParams.get('customerId')
+  const mortgageId = searchParams.get('mortgageId')
+  // The case's own numbers come from the shared snapshot, so the calculator
+  // cannot disagree with the case file about income, obligations, the
+  // appraisal or the rules in force. Only the mix being edited is local.
+  const { data: snapshot, isLoading: caseLoading, isError: caseError } = useCaseSnapshot(
+    customerId ?? undefined,
+  )
+  const [obligationsEditedManually, setObligationsEditedManually] = useState(false)
+  const [dtiLimits, setDtiLimits] = useState<DtiLimits | undefined>(undefined)
+  const [savingMix, setSavingMix] = useState(false)
+  const [mismatchConfirm, setMismatchConfirm] = useState(false)
+  // Saving an edited mix as a new version keeps the one the client already saw.
+  const [saveAsNewVersion, setSaveAsNewVersion] = useState(false)
+  const [versionLabel, setVersionLabel] = useState('')
+  const [seededFor, setSeededFor] = useState<string | null>(null)
+
+  const caseName = snapshot ? `${snapshot.customer.first_name} ${snapshot.customer.last_name}` : null
+  const obligationCount = snapshot?.obligations.length ?? 0
+  const appraisedValue = snapshot?.appraisal?.appraised_value ?? null
+  const borrowerBirthDates = useMemo(
+    () => (snapshot?.borrowers ?? []).map(b => b.birth_date),
+    [snapshot],
+  )
+
+  // Standalone calculator: no case to date the rules from, so use today's.
+  const [standaloneParams, setStandaloneParams] = useState<RegulatoryParams>(FALLBACK_REGULATORY_PARAMS)
+  useEffect(() => {
+    if (customerId) return
+    regulatoryService.getInForceAt().then(setStandaloneParams)
+  }, [customerId])
+  const regParams = snapshot?.params ?? standaloneParams
 
   useEffect(() => {
-    const rateMap: Record<string, string> = {
-      'קל"צ': 'fixed_linked',
-      'קל"ב': 'fixed_unlinked',
+    if (caseError) toast.error('שגיאה בטעינת התיק')
+  }, [caseError])
+
+  // Seed the editable fields from the case once, so a background refetch does
+  // not overwrite a mix the advisor is in the middle of building.
+  useEffect(() => {
+    if (!snapshot || !customerId) return
+    const seedKey = `${customerId}:${mortgageId ?? ''}`
+    if (seededFor === seedKey) return
+    setSeededFor(seedKey)
+
+    const mortgage = mortgageId
+      ? snapshot.mortgages.find(m => m.id === mortgageId) ?? null
+      : null
+
+    setPropertyPrice(mortgage?.property_price ?? snapshot.customer.requested_amount ?? 0)
+    setOwnCapital(mortgage?.own_capital ?? snapshot.customer.own_capital ?? 0)
+    if (mortgage?.property_type) setPropertyType(mortgage.property_type)
+    setMonthlyIncome(snapshot.householdIncome)
+    setMonthlyObligations(snapshot.monthlyObligations)
+
+    const existingTracks = (mortgage?.loan_tracks ?? []).filter(t => !t.is_existing)
+    if (existingTracks.length > 0) {
+      setTracks(existingTracks.map(t => ({
+        type: t.type,
+        amount: t.amount ?? 0,
+        interestRate: t.interest_rate ?? 0,
+        periodMonths: t.period_months ?? 0,
+      })))
+    }
+  }, [snapshot, customerId, mortgageId, seededFor])
+
+  useEffect(() => {
+    // קל"צ = קבועה לא צמודה, קל"ב = קבועה צמודה. The two were mapped the other
+    // way round, which priced every recommended mix backwards.
+    const rateMap: Record<string, keyof LiveRates> = {
+      'קל"צ': 'fixed_kalatz',
+      'קל"ב': 'fixed_kalab',
       'משתנה_צמודה': 'variable_linked',
       'זכאות': 'eligibility',
       'פריים': 'prime',
@@ -138,6 +224,11 @@ export default function MortgageCalculatorPage() {
       .catch(() => {})
     settingsService.get().then(({ data }) => {
       if (typeof data?.expected_annual_cpi === 'number') setExpectedCpi(data.expected_annual_cpi)
+      // Only an explicit advisor setting overrides the regulator's thresholds;
+      // otherwise checkCompliance takes them from the parameters.
+      if (typeof data?.dti_warn_threshold === 'number' && typeof data?.dti_hard_threshold === 'number') {
+        setDtiLimits({ warn: data.dti_warn_threshold, hard: data.dti_hard_threshold })
+      }
     })
   }, [])
 
@@ -151,30 +242,51 @@ export default function MortgageCalculatorPage() {
     [tracks]
   )
 
-  const totalCost = useMemo(() =>
-    tracks.reduce((s, t) => s + effectiveMonthlyPayment(t) * t.periodMonths, 0),
-    [tracks]
-  )
-
   const hasLinkedTracks = useMemo(() => tracks.some(t => isCpiLinked(t.type)), [tracks])
   const payment5yr = useMemo(() => mixMonthlyPaymentAfterYears(tracks, expectedCpi, 5), [tracks, expectedCpi])
   const payment10yr = useMemo(() => mixMonthlyPaymentAfterYears(tracks, expectedCpi, 10), [tracks, expectedCpi])
   const totalCostWithCpi = useMemo(() => mixTotalCostWithCpi(tracks, expectedCpi), [tracks, expectedCpi])
 
-  const compliance = useMemo(() =>
-    checkCompliance(tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations),
-    [tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations]
-  )
+  // The draft mix is judged by the same function the case snapshot uses, so
+  // the calculator and the case file can only disagree about a mix if they
+  // were handed different mixes — never because they score them differently.
+  const evaluation = useMemo(() => evaluateMix(tracks, {
+    purchasePrice: propertyPrice,
+    propertyType,
+    appraisedValue,
+    householdIncome: monthlyIncome,
+    monthlyObligations,
+    borrowerBirthDates,
+    dtiLimits,
+    params: regParams,
+  }), [tracks, propertyPrice, propertyType, monthlyIncome, monthlyObligations,
+       appraisedValue, borrowerBirthDates, dtiLimits, regParams])
+
+  const compliance = evaluation.compliance
+  const extraEquityNeeded = evaluation.additionalEquityRequired
+  const totalCost = evaluation.totalCost
 
   const recommendations = useMemo(() =>
-    generateRecommendedMixes(loanAmount, 300, liveRates?.prime ?? 6.0, liveRates),
-    [loanAmount, liveRates]
+    generateRecommendedMixes(loanAmount, recommendationMonths, liveRates?.prime ?? 6.0, liveRates),
+    [loanAmount, recommendationMonths, liveRates]
   )
 
+  // The schedule covers the whole mix, not just tracks[0]: a three-track mix
+  // was charted as though only the first track existed.
   const amortizationData = useMemo(() => {
     if (!showAmortization || tracks.length === 0) return []
-    const schedule = calculateAmortizationSchedule(tracks[0].amount, tracks[0].interestRate, tracks[0].periodMonths)
-    return schedule.filter((_, i) => i % 12 === 0).map(row => ({
+    const schedules = tracks.map(t =>
+      calculateAmortizationSchedule(t.amount, t.interestRate, t.periodMonths)
+    )
+    const maxMonths = Math.max(...tracks.map(t => t.periodMonths))
+    const merged = Array.from({ length: maxMonths }, (_, i) => ({
+      month: i + 1,
+      payment: schedules.reduce((s, sch) => s + (sch[i]?.payment ?? 0), 0),
+      principal: schedules.reduce((s, sch) => s + (sch[i]?.principal ?? 0), 0),
+      interest: schedules.reduce((s, sch) => s + (sch[i]?.interest ?? 0), 0),
+      balance: schedules.reduce((s, sch) => s + (sch[i]?.balance ?? 0), 0),
+    }))
+    return merged.filter((_, i) => i % 12 === 0).map(row => ({
       year: Math.ceil(row.month / 12),
       payment: row.payment,
       principal: row.principal,
@@ -217,6 +329,7 @@ export default function MortgageCalculatorPage() {
           value: c.value,
           limit: c.limit,
           isValid: c.isValid,
+          unit: c.unit,
         })),
       })
     } catch (e) {
@@ -224,6 +337,95 @@ export default function MortgageCalculatorPage() {
     } finally {
       setGeneratingPdf(false)
     }
+  }
+
+  // Writing the mix back to the case: upsert the mortgage, then replace its
+  // track set atomically so a re-save edits the mix rather than duplicating it.
+  /** The tracks in the shape loan_tracks stores them. */
+  const trackRecords = () => tracks.map(t => ({
+    type: t.type,
+    amount: t.amount,
+    interest_rate: t.interestRate,
+    period_months: t.periodMonths,
+    monthly_payment: Math.round(effectiveMonthlyPayment(t)),
+    is_existing: false,
+    start_date: null,
+    end_date: null,
+  }))
+
+  /** The numbers frozen onto a version at the moment it is saved. */
+  const versionSnapshot = (): MortgageVersionSnapshot => ({
+    dti: evaluation.dti,
+    ltv: evaluation.ltv,
+    monthly_payment: evaluation.monthlyPayment,
+    total_cost: evaluation.totalCost,
+    compliance: compliance as unknown as MortgageVersionSnapshot['compliance'],
+  })
+
+  const persistMix = async () => {
+    if (!customerId) return
+    setSavingMix(true)
+    try {
+      // Editing an existing version updates it in place; anything else — a new
+      // mix, or "save as a new version" — appends to the case's history rather
+      // than overwriting what was already shown to the client.
+      if (mortgageId && !saveAsNewVersion) {
+        const { data: mortgage, error } = await mortgageService.update(mortgageId, {
+          property_price: propertyPrice,
+          property_type: propertyType,
+          own_capital: ownCapital,
+          loan_amount: tracksTotal,
+          compliance_status: compliance as unknown as Mortgage['compliance_status'],
+          snapshot: versionSnapshot(),
+          ...(versionLabel.trim() ? { version_label: versionLabel.trim() } : {}),
+        })
+        if (error || !mortgage) throw new Error(error?.message ?? 'שמירה נכשלה')
+        const { error: tracksError } = await mortgageService.replaceTracks(mortgage.id, trackRecords())
+        if (tracksError) throw new Error(tracksError.message)
+        toast.success('התמהיל עודכן בתיק הלקוח')
+      } else {
+        const parent = mortgageId
+          ? snapshot?.mortgages.find(m => m.id === mortgageId) ?? null
+          : null
+        const { data, error } = await mortgageService.createVersion({
+          customerId,
+          parent,
+          label: versionLabel.trim() || null,
+          source: 'advisor',
+          propertyPrice,
+          propertyType,
+          ownCapital,
+          loanAmount: tracksTotal,
+          snapshot: versionSnapshot(),
+          tracks: trackRecords(),
+        })
+        if (error || !data) throw new Error(error?.message ?? 'שמירה נכשלה')
+        toast.success(
+          parent ? `נשמרה גרסה ${data.version} בתיק הלקוח` : 'התמהיל נשמר בתיק הלקוח',
+        )
+      }
+
+      navigate(`/customers/${customerId}`)
+    } catch (e) {
+      toast.error('שגיאה בשמירת התמהיל', e instanceof Error ? e.message : undefined)
+    } finally {
+      setSavingMix(false)
+    }
+  }
+
+  const handleSaveMix = () => {
+    if (!customerId) return
+    if (tracks.length === 0) {
+      toast.error('אין מסלולים לשמירה')
+      return
+    }
+    // A mix that does not add up to the loan is usually a half-finished edit,
+    // but it is a legitimate what-if too — so confirm rather than block.
+    if (Math.abs(tracksTotal - loanAmount) > 1000) {
+      setMismatchConfirm(true)
+      return
+    }
+    void persistMix()
   }
 
   const handleAiAdvice = async () => {
@@ -269,6 +471,28 @@ export default function MortgageCalculatorPage() {
 
   return (
     <div className="animate-fade-in max-w-[1360px] mx-auto">
+      {/* Case banner — only when the calculator was opened from a case */}
+      {customerId && (
+        <div
+          className="mb-4 flex items-center justify-between gap-3 px-4 py-3"
+          style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 14 }}
+        >
+          <p className="text-[13px] font-semibold" style={{ color: '#047857' }}>
+            {caseLoading
+              ? 'טוען את התיק...'
+              : `בונה תמהיל עבור ${caseName ?? 'הלקוח'}${mortgageId ? ' — עריכת תמהיל קיים' : ''}`}
+          </p>
+          <button
+            onClick={() => navigate(`/customers/${customerId}`)}
+            className="inline-flex items-center gap-1 text-[13px] font-semibold hover:opacity-80 transition-opacity shrink-0"
+            style={{ color: '#047857' }}
+          >
+            <ArrowRight size={14} />
+            חזרה לתיק
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6">
         <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
@@ -324,10 +548,32 @@ export default function MortgageCalculatorPage() {
                   </select>
                 </div>
                 <InputField label="הכנסה חודשית נטו" value={monthlyIncome} onChange={v => setMonthlyIncome(Number(v) || 0)} prefix="₪" />
-                <InputField label="התחייבויות חודשיות" value={monthlyObligations} onChange={v => setMonthlyObligations(Number(v) || 0)} prefix="₪" />
+                <InputField
+                label="התחייבויות חודשיות"
+                value={monthlyObligations}
+                onChange={v => {
+                  setMonthlyObligations(Number(v) || 0)
+                  if (obligationCount > 0) setObligationsEditedManually(true)
+                }}
+                prefix="₪"
+              />
                 <InputField label="הנחת מדד שנתי" value={expectedCpi} onChange={v => setExpectedCpi(Number(v) || 0)} suffix="%" />
               </div>
-              {monthlyObligations > 0 && (
+              {obligationCount > 0 ? (
+                <p className="mt-2 text-[12px] flex flex-wrap items-center gap-1" style={{ color: '#a8a29e' }}>
+                  <span>מקור: {obligationCount} התחייבויות מהתיק</span>
+                  {obligationsEditedManually && (
+                    <span className="font-semibold" style={{ color: '#d97706' }}>· שונה ידנית</span>
+                  )}
+                  <button
+                    onClick={() => navigate(`/customers/${customerId}`)}
+                    className="font-semibold hover:opacity-80 transition-opacity"
+                    style={{ color: '#059669' }}
+                  >
+                    ערוך בתיק
+                  </button>
+                </p>
+              ) : monthlyObligations > 0 && (
                 <p className="mt-2 text-[12px]" style={{ color: '#a8a29e' }}>
                   התחייבויות חודשיות: {formatCurrency(monthlyObligations)} — נכללות ביחס ההחזר
                 </p>
@@ -347,12 +593,18 @@ export default function MortgageCalculatorPage() {
                   note: tracksTotal !== loanAmount ? `פער: ${formatCurrency(Math.abs(loanAmount - tracksTotal))}` : null,
                 },
                 { label: 'עלות כוללת', value: formatCurrency(Math.round(totalCost)) },
+                ...(appraisedValue && appraisedValue < propertyPrice ? [
+                  { label: 'שווי לפי שמאות', value: formatCurrency(appraisedValue) },
+                ] : []),
+                ...(extraEquityNeeded > 0 ? [
+                  { label: 'הון עצמי נוסף נדרש', value: formatCurrency(extraEquityNeeded), warn: true },
+                ] : []),
                 ...(hasLinkedTracks ? [
                   { label: 'החזר חודשי צפוי בעוד 5 שנים', value: formatCurrency(Math.round(payment5yr)) },
                   { label: 'החזר חודשי צפוי בעוד 10 שנים', value: formatCurrency(Math.round(payment10yr)) },
                   { label: 'עלות כוללת (כולל הצמדה צפויה)', value: formatCurrency(Math.round(totalCostWithCpi)) },
                 ] : []),
-              ].map(row => (
+              ].map((row: { label: string; value: string; highlight?: boolean; note?: string | null; warn?: boolean }) => (
                 <div key={row.label} className="flex items-center justify-between py-3">
                   <span className="text-[13px]" style={{ color: '#a8a29e' }}>{row.label}</span>
                   <div className="flex items-center gap-2">
@@ -363,7 +615,7 @@ export default function MortgageCalculatorPage() {
                       className="font-black tabular-nums"
                       style={{
                         fontSize: row.highlight ? 22 : 15,
-                        color: row.highlight ? '#059669' : '#1c1917',
+                        color: row.highlight ? '#059669' : row.warn ? '#d97706' : '#1c1917',
                         fontFamily: 'var(--font-heebo)',
                       }}
                     >
@@ -390,26 +642,31 @@ export default function MortgageCalculatorPage() {
               בדיקת Compliance
             </h3>
             <div className="space-y-3">
-              {compliance.checks.map((check, idx) => (
-                <div key={idx}>
-                  <div className="flex items-center justify-between text-[13px] mb-1">
-                    <span style={{ color: '#57534e' }}>{check.name}</span>
-                    <span className="font-semibold" style={{ color: check.isValid ? '#059669' : '#dc2626' }}>{check.value}%</span>
+              {compliance.checks.map((check, idx) => {
+                // Green when clean; amber for a warning-severity breach (a case
+                // to discuss); red only for a hard breach.
+                const color = check.isValid ? '#059669' : check.severity === 'warning' ? '#d97706' : '#dc2626'
+                return (
+                  <div key={idx}>
+                    <div className="flex items-center justify-between text-[13px] mb-1">
+                      <span style={{ color: '#57534e' }}>{check.name}</span>
+                      <span className="font-semibold" style={{ color }}>{formatCheckValue(check)}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#f5f4f2' }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${checkBarWidth(check)}%`,
+                          background: color,
+                        }}
+                      />
+                    </div>
+                    <p className="text-[11px] mt-0.5" style={{ color }}>
+                      {check.message}
+                    </p>
                   </div>
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#f5f4f2' }}>
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${Math.min((check.value / check.limit) * 100, 100)}%`,
-                        background: check.isValid ? '#059669' : '#dc2626',
-                      }}
-                    />
-                  </div>
-                  <p className="text-[11px] mt-0.5" style={{ color: check.isValid ? '#059669' : '#dc2626' }}>
-                    {check.message}
-                  </p>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 
@@ -425,12 +682,57 @@ export default function MortgageCalculatorPage() {
               {aiAdvising ? 'מנתח...' : 'המלצת AI לתמהיל'}
             </button>
             <button
-              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97]"
+              onClick={handleSaveMix}
+              disabled={!customerId || savingMix || caseLoading}
+              title={customerId ? undefined : 'פתח את המחשבון מתוך תיק לקוח כדי לשמור תמהיל'}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
             >
-              <Save size={15} />
-              שמור תמהיל ללקוח
+              {savingMix ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              {savingMix
+                ? 'שומר...'
+                : mortgageId
+                  ? (saveAsNewVersion ? 'שמור כגרסה חדשה' : 'עדכן תמהיל בתיק')
+                  : 'שמור תמהיל ללקוח'}
             </button>
+            {!customerId && (
+              <p className="text-[11px] text-center" style={{ color: '#a8a29e' }}>
+                פתח את המחשבון מתוך תיק לקוח כדי לשמור תמהיל
+              </p>
+            )}
+            {customerId && (
+              <div className="flex flex-col gap-2 pt-1">
+                <input
+                  value={versionLabel}
+                  onChange={e => setVersionLabel(e.target.value)}
+                  placeholder='שם הגרסה — למשל "אחרי מו"מ מזרחי"'
+                  className="w-full py-2 px-3 text-[13px] outline-none"
+                  style={{
+                    border: '1.5px solid #e7e5e4',
+                    borderRadius: 10,
+                    background: '#ffffff',
+                    color: '#1c1917',
+                    fontFamily: 'var(--font-heebo)',
+                  }}
+                />
+                {mortgageId && (
+                  <label className="flex items-start gap-2 text-[12px]" style={{ color: '#57534e' }}>
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={saveAsNewVersion}
+                      onChange={e => setSaveAsNewVersion(e.target.checked)}
+                    />
+                    <span>
+                      שמור כגרסה חדשה
+                      <span className="block" style={{ color: '#a8a29e' }}>
+                        הגרסה הקיימת נשמרת כפי שהיא — כך אפשר להשוות בין הסבבים
+                      </span>
+                    </span>
+                  </label>
+                )}
+              </div>
+            )}
             <button
               onClick={handleExportPdf}
               disabled={generatingPdf}
@@ -561,6 +863,7 @@ export default function MortgageCalculatorPage() {
                     </span>
                     <button
                       onClick={() => removeTrack(idx)}
+                      aria-label="הסר מסלול"
                       className="transition-colors hover:text-red-500"
                       style={{ color: '#a8a29e' }}
                     >
@@ -625,10 +928,33 @@ export default function MortgageCalculatorPage() {
 
           {/* Recommendations */}
           <div style={{ ...cardStyle, padding: '22px 24px' }}>
-            <h3 className="text-[14px] font-bold mb-4 flex items-center gap-2" style={{ color: '#1c1917' }}>
-              <Sparkles size={15} style={{ color: '#d97706' }} />
-              תמהילים מומלצים
-            </h3>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h3 className="text-[14px] font-bold flex items-center gap-2" style={{ color: '#1c1917' }}>
+                <Sparkles size={15} style={{ color: '#d97706' }} />
+                תמהילים מומלצים
+              </h3>
+              <div className="flex items-center gap-2">
+                <span className="text-[12px]" style={{ color: '#a8a29e' }}>תקופה</span>
+                <select
+                  value={recommendationMonths}
+                  onChange={e => setRecommendationMonths(Number(e.target.value))}
+                  className="py-1.5 px-2 text-[13px] outline-none"
+                  style={{
+                    border: '1.5px solid #e7e5e4',
+                    borderRadius: 8,
+                    background: '#ffffff',
+                    color: '#1c1917',
+                    fontFamily: 'var(--font-heebo)',
+                  }}
+                >
+                  {[
+                    { months: 240, label: '20 שנה' },
+                    { months: 300, label: '25 שנה' },
+                    { months: 360, label: '30 שנה' },
+                  ].map(o => <option key={o.months} value={o.months}>{o.label}</option>)}
+                </select>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               {recommendations.map((rec, idx) => {
                 const monthly = rec.tracks.reduce((s, t) => s + calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths), 0)
@@ -693,6 +1019,15 @@ export default function MortgageCalculatorPage() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={mismatchConfirm}
+        title="סכום המסלולים אינו תואם"
+        message={`סכום המסלולים שונה מסכום ההלוואה ב-${formatCurrency(Math.abs(tracksTotal - loanAmount))}. לשמור בכל זאת?`}
+        confirmText="שמור בכל זאת"
+        onConfirm={() => { setMismatchConfirm(false); void persistMix() }}
+        onCancel={() => setMismatchConfirm(false)}
+      />
     </div>
   )
 }

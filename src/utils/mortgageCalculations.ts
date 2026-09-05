@@ -1,4 +1,9 @@
 import type { LoanTrackType, PropertyType } from '@/types/database'
+import {
+  FALLBACK_REGULATORY_PARAMS,
+  ltvLimitFor,
+  type RegulatoryParams,
+} from '@/utils/regulatoryParams'
 
 export type GraceType = 'מלא' | 'חלקי'
 
@@ -45,6 +50,24 @@ export function calculateGracePayments(
   }
 }
 
+/**
+ * Total paid over a track's life.
+ *
+ * With a grace period the payment is not one number: multiplying the
+ * after-grace payment by the whole term charges the higher payment for the
+ * grace months too. On 500K / 4% / 240 months with 24 months of partial grace
+ * that overstated the cost by about 38,000 ₪.
+ */
+export function trackTotalCost(t: TrackInput): number {
+  if (!t.graceMonths || t.graceMonths <= 0) {
+    return calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths) * t.periodMonths
+  }
+  const { duringGrace, afterGrace } = calculateGracePayments(
+    t.amount, t.interestRate, t.periodMonths, t.graceMonths, t.graceType || 'חלקי',
+  )
+  return duringGrace * t.graceMonths + afterGrace * (t.periodMonths - t.graceMonths)
+}
+
 /** Returns the effective monthly payment for compliance & totals (uses afterGrace if grace exists) */
 export function effectiveMonthlyPayment(track: TrackInput): number {
   if (!track.graceMonths || track.graceMonths <= 0) {
@@ -69,6 +92,8 @@ export interface ComplianceResult {
   checks: ComplianceCheck[]
 }
 
+export type ComplianceUnit = '%' | 'months' | 'years'
+
 export interface ComplianceCheck {
   name: string
   value: number
@@ -76,6 +101,57 @@ export interface ComplianceCheck {
   isValid: boolean
   severity: 'error' | 'warning'
   message: string
+  /** What `value` is measured in — not every check is a percentage. */
+  unit: ComplianceUnit
+  /** Whether `limit` is a ceiling or a floor, for the progress bar's direction. */
+  direction: 'max' | 'min'
+}
+
+/** Renders a check's value with its own unit. */
+export function formatCheckValue(check: ComplianceCheck): string {
+  switch (check.unit) {
+    case 'months': return `${check.value} חודשים`
+    case 'years': return `${check.value}`
+    default: return `${check.value}%`
+  }
+}
+
+/**
+ * How full a check's progress bar should be, as a percentage.
+ *
+ * A minimum is the mirror image of a maximum: the bar fills as the value
+ * approaches the floor from below and is full once it is met, rather than
+ * filling as it approaches a ceiling.
+ */
+export function checkBarWidth(check: ComplianceCheck): number {
+  if (check.limit <= 0) return 0
+  const ratio = check.value / check.limit
+  if (check.direction === 'min') return Math.min(Math.max(ratio, 0), 1) * 100
+  return Math.min(Math.max(ratio, 0), 1) * 100
+}
+
+/**
+ * DTI thresholds. `warn` is where the case stops being comfortable and `hard`
+ * is where it stops being fundable; between them the advisor gets an amber
+ * flag rather than a red one, because a case at 43% is a conversation, not a
+ * rejection.
+ *
+ * The numbers come from the published regulatory parameters; a caller may
+ * still pass stricter ones of its own.
+ */
+export interface DtiLimits {
+  warn: number
+  hard: number
+}
+
+/**
+ * The thresholds used when neither an advisor setting nor a published
+ * regulatory record supplies them. Derived from the fallback parameters so
+ * there is one place these numbers live.
+ */
+export const DEFAULT_DTI_LIMITS: DtiLimits = {
+  warn: FALLBACK_REGULATORY_PARAMS.dti_warn_threshold,
+  hard: FALLBACK_REGULATORY_PARAMS.dti_hard_threshold,
 }
 
 export function calculateMonthlyPayment(
@@ -132,13 +208,16 @@ export function calculateTotalInterest(
   return calculateTotalPayment(principal, annualRate, months) - principal
 }
 
-export function getLtvLimit(propertyType: PropertyType): number {
-  switch (propertyType) {
-    case 'דירה_ראשונה': return 75
-    case 'משפרי_דיור': return 70
-    case 'להשקעה': return 50
-    default: return 75
-  }
+/**
+ * LTV ceiling for a property type. The numbers live in the regulatory
+ * parameters, so a Bank of Israel change is a data edit; the built-in
+ * fallback only applies when no record has been published.
+ */
+export function getLtvLimit(
+  propertyType: PropertyType,
+  params: RegulatoryParams = FALLBACK_REGULATORY_PARAMS,
+): number {
+  return ltvLimitFor(propertyType, params)
 }
 
 /** The bank finances against the lower of purchase price and appraised value. */
@@ -149,10 +228,34 @@ export function effectivePropertyValue(purchasePrice: number, appraisedValue?: n
 
 /** Additional equity the borrower must bring if the appraisal came in low. */
 export function additionalEquityRequired(
-  loanAmount: number, purchasePrice: number, appraisedValue: number, propertyType: PropertyType
+  loanAmount: number,
+  purchasePrice: number,
+  appraisedValue: number,
+  propertyType: PropertyType,
+  params: RegulatoryParams = FALLBACK_REGULATORY_PARAMS,
 ): number {
-  const maxLoan = (getLtvLimit(propertyType) / 100) * effectivePropertyValue(purchasePrice, appraisedValue)
+  const maxLoan = (getLtvLimit(propertyType, params) / 100)
+    * effectivePropertyValue(purchasePrice, appraisedValue)
   return Math.max(0, Math.round(loanAmount - maxLoan))
+}
+
+function dtiBreakdown(
+  dti: number,
+  limits: DtiLimits,
+  mortgagePayment: number,
+  obligations: number,
+): string {
+  const nis = (v: number) => Math.round(v).toLocaleString('he-IL')
+  const parts = obligations > 0
+    ? ` (משכנתא ${nis(mortgagePayment)} ₪ + התחייבויות ${nis(obligations)} ₪)`
+    : ''
+  if (dti <= limits.warn) {
+    return `יחס החזר/הכנסה תקין: ${dti.toFixed(1)}%${parts} (סף אזהרה ${limits.warn}%)`
+  }
+  if (dti <= limits.hard) {
+    return `יחס החזר/הכנסה מעל סף האזהרה: ${dti.toFixed(1)}%${parts} (אזהרה ${limits.warn}%, מקסימום ${limits.hard}%)`
+  }
+  return `יחס החזר/הכנסה חורג: ${dti.toFixed(1)}%${parts} (מקסימום ${limits.hard}%)`
 }
 
 export function checkCompliance(
@@ -162,16 +265,34 @@ export function checkCompliance(
   monthlyIncome: number,
   monthlyObligations = 0,
   appraisedValue?: number | null,
-  borrowerBirthDates?: (string | null | undefined)[]
+  borrowerBirthDates?: (string | null | undefined)[],
+  dtiLimits?: DtiLimits,
+  /**
+   * The rules in force for this case. Every threshold below comes from here,
+   * so a Bank of Israel change is a published record rather than a release,
+   * and a case can be judged by the rules that applied when it was created.
+   */
+  params: RegulatoryParams = FALLBACK_REGULATORY_PARAMS,
 ): ComplianceResult {
+  // An explicit dtiLimits still wins — the advisor's own settings are allowed
+  // to be stricter than the regulator's ceiling.
+  const dti_limits: DtiLimits = dtiLimits ?? {
+    warn: params.dti_warn_threshold,
+    hard: params.dti_hard_threshold,
+  }
   const totalLoan = tracks.reduce((sum, t) => sum + t.amount, 0)
   const totalMonthlyPayment = tracks.reduce(
     (sum, t) => sum + effectiveMonthlyPayment(t),
     0
   )
-  const maxPeriod = Math.max(...tracks.map(t => t.periodMonths))
+  // Math.max of an empty list is -Infinity, which used to surface verbatim in
+  // the "תקופה" row of an untouched calculator.
+  const maxPeriod = tracks.length ? Math.max(...tracks.map(t => t.periodMonths)) : 0
 
-  const fixedTracks = tracks.filter(t => t.type === 'קל"צ' || t.type === 'קל"ב')
+  // זכאות is a fixed, index-linked rate, so it counts toward the fixed-third
+  // floor exactly like קל"צ and קל"ב. (isCpiLinked already treats it as linked;
+  // that stays as it is.)
+  const fixedTracks = tracks.filter(t => t.type === 'קל"צ' || t.type === 'קל"ב' || t.type === 'זכאות')
   const primeTracks = tracks.filter(t => t.type === 'פריים')
   const variableTracks = tracks.filter(t =>
     t.type === 'פריים' || t.type === 'משתנה_צמודה' || t.type === 'משתנה_לא_צמודה'
@@ -188,8 +309,9 @@ export function checkCompliance(
     : 0
 
   const effectiveValue = effectivePropertyValue(propertyPrice, appraisedValue)
-  const ltv = (totalLoan / effectiveValue) * 100
-  const ltvLimit = getLtvLimit(propertyType)
+  const ltvApplicable = effectiveValue > 0
+  const ltv = ltvApplicable ? (totalLoan / effectiveValue) * 100 : 0
+  const ltvLimit = getLtvLimit(propertyType, params)
   const combinedPayment = totalMonthlyPayment + monthlyObligations
   const dti = monthlyIncome > 0 ? (combinedPayment / monthlyIncome) * 100 : 0
 
@@ -198,68 +320,84 @@ export function checkCompliance(
       name: 'LTV - יחס הלוואה לשווי',
       value: Math.round(ltv * 10) / 10,
       limit: ltvLimit,
-      isValid: ltv <= ltvLimit,
+      // With no property value there is nothing to divide by; reporting the
+      // check as failed would be a false alarm, so it is reported as N/A.
+      isValid: !ltvApplicable || ltv <= ltvLimit,
       severity: 'error',
-      message: ltv <= ltvLimit
-        ? `LTV תקין: ${ltv.toFixed(1)}% (מקסימום ${ltvLimit}%)`
-        : `LTV חורג: ${ltv.toFixed(1)}% (מקסימום ${ltvLimit}%)`,
+      message: !ltvApplicable
+        ? 'לא ניתן לחשב LTV — חסר שווי נכס'
+        : ltv <= ltvLimit
+          ? `LTV תקין: ${ltv.toFixed(1)}% (מקסימום ${ltvLimit}%)`
+          : `LTV חורג: ${ltv.toFixed(1)}% (מקסימום ${ltvLimit}%)`,
+      unit: '%',
+      direction: 'max',
     },
     {
       name: 'ריבית קבועה (מינימום)',
       value: Math.round(fixedPercent * 10) / 10,
-      limit: 33.3,
-      isValid: fixedPercent >= 33.3,
+      limit: params.min_fixed_percent,
+      isValid: fixedPercent >= params.min_fixed_percent,
       severity: 'error',
-      message: fixedPercent >= 33.3
-        ? `ריבית קבועה תקינה: ${fixedPercent.toFixed(1)}% (מינימום 33.3%)`
-        : `ריבית קבועה חסרה: ${fixedPercent.toFixed(1)}% (מינימום 33.3%)`,
+      message: fixedPercent >= params.min_fixed_percent
+        ? `ריבית קבועה תקינה: ${fixedPercent.toFixed(1)}% (מינימום ${params.min_fixed_percent}%)`
+        : `ריבית קבועה חסרה: ${fixedPercent.toFixed(1)}% (מינימום ${params.min_fixed_percent}%)`,
+      unit: '%',
+      direction: 'min',
     },
     {
       name: 'פריים (בתוך מגבלת המשתנה)',
       value: Math.round(primePercent * 10) / 10,
-      limit: 66.6,
-      isValid: primePercent <= 66.6,
+      limit: params.max_prime_percent,
+      isValid: primePercent <= params.max_prime_percent,
       severity: 'warning',
-      message: primePercent <= 66.6
-        ? `פריים תקין: ${primePercent.toFixed(1)}% (מקסימום 66.6%)`
-        : `פריים חורג: ${primePercent.toFixed(1)}% (מקסימום 66.6%)`,
+      message: primePercent <= params.max_prime_percent
+        ? `פריים תקין: ${primePercent.toFixed(1)}% (מקסימום ${params.max_prime_percent}%)`
+        : `פריים חורג: ${primePercent.toFixed(1)}% (מקסימום ${params.max_prime_percent}%)`,
+      unit: '%',
+      direction: 'max',
     },
     {
       name: 'משתנה כולל (מקסימום)',
       value: Math.round(variablePercent * 10) / 10,
-      limit: 66.6,
-      isValid: variablePercent <= 66.6,
+      limit: params.max_variable_percent,
+      isValid: variablePercent <= params.max_variable_percent,
       severity: 'error',
-      message: variablePercent <= 66.6
-        ? `משתנה כולל תקין: ${variablePercent.toFixed(1)}% (מקסימום 66.6%)`
-        : `משתנה כולל חורג: ${variablePercent.toFixed(1)}% (מקסימום 66.6%)`,
+      message: variablePercent <= params.max_variable_percent
+        ? `משתנה כולל תקין: ${variablePercent.toFixed(1)}% (מקסימום ${params.max_variable_percent}%)`
+        : `משתנה כולל חורג: ${variablePercent.toFixed(1)}% (מקסימום ${params.max_variable_percent}%)`,
+      unit: '%',
+      direction: 'max',
     },
     {
       name: 'תקופה (מקסימום)',
       value: maxPeriod,
-      limit: 360,
-      isValid: maxPeriod <= 360,
+      limit: params.max_period_months,
+      isValid: maxPeriod <= params.max_period_months,
       severity: 'error',
-      message: maxPeriod <= 360
-        ? `תקופה תקינה: ${maxPeriod} חודשים (מקסימום 360)`
-        : `תקופה חורגת: ${maxPeriod} חודשים (מקסימום 360)`,
+      message: maxPeriod <= params.max_period_months
+        ? `תקופה תקינה: ${maxPeriod} חודשים (מקסימום ${params.max_period_months})`
+        : `תקופה חורגת: ${maxPeriod} חודשים (מקסימום ${params.max_period_months})`,
+      unit: 'months',
+      direction: 'max',
     },
     {
       name: 'יחס החזר/הכנסה',
       value: Math.round(dti * 10) / 10,
-      limit: 40,
-      isValid: dti <= 40,
-      severity: dti <= 40 ? 'warning' : 'error',
-      message: monthlyObligations > 0
-        ? `יחס החזר כולל התחייבויות: ${dti.toFixed(1)}% (משכנתא ${Math.round(totalMonthlyPayment).toLocaleString('he-IL')} ₪ + התחייבויות ${Math.round(monthlyObligations).toLocaleString('he-IL')} ₪, מקסימום 40%)`
-        : dti <= 40
-          ? `יחס החזר/הכנסה תקין: ${dti.toFixed(1)}% (מקסימום 40%)`
-          : `יחס החזר/הכנסה חורג: ${dti.toFixed(1)}% (מקסימום 40%)`,
+      limit: dti_limits.hard,
+      // Three states, not two. Up to `warn` the case is clean; between `warn`
+      // and `hard` it is flagged but still fundable, so the check reads as
+      // not-clean at warning severity and does not fail overall compliance;
+      // only above `hard` is it an error.
+      isValid: dti <= dti_limits.warn,
+      severity: dti <= dti_limits.hard ? 'warning' : 'error',
+      message: dtiBreakdown(dti, dti_limits, totalMonthlyPayment, monthlyObligations),
+      unit: '%',
+      direction: 'max',
     },
   ]
 
-  // Age-at-term warning (professional guidance, non-blocking). Many banks cap
-  // the borrower's age at the end of the term around 85.
+  // Age-at-term warning (professional guidance, non-blocking). Banks cap the
+  // borrower's age at the end of the term; the cap itself is a parameter.
   const oldestAgeAtEnd = (borrowerBirthDates ?? [])
     .map(bd => {
       if (!bd) return null
@@ -271,14 +409,16 @@ export function checkCompliance(
     .filter((v): v is number => v !== null)
     .reduce((max, v) => Math.max(max, v), 0)
 
-  if (oldestAgeAtEnd > 85) {
+  if (oldestAgeAtEnd > params.max_age_at_term) {
     checks.push({
       name: 'גיל בתום התקופה',
       value: Math.round(oldestAgeAtEnd),
-      limit: 85,
+      limit: params.max_age_at_term,
       isValid: false,
       severity: 'warning',
-      message: `גיל הלווה בתום התקופה: ${Math.round(oldestAgeAtEnd)} — בנקים רבים מגבילים ל-~85`,
+      message: `גיל הלווה בתום התקופה: ${Math.round(oldestAgeAtEnd)} — בנקים רבים מגבילים ל-~${params.max_age_at_term}`,
+      unit: 'years',
+      direction: 'max',
     })
   }
 
@@ -288,9 +428,20 @@ export function checkCompliance(
   }
 }
 
+/**
+ * Live market rates keyed by track, as published in `interest_rates`.
+ *
+ * The keys are deliberately named after the Hebrew tracks rather than after
+ * "linked"/"unlinked": קל"צ is fixed *un*linked and קל"ב is fixed *linked*, and
+ * naming them the other way round is exactly how the two got swapped before.
+ * These names never reach Firestore — documents key off `track_type` with the
+ * Hebrew value — so the shape is free to describe the tracks directly.
+ */
 export interface LiveRates {
-  fixed_linked?: number
-  fixed_unlinked?: number
+  /** קל"צ — קבועה לא צמודה. Carries the higher nominal rate: no index on top. */
+  fixed_kalatz?: number
+  /** קל"ב — קבועה צמודת מדד. Lower nominal rate; the CPI is added on top. */
+  fixed_kalab?: number
   variable_linked?: number
   eligibility?: number
   prime?: number
@@ -303,8 +454,8 @@ export function generateRecommendedMixes(
   rates?: LiveRates,
 ): { name: string; tracks: TrackInput[] }[] {
   const r = {
-    fixedLinked: rates?.fixed_linked ?? 4.5,
-    fixedUnlinked: rates?.fixed_unlinked ?? 3.8,
+    kalatz: rates?.fixed_kalatz ?? 4.5,
+    kalab: rates?.fixed_kalab ?? 3.8,
     variableLinked: rates?.variable_linked ?? 3.2,
     eligibility: rates?.eligibility ?? 3.0,
   }
@@ -312,23 +463,23 @@ export function generateRecommendedMixes(
     {
       name: 'שמרני',
       tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.4), interestRate: r.fixedLinked, periodMonths },
-        { type: 'קל"ב', amount: Math.round(loanAmount * 0.3), interestRate: r.fixedUnlinked, periodMonths },
+        { type: 'קל"צ', amount: Math.round(loanAmount * 0.4), interestRate: r.kalatz, periodMonths },
+        { type: 'קל"ב', amount: Math.round(loanAmount * 0.3), interestRate: r.kalab, periodMonths },
         { type: 'פריים', amount: Math.round(loanAmount * 0.3), interestRate: primeRate, periodMonths },
       ],
     },
     {
       name: 'מאוזן',
       tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.34), interestRate: r.fixedLinked, periodMonths },
-        { type: 'קל"ב', amount: Math.round(loanAmount * 0.33), interestRate: r.fixedUnlinked, periodMonths },
+        { type: 'קל"צ', amount: Math.round(loanAmount * 0.34), interestRate: r.kalatz, periodMonths },
+        { type: 'קל"ב', amount: Math.round(loanAmount * 0.33), interestRate: r.kalab, periodMonths },
         { type: 'פריים', amount: Math.round(loanAmount * 0.33), interestRate: primeRate, periodMonths },
       ],
     },
     {
       name: 'אגרסיבי',
       tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.34), interestRate: r.fixedLinked, periodMonths },
+        { type: 'קל"צ', amount: Math.round(loanAmount * 0.34), interestRate: r.kalatz, periodMonths },
         { type: 'משתנה_צמודה', amount: Math.round(loanAmount * 0.33), interestRate: r.variableLinked, periodMonths },
         { type: 'פריים', amount: Math.round(loanAmount * 0.33), interestRate: primeRate, periodMonths },
       ],
@@ -336,8 +487,8 @@ export function generateRecommendedMixes(
     {
       name: 'מותאם אישית',
       tracks: [
-        { type: 'קל"צ', amount: Math.round(loanAmount * 0.35), interestRate: r.fixedLinked, periodMonths },
-        { type: 'קל"ב', amount: Math.round(loanAmount * 0.2), interestRate: r.fixedUnlinked, periodMonths },
+        { type: 'קל"צ', amount: Math.round(loanAmount * 0.35), interestRate: r.kalatz, periodMonths },
+        { type: 'קל"ב', amount: Math.round(loanAmount * 0.2), interestRate: r.kalab, periodMonths },
         { type: 'זכאות', amount: Math.round(loanAmount * 0.15), interestRate: r.eligibility, periodMonths: Math.min(periodMonths, 240) },
         { type: 'פריים', amount: Math.round(loanAmount * 0.3), interestRate: primeRate, periodMonths },
       ],
@@ -372,7 +523,7 @@ export function totalPaymentWithCpi(track: TrackInput, annualCpi: number): numbe
 export function mixMonthlyPaymentAfterYears(tracks: TrackInput[], annualCpi: number, years: number): number {
   return tracks.reduce((sum, t) => {
     const base = calculateMonthlyPayment(t.amount, t.interestRate, t.periodMonths)
-    if (t.periodMonths < years * 12) return sum // track already paid off
+    if (t.periodMonths <= years * 12) return sum // track already paid off
     if (!isCpiLinked(t.type) || annualCpi <= 0) return sum + base
     return sum + linkedPaymentAtMonth(base, annualCpi, years * 12)
   }, 0)
@@ -386,16 +537,29 @@ export function mixTotalCostWithCpi(tracks: TrackInput[], annualCpi: number): nu
 // ── Early-repayment (capitalization) fee ─────────────────────────────────────
 
 export interface PrepaymentFeeInput {
+  /** פריים carries no capitalization fee at all. */
+  trackType: LoanTrackType
   balance: number               // track balance
   contractRate: number          // the rate in the contract (%)
   avgRate: number               // Bank of Israel average rate for the remaining term (%)
   remainingMonths: number
   yearsSinceStart: number       // seniority — for the seniority discount
-  earlyNoticeGiven: boolean     // early notice (10–45 days) — 10% discount (not applied by default)
+  earlyNoticeGiven: boolean     // early notice (10–45 days)
+  /** A variable track repaid at an exit station is exempt. */
+  atExitStation?: boolean
 }
 
-export function estimatePrepaymentFee(input: PrepaymentFeeInput) {
-  const { balance, contractRate, avgRate, remainingMonths, yearsSinceStart } = input
+export function estimatePrepaymentFee(
+  input: PrepaymentFeeInput,
+  params: RegulatoryParams = FALLBACK_REGULATORY_PARAMS,
+) {
+  const { trackType, balance, contractRate, avgRate, remainingMonths, yearsSinceStart } = input
+
+  // פריים tracks the Bank of Israel rate, so there is no fixed-rate spread to
+  // capitalize; a variable track repaid at its exit station is likewise exempt.
+  if (trackType === 'פריים' || input.atExitStation) {
+    return { capitalizationFee: 0, discount: 0, finalFee: 0 }
+  }
   // No capitalization fee when the average rate is at or above the contract rate.
   if (avgRate >= contractRate || balance <= 0 || remainingMonths <= 0) {
     return { capitalizationFee: 0, discount: 0, finalFee: 0 }
@@ -406,15 +570,31 @@ export function estimatePrepaymentFee(input: PrepaymentFeeInput) {
   const rAvg = avgRate / 100 / 12
   const pvAtAvg = payment * (1 - Math.pow(1 + rAvg, -remainingMonths)) / rAvg
   const capitalizationFee = Math.max(0, pvAtAvg - balance)
-  // Seniority discount per the regulations: 20% after 3 years, 30% after 5 years.
-  const discountRate = yearsSinceStart >= 5 ? 0.3 : yearsSinceStart >= 3 ? 0.2 : 0
-  const discount = capitalizationFee * discountRate
+
+  const seniorityRate = params.prepay_seniority_discounts
+    .find(d => yearsSinceStart >= d.years)?.discount ?? 0
+  const seniorityDiscount = capitalizationFee * seniorityRate
+
+  // The early-notice discount applies to what is left after the seniority
+  // discount. It was accepted as a parameter but never used, so ticking the box
+  // changed the fee by exactly nothing.
+  const afterSeniority = capitalizationFee - seniorityDiscount
+  const noticeDiscount = input.earlyNoticeGiven
+    ? afterSeniority * params.prepay_early_notice_discount
+    : 0
+
   return {
     capitalizationFee: Math.round(capitalizationFee),
-    discount: Math.round(discount),
-    finalFee: Math.round(capitalizationFee - discount),
+    discount: Math.round(seniorityDiscount + noticeDiscount),
+    finalFee: Math.round(afterSeniority - noticeDiscount),
   }
 }
+
+/**
+ * How a refinance pays off: a lower monthly payment, a shorter term at a
+ * higher payment but lower total cost, or not at all.
+ */
+export type RefinanceSavingType = 'monthly' | 'term' | 'none'
 
 export function calculateRefinanceSavings(
   existingTracks: TrackInput[],
@@ -441,6 +621,12 @@ export function calculateRefinanceSavings(
     ? Math.ceil(earlyRepaymentFee / monthlySaving)
     : Infinity
 
+  // Shortening the term raises the monthly payment while cutting total cost.
+  // Judging every refinance by break-even on a monthly saving rejected those
+  // outright — including cases saving hundreds of thousands over the term.
+  const savingType: RefinanceSavingType =
+    monthlySaving > 0 ? 'monthly' : totalSaving > 0 ? 'term' : 'none'
+
   return {
     existingMonthly: Math.round(existingMonthly),
     newMonthly: Math.round(newMonthly),
@@ -450,6 +636,7 @@ export function calculateRefinanceSavings(
     totalSaving: Math.round(totalSaving),
     earlyRepaymentFee,
     breakEvenMonths,
-    isWorthIt: totalSaving > 0 && breakEvenMonths < 36,
+    savingType,
+    isWorthIt: totalSaving > 0 && (monthlySaving <= 0 || breakEvenMonths < 36),
   }
 }

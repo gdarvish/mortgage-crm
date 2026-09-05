@@ -1,11 +1,13 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { onDocumentDeleted } from 'firebase-functions/v2/firestore'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
-import { FieldValue, Timestamp } from 'firebase-admin/firestore'
+import { FieldValue } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { randomUUID } from 'node:crypto'
 import type { Archiver } from 'archiver'
-import { db, REGION } from './common'
+import { db, REGION, checkRateLimit } from './common'
+import { requireAuth, requireAdmin, requireString, requireOwnedDoc } from './guards'
+import { monthlyPayment, estimatePrepaymentFee } from './mortgageMath'
 
 // archiver's CommonJS entry is a factory function, which the bundled types do
 // not expose as callable — require it and type the factory explicitly.
@@ -32,26 +34,6 @@ async function findCustomerByToken(token: string) {
 function isExpired(expiresAt: unknown): boolean {
   if (!expiresAt || typeof expiresAt !== 'string') return false
   return new Date(expiresAt).getTime() < Date.now()
-}
-
-/** Rate limiter פשוט מבוסס Firestore — חלון קבוע פר מזהה (IP). */
-async function checkRateLimit(qualifier: string, maxCalls = 10, windowSec = 60): Promise<void> {
-  const ref = db.collection('rate_limits').doc(qualifier.replace(/\//g, '_'))
-  const now = Date.now()
-  await db.runTransaction(async (tx) => {
-    const data = (await tx.get(ref)).data()
-    let count = 1
-    let windowStart = now
-    if (data && typeof data.windowStart === 'number' && now - data.windowStart < windowSec * 1000) {
-      count = (data.count ?? 0) + 1
-      windowStart = data.windowStart
-    }
-    if (count > maxCalls) {
-      throw new HttpsError('resource-exhausted', 'יותר מדי בקשות. נסה שוב בעוד דקה.')
-    }
-    // expireAt drives the Firestore TTL policy so stale limiter docs self-delete.
-    tx.set(ref, { count, windowStart, expireAt: Timestamp.fromMillis(now + 60 * 60 * 1000) })
-  })
 }
 
 /** אימות reCAPTCHA v3. אם RECAPTCHA_SECRET_KEY לא מוגדר — מדלגים על הבדיקה. */
@@ -380,8 +362,7 @@ export const onMortgageDeleted = onDocumentDeleted(
 )
 
 export const deleteAllUserData = onCall({ region: REGION }, async (req) => {
-  if (!req.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
-  const uid = req.auth.uid
+  const uid = requireAuth(req)
   const bucket = getStorage().bucket()
 
   // Collect customer IDs for Storage cleanup
@@ -409,10 +390,7 @@ const VALID_TRACK_TYPES = ['קל"צ', 'קל"ב', 'משתנה_צמודה', 'מש�
 
 /** Admin-only write path for the shared interest_rates collection (client writes are blocked by rules). */
 export const updateInterestRate = onCall({ region: REGION }, async (req) => {
-  if (!req.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
-  if (req.auth.token.admin !== true) {
-    throw new HttpsError('permission-denied', 'נדרשות הרשאות מנהל לעדכון ריביות')
-  }
+  const uid = requireAdmin(req, 'לעדכון ריביות')
   const { track_type, rate } = req.data ?? {}
   if (!VALID_TRACK_TYPES.includes(track_type)) {
     throw new HttpsError('invalid-argument', 'סוג מסלול אינו תקין')
@@ -424,19 +402,118 @@ export const updateInterestRate = onCall({ region: REGION }, async (req) => {
     track_type,
     rate,
     effective_date: new Date().toISOString(),
-    updated_by: req.auth.uid,
+    updated_by: uid,
     created_at: FieldValue.serverTimestamp(),
   })
   return { ok: true }
 })
 
+/**
+ * Numeric fields of a regulatory-parameters record, with the range each must
+ * fall in. A typo here would silently repaint every case in the system, so
+ * every value is bounded.
+ */
+const REGULATORY_FIELDS: Record<string, { min: number; max: number }> = {
+  ltv_first_home: { min: 0, max: 100 },
+  ltv_upgrader: { min: 0, max: 100 },
+  ltv_investment: { min: 0, max: 100 },
+  min_fixed_percent: { min: 0, max: 100 },
+  max_prime_percent: { min: 0, max: 100 },
+  max_variable_percent: { min: 0, max: 100 },
+  max_period_months: { min: 12, max: 600 },
+  dti_warn_threshold: { min: 0, max: 100 },
+  dti_hard_threshold: { min: 0, max: 100 },
+  max_age_at_term: { min: 50, max: 120 },
+  dti_obligation_months: { min: 0, max: 120 },
+  prepay_early_notice_discount: { min: 0, max: 1 },
+}
+
+/**
+ * Publishes a new set of regulatory limits.
+ *
+ * Records are never edited — a new one is published with the date it takes
+ * effect, so the history stays intact and a case opened under the old rules
+ * can still be judged by them.
+ */
+export const updateRegulatoryParams = onCall({ region: REGION }, async (req) => {
+  const uid = requireAdmin(req, 'לעדכון פרמטרים רגולטוריים')
+
+  const data = req.data ?? {}
+  const record: Record<string, unknown> = {}
+
+  for (const [field, range] of Object.entries(REGULATORY_FIELDS)) {
+    const value = data[field]
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < range.min || value > range.max) {
+      throw new HttpsError('invalid-argument', `הערך של ${field} אינו תקין`)
+    }
+    record[field] = value
+  }
+
+  if (record.dti_warn_threshold as number > (record.dti_hard_threshold as number)) {
+    throw new HttpsError('invalid-argument', 'סף האזהרה חייב להיות נמוך מסף החריגה')
+  }
+
+  const discounts = data.prepay_seniority_discounts
+  if (!Array.isArray(discounts) || discounts.length === 0) {
+    throw new HttpsError('invalid-argument', 'חסרות הנחות ותק לפירעון מוקדם')
+  }
+  for (const d of discounts) {
+    const validYears = typeof d?.years === 'number' && d.years >= 0 && d.years <= 40
+    const validDiscount = typeof d?.discount === 'number' && d.discount >= 0 && d.discount <= 1
+    if (!validYears || !validDiscount) {
+      throw new HttpsError('invalid-argument', 'הנחת ותק אינה תקינה')
+    }
+  }
+  // Highest seniority first, so a lookup takes the first match.
+  record.prepay_seniority_discounts = [...discounts]
+    .sort((a, b) => b.years - a.years)
+    .map((d) => ({ years: d.years, discount: d.discount }))
+
+  const effectiveFrom = data.effective_from
+  if (typeof effectiveFrom !== 'string' || Number.isNaN(new Date(effectiveFrom).getTime())) {
+    throw new HttpsError('invalid-argument', 'תאריך תחילת תוקף אינו תקין')
+  }
+  record.effective_from = new Date(effectiveFrom).toISOString()
+  record.source_note = typeof data.source_note === 'string' ? data.source_note : null
+  record.updated_by = uid
+  record.created_at = FieldValue.serverTimestamp()
+
+  const ref = await db.collection('regulatory_params').add(record)
+  return { ok: true, id: ref.id }
+})
+
 const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Alert states that must suppress a duplicate. Deduplicating on 'פתוח' alone
+ * meant a snoozed alert was recreated on the next nightly run — snooze
+ * survived until 02:00 and no longer.
+ */
+const OPEN_OR_SNOOZED = ['פתוח', 'נדחה']
+
+/** Mixes that are still drafts or rejected are not live cases to alert on. */
+const INACTIVE_MORTGAGE_STATUSES = ['טיוטה', 'נדחה']
 
 /** יצירת התראות יומית עבור מסלולי הלוואה שמסתיימים בקרוב. */
 export const generateAlerts = onSchedule(
   { schedule: 'every day 02:00', timeZone: 'Asia/Jerusalem', region: REGION },
   async () => {
     const now = new Date()
+
+    // Bring back anything whose snooze has elapsed, before creating new alerts —
+    // nothing else moved a 'נדחה' alert back to 'פתוח'.
+    const toReopen = await db
+      .collection('alerts')
+      .where('status', '==', 'נדחה')
+      .where('snoozed_until', '<=', now.toISOString())
+      .get()
+    if (!toReopen.empty) {
+      const reopenBatch = db.batch()
+      toReopen.docs.forEach(d => reopenBatch.update(d.ref, { status: 'פתוח', snoozed_until: null }))
+      await reopenBatch.commit()
+      console.log(`generateAlerts: reopened ${toReopen.size} snoozed alerts`)
+    }
+
     const cutoff = new Date(now.getTime() + 180 * DAY_MS)
 
     const tracks = await db
@@ -454,7 +531,7 @@ export const generateAlerts = onSchedule(
       const existing = await db
         .collection('alerts')
         .where('loan_track_id', '==', trackDoc.id)
-        .where('status', '==', 'פתוח')
+        .where('status', 'in', OPEN_OR_SNOOZED)
         .limit(1)
         .get()
       if (!existing.empty) continue
@@ -462,6 +539,9 @@ export const generateAlerts = onSchedule(
       const mort = await db.collection('mortgages').doc(track.mortgage_id).get()
       const mortData = mort.data()
       if (!mort.exists || !mortData) continue
+      // A draft mix is a what-if, not a live loan — it has no end dates worth
+      // chasing the advisor about.
+      if (INACTIVE_MORTGAGE_STATUSES.includes(mortData.status)) continue
 
       const daysLeft = Math.round((new Date(track.end_date).getTime() - now.getTime()) / DAY_MS)
       const urgency = daysLeft < 60 ? 'דחוף' : daysLeft < 120 ? 'אזהרה' : 'תקין'
@@ -500,7 +580,7 @@ export const generateAlerts = onSchedule(
       const existing = await db
         .collection('alerts')
         .where('appraisal_id', '==', apprDoc.id)
-        .where('status', '==', 'פתוח')
+        .where('status', 'in', OPEN_OR_SNOOZED)
         .limit(1)
         .get()
       if (!existing.empty) continue
@@ -538,7 +618,7 @@ export const generateAlerts = onSchedule(
       const existing = await db
         .collection('alerts')
         .where('disbursement_id', '==', dDoc.id)
-        .where('status', '==', 'פתוח')
+        .where('status', 'in', OPEN_OR_SNOOZED)
         .limit(1)
         .get()
       if (!existing.empty) continue
@@ -585,7 +665,7 @@ export const generateDocumentAlerts = onSchedule(
       const existing = await db
         .collection('alerts')
         .where('document_id', '==', docSnap.id)
-        .where('status', '==', 'פתוח')
+        .where('status', 'in', OPEN_OR_SNOOZED)
         .limit(1)
         .get()
       if (!existing.empty) continue
@@ -642,7 +722,7 @@ export const generateApprovalAlerts = onSchedule(
         .collection('alerts')
         .where('mortgage_id', '==', mortDoc.id)
         .where('alert_type', '==', 'approval_expiring')
-        .where('status', '==', 'פתוח')
+        .where('status', 'in', OPEN_OR_SNOOZED)
         .limit(1)
         .get()
       if (!existing.empty) continue
@@ -671,14 +751,10 @@ export const generateApprovalAlerts = onSchedule(
   }
 )
 
-/** Standard monthly payment (annuity). Mirrors the frontend calculation. */
-function monthlyPayment(principal: number, annualRate: number, months: number): number {
-  if (months <= 0) return 0
-  if (annualRate === 0) return principal / months
-  const r = annualRate / 100 / 12
-  return (principal * r * Math.pow(1 + r, months)) / (Math.pow(1 + r, months) - 1)
-}
-
+/**
+ * Exit stations are assumed uniform at 5 years. In practice they vary by track
+ * type and by contract; a per-track field would be more faithful.
+ */
 const REFI_STATION_MONTHS = 60
 const DEFAULT_REFI_GAP = 0.5
 
@@ -726,14 +802,22 @@ export const scanRefinanceOpportunities = onSchedule(
       const current = currentRate.get(t.type)
       const threshold = await gapThreshold(uid)
 
+      // Months actually left to run. The original period is what the track
+      // started with, not what remains, and quoting a saving over the full
+      // original term overstates it for every seasoned loan.
+      const remaining = t.end_date
+        ? Math.max(1, Math.round((new Date(t.end_date).getTime() - now.getTime()) / (30.44 * DAY_MS)))
+        : (t.period_months ?? 240)
+
       let reason: 'gap' | 'station' | null = null
       let stationDate: string | null = null
       let monthlySaving = 0
 
-      // Rate-gap trigger.
-      if (typeof current === 'number' && rate - current >= threshold) {
+      // Rate-gap trigger. Prime is excluded: its rate follows the Bank of
+      // Israel rate by construction, so a gap against the published rate says
+      // nothing about whether refinancing helps.
+      if (t.type !== 'פריים' && typeof current === 'number' && rate - current >= threshold) {
         reason = 'gap'
-        const remaining = t.period_months ?? 240
         monthlySaving = Math.round(monthlyPayment(amount, rate, remaining) - monthlyPayment(amount, current, remaining))
       }
 
@@ -759,13 +843,33 @@ export const scanRefinanceOpportunities = onSchedule(
         .collection('alerts')
         .where('loan_track_id', '==', trackDoc.id)
         .where('alert_type', '==', 'refinance_opportunity')
-        .where('status', '==', 'פתוח')
+        .where('status', 'in', OPEN_OR_SNOOZED)
         .limit(1)
         .get()
       if (!existing.empty) continue
 
       const mort = await db.collection('mortgages').doc(t.mortgage_id).get()
-      const customerId = mort.data()?.customer_id ?? null
+      const mortData = mort.data()
+      // Same as generateAlerts: a draft mix is not a live loan.
+      if (mortData && INACTIVE_MORTGAGE_STATUSES.includes(mortData.status)) continue
+      const customerId = mortData?.customer_id ?? null
+
+      // An opportunity is only an opportunity net of the exit cost, so the
+      // alert carries the estimated fee rather than promising a saving the
+      // capitalization fee would wipe out.
+      const yearsSinceStart = t.start_date && !Number.isNaN(new Date(t.start_date).getTime())
+        ? (now.getTime() - new Date(t.start_date).getTime()) / (365.25 * DAY_MS)
+        : 0
+      const estimatedFee = estimatePrepaymentFee({
+        trackType: t.type,
+        balance: amount,
+        contractRate: rate,
+        avgRate: current ?? rate,
+        remainingMonths: remaining,
+        yearsSinceStart,
+        earlyNoticeGiven: false,
+        atExitStation: reason === 'station',
+      }).finalFee
 
       await db.collection('alerts').add({
         user_id: uid,
@@ -787,6 +891,8 @@ export const scanRefinanceOpportunities = onSchedule(
           current_rate: current ?? null,
           monthly_saving: monthlySaving,
           station_date: stationDate,
+          estimated_fee: estimatedFee,
+          remaining_months: remaining,
         },
         created_at: FieldValue.serverTimestamp(),
       })
@@ -795,6 +901,38 @@ export const scanRefinanceOpportunities = onSchedule(
     console.log(`scanRefinanceOpportunities: created ${created} alerts (scanned ${tracks.size} tracks)`)
   }
 )
+
+// ── Document access ──────────────────────────────────────────────────────────
+
+/** How long a document link stays valid. */
+const DOCUMENT_URL_TTL_MS = 15 * 60 * 1000
+
+/**
+ * Hands back a short-lived signed URL for one document.
+ *
+ * getDownloadURL bakes a permanent `?token=` into the URL that bypasses
+ * storage.rules entirely: anyone who ever sees that link — forwarded by
+ * mistake, left in browser history, captured in a log — can read the payslip
+ * or ID behind it forever. A signed URL expires, and every request goes
+ * through this ownership check first.
+ */
+export const getDocumentUrl = onCall({ region: REGION }, async (req) => {
+  const uid = requireAuth(req)
+  await checkRateLimit(`doc_url:${uid}`, 120, 60)
+
+  const documentId = requireString(req.data?.document_id, 'חסר מזהה מסמך')
+  const data = await requireOwnedDoc('documents', documentId, uid, 'המסמך לא נמצא')
+  if (!data.storage_path) {
+    throw new HttpsError('failed-precondition', 'למסמך אין קובץ מאוחסן')
+  }
+
+  const [url] = await getStorage()
+    .bucket()
+    .file(data.storage_path as string)
+    .getSignedUrl({ action: 'read', expires: Date.now() + DOCUMENT_URL_TTL_MS })
+
+  return { url, expires_at: new Date(Date.now() + DOCUMENT_URL_TTL_MS).toISOString() }
+})
 
 // ── Full-case ZIP export ─────────────────────────────────────────────────────
 
@@ -806,16 +944,9 @@ function sanitizeName(name: string): string {
 export const exportCustomerZip = onCall(
   { region: REGION, timeoutSeconds: 300, memory: '1GiB' },
   async (req) => {
-    if (!req.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
-    const uid = req.auth.uid
-    const customerId = req.data?.customer_id
-    if (!customerId || typeof customerId !== 'string') {
-      throw new HttpsError('invalid-argument', 'חסר מזהה לקוח')
-    }
-
-    const custSnap = await db.collection('customers').doc(customerId).get()
-    if (!custSnap.exists) throw new HttpsError('not-found', 'הלקוח לא נמצא')
-    if (custSnap.data()!.user_id !== uid) throw new HttpsError('permission-denied', 'אין הרשאה ללקוח זה')
+    const uid = requireAuth(req)
+    const customerId = requireString(req.data?.customer_id, 'חסר מזהה לקוח')
+    await requireOwnedDoc('customers', customerId, uid, 'הלקוח לא נמצא')
 
     const docsSnap = await db
       .collection('documents')
@@ -850,7 +981,8 @@ export const exportCustomerZip = onCall(
         archive.append(buf, { name })
         count++
       } catch (e) {
-        console.error('exportCustomerZip: skipping', d.storage_path, e)
+        // The storage path embeds the customer id — log the document id only.
+        console.error('exportCustomerZip: skipping document', d.id, e)
       }
     }
 

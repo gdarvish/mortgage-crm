@@ -13,7 +13,7 @@ import {
   Timestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDoc, fromDocs, awaitUserId, loadRelated, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { Meeting, Customer } from '@/types/database'
 
 const COL = 'meetings'
@@ -25,11 +25,8 @@ async function attachCustomerNames(meetings: Meeting[]): Promise<MeetingWithCust
   if (ids.length === 0) return meetings
   const map = new Map<string, { first_name: string; last_name: string }>()
   await Promise.all(ids.map(async cid => {
-    const snap = await getDoc(doc(db, 'customers', cid))
-    if (snap.exists()) {
-      const c = fromDoc<Customer>(snap)
-      map.set(cid, { first_name: c.first_name, last_name: c.last_name })
-    }
+    const c = await loadRelated<Customer>('customers', cid)
+    if (c) map.set(cid, { first_name: c.first_name, last_name: c.last_name })
   }))
   return meetings.map(m => ({ ...m, customer: m.customer_id ? map.get(m.customer_id) : undefined }))
 }

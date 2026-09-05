@@ -44,7 +44,8 @@ export default function AlertsPage() {
       customerId: a.customer_id,
       alertType: a.alert_type ?? 'track_ending',
       trackType: a.track_type || a.loan_track?.type || 'לא ידוע',
-      daysLeft: a.days_until_end ?? 0,
+      // Live, recomputed on read — never the frozen days_until_end snapshot.
+      daysLeft: a.live_days_left ?? 0,
       amount: a.track_amount ?? a.loan_track?.amount ?? 0,
       interestRate: a.loan_track?.interest_rate ?? 0,
       savingEstimate: (a.metadata as { monthly_saving?: number } | null | undefined)?.monthly_saving ?? 0,

@@ -45,19 +45,6 @@ export function formatRelativeDate(date: Date | string): string {
   return `לפני ${Math.floor(diffDays / 365)} שנים`
 }
 
-export function calculateMonthlyPayment(
-  principal: number,
-  annualRate: number,
-  months: number
-): number {
-  if (annualRate === 0) return principal / months
-  const monthlyRate = annualRate / 100 / 12
-  return (
-    (principal * monthlyRate * Math.pow(1 + monthlyRate, months)) /
-    (Math.pow(1 + monthlyRate, months) - 1)
-  )
-}
-
 export function generateToken(): string {
   return crypto.randomUUID()
 }

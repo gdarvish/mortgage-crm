@@ -15,6 +15,11 @@ import {
   linkedPaymentAtMonth,
   totalPaymentWithCpi,
   estimatePrepaymentFee,
+  calculateRefinanceSavings,
+  trackTotalCost,
+  formatCheckValue,
+  checkBarWidth,
+  mixMonthlyPaymentAfterYears,
   type TrackInput,
 } from './mortgageCalculations'
 
@@ -200,6 +205,111 @@ describe('checkCompliance', () => {
     expect(primeCheck.isValid).toBe(false)
   })
 
+  // ── PR-E regressions ──────────────────────────────────────────────────────
+
+  it('E.1 — זכאות counts toward the fixed-rate floor', () => {
+    // 40% זכאות + 30% קל"ב = 70% fixed. Before the fix only the קל"ב counted
+    // and the mix was reported as "ריבית קבועה חסרה: 30%".
+    const withEligibility: TrackInput[] = [
+      { type: 'זכאות', amount: 400000, interestRate: 3.0, periodMonths: 240 },
+      { type: 'קל"ב', amount: 300000, interestRate: 3.8, periodMonths: 300 },
+      { type: 'פריים', amount: 300000, interestRate: 5.0, periodMonths: 240 },
+    ]
+    const result = checkCompliance(withEligibility, 2000000, 'דירה_ראשונה', 30000)
+    const fixedCheck = result.checks.find(c => c.name.includes('קבועה'))!
+    expect(fixedCheck.value).toBeCloseTo(70, 1)
+    expect(fixedCheck.isValid).toBe(true)
+  })
+
+  it('E.2 — an empty track list never yields -Infinity', () => {
+    const result = checkCompliance([], 2000000, 'דירה_ראשונה', 30000)
+    for (const check of result.checks) {
+      expect(Number.isFinite(check.value)).toBe(true)
+    }
+    const periodCheck = result.checks.find(c => c.name.includes('תקופה'))!
+    expect(periodCheck.value).toBe(0)
+  })
+
+  it('E.3 — a zero property price never yields Infinity%', () => {
+    const result = checkCompliance(compliantTracks, 0, 'דירה_ראשונה', 30000)
+    const ltvCheck = result.checks.find(c => c.name.includes('LTV'))!
+    expect(Number.isFinite(ltvCheck.value)).toBe(true)
+    expect(ltvCheck.isValid).toBe(true)
+    expect(ltvCheck.message).toContain('חסר שווי נכס')
+  })
+
+  it('E.4 — DTI between the warn and hard thresholds warns rather than fails', () => {
+    // Payment + obligations tuned to land at ~43% of income.
+    const single: TrackInput[] = [
+      { type: 'קל"צ', amount: 1000000, interestRate: 4.5, periodMonths: 300 },
+    ]
+    const payment = effectiveMonthlyPayment(single[0])
+    const income = payment / 0.43
+    const result = checkCompliance(single, 3000000, 'דירה_ראשונה', income)
+    const dtiCheck = result.checks.find(c => c.name.includes('החזר'))!
+    expect(dtiCheck.value).toBeCloseTo(43, 0)
+    expect(dtiCheck.severity).toBe('warning')
+    expect(dtiCheck.isValid).toBe(false)
+    expect(dtiCheck.message).toContain('מעל סף האזהרה')
+    // A warning must not fail the file overall.
+    expect(result.isValid).toBe(true)
+  })
+
+  it('E.4 — DTI above the hard threshold is a red error', () => {
+    const single: TrackInput[] = [
+      { type: 'קל"צ', amount: 1000000, interestRate: 4.5, periodMonths: 300 },
+    ]
+    const payment = effectiveMonthlyPayment(single[0])
+    const result = checkCompliance(single, 3000000, 'דירה_ראשונה', payment / 0.55)
+    const dtiCheck = result.checks.find(c => c.name.includes('החזר'))!
+    expect(dtiCheck.severity).toBe('error')
+    expect(dtiCheck.isValid).toBe(false)
+  })
+
+  it('E.4 — thresholds are overridable', () => {
+    const single: TrackInput[] = [
+      { type: 'קל"צ', amount: 1000000, interestRate: 4.5, periodMonths: 300 },
+    ]
+    const payment = effectiveMonthlyPayment(single[0])
+    const income = payment / 0.43
+    const strict = checkCompliance(
+      single, 3000000, 'דירה_ראשונה', income, 0, null, undefined, { warn: 35, hard: 40 },
+    )
+    const dtiCheck = strict.checks.find(c => c.name.includes('החזר'))!
+    expect(dtiCheck.severity).toBe('error')
+    expect(dtiCheck.isValid).toBe(false)
+  })
+
+  it('E.5 — a low appraisal drives LTV instead of the purchase price', () => {
+    const tracks: TrackInput[] = [
+      { type: 'קל"צ', amount: 700000, interestRate: 4.5, periodMonths: 300 },
+      { type: 'פריים', amount: 300000, interestRate: 5.0, periodMonths: 240 },
+    ]
+    const atPrice = checkCompliance(tracks, 1400000, 'דירה_ראשונה', 30000)
+    const atAppraisal = checkCompliance(tracks, 1400000, 'דירה_ראשונה', 30000, 0, 1200000)
+    const ltvAtPrice = atPrice.checks.find(c => c.name.includes('LTV'))!
+    const ltvAtAppraisal = atAppraisal.checks.find(c => c.name.includes('LTV'))!
+    expect(ltvAtPrice.isValid).toBe(true)
+    expect(ltvAtAppraisal.value).toBeGreaterThan(ltvAtPrice.value)
+    expect(ltvAtAppraisal.isValid).toBe(false)
+  })
+
+  it('E.5 — a borrower who ages past 85 by term end raises the age check', () => {
+    const born = new Date()
+    born.setFullYear(born.getFullYear() - 62)
+    const tracks: TrackInput[] = [
+      { type: 'קל"צ', amount: 700000, interestRate: 4.5, periodMonths: 300 },
+      { type: 'פריים', amount: 300000, interestRate: 5.0, periodMonths: 240 },
+    ]
+    const result = checkCompliance(
+      tracks, 2000000, 'דירה_ראשונה', 30000, 0, null, [born.toISOString()],
+    )
+    const ageCheck = result.checks.find(c => c.name.includes('גיל'))
+    expect(ageCheck).toBeDefined()
+    expect(ageCheck!.value).toBe(87)
+    expect(ageCheck!.severity).toBe('warning')
+  })
+
   it('insufficient fixed rate fails compliance', () => {
     const noFixed: TrackInput[] = [
       { type: 'פריים', amount: 500000, interestRate: 5.0, periodMonths: 240 },
@@ -311,25 +421,150 @@ describe('CPI linkage', () => {
 
 describe('estimatePrepaymentFee', () => {
   it('returns 0 when average rate >= contract rate', () => {
-    const fee = estimatePrepaymentFee({ balance: 500000, contractRate: 5, avgRate: 5.5, remainingMonths: 120, yearsSinceStart: 4, earlyNoticeGiven: false })
+    const fee = estimatePrepaymentFee({ trackType: 'קל"צ', balance: 500000, contractRate: 5, avgRate: 5.5, remainingMonths: 120, yearsSinceStart: 4, earlyNoticeGiven: false })
     expect(fee.finalFee).toBe(0)
   })
 
   it('computes a positive fee with seniority discount when rate dropped', () => {
-    const fee = estimatePrepaymentFee({ balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 4, earlyNoticeGiven: false })
+    const fee = estimatePrepaymentFee({ trackType: 'קל"צ', balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 4, earlyNoticeGiven: false })
     expect(fee.capitalizationFee).toBeGreaterThan(0)
     expect(fee.discount).toBeCloseTo(fee.capitalizationFee * 0.2, 0) // 4 years => 20%
     expect(fee.finalFee).toBe(fee.capitalizationFee - fee.discount)
   })
 
   it('applies 30% discount after 5 years', () => {
-    const fee = estimatePrepaymentFee({ balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 6, earlyNoticeGiven: false })
+    const fee = estimatePrepaymentFee({ trackType: 'קל"צ', balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 6, earlyNoticeGiven: false })
     expect(fee.discount).toBeCloseTo(fee.capitalizationFee * 0.3, 0)
   })
 
   it('no discount before 3 years', () => {
-    const fee = estimatePrepaymentFee({ balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 2, earlyNoticeGiven: false })
+    const fee = estimatePrepaymentFee({ trackType: 'קל"צ', balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 2, earlyNoticeGiven: false })
     expect(fee.discount).toBe(0)
+  })
+
+  // ── PR-H regressions ──────────────────────────────────────────────────────
+
+  it('H.1 — early notice actually changes the fee', () => {
+    const base = { trackType: 'קל"צ' as const, balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 4 }
+    const without = estimatePrepaymentFee({ ...base, earlyNoticeGiven: false })
+    const withNotice = estimatePrepaymentFee({ ...base, earlyNoticeGiven: true })
+    expect(withNotice.finalFee).toBeLessThan(without.finalFee)
+    // 10% off what remains after the seniority discount.
+    expect(withNotice.finalFee).toBeCloseTo(without.finalFee * 0.9, 0)
+  })
+
+  it('H.2 — a prime track carries no capitalization fee', () => {
+    const fee = estimatePrepaymentFee({ trackType: 'פריים', balance: 500000, contractRate: 6.5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 4, earlyNoticeGiven: false })
+    expect(fee.capitalizationFee).toBe(0)
+    expect(fee.finalFee).toBe(0)
+  })
+
+  it('H.2 — repayment at an exit station is exempt', () => {
+    const fee = estimatePrepaymentFee({ trackType: 'משתנה_צמודה', balance: 500000, contractRate: 5, avgRate: 3.5, remainingMonths: 120, yearsSinceStart: 4, earlyNoticeGiven: false, atExitStation: true })
+    expect(fee.finalFee).toBe(0)
+  })
+})
+
+describe('calculateRefinanceSavings', () => {
+  it('H.3 — a shorter term at a higher payment is still worth it', () => {
+    // 600K at 5% over 240 months refinanced to 3.5% over 120: the monthly
+    // payment rises, but the total cost falls by far more than the fee.
+    const existing: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 5, periodMonths: 240 }]
+    const shorter: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 3.5, periodMonths: 120 }]
+    const result = calculateRefinanceSavings(existing, shorter, 15000)
+    expect(result.monthlySaving).toBeLessThan(0)
+    expect(result.totalSaving).toBeGreaterThan(0)
+    expect(result.savingType).toBe('term')
+    expect(result.isWorthIt).toBe(true)
+  })
+
+  it('H.3 — a lower monthly payment that pays back quickly is worth it', () => {
+    const existing: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 5, periodMonths: 240 }]
+    const cheaper: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 3.5, periodMonths: 240 }]
+    const result = calculateRefinanceSavings(existing, cheaper, 15000)
+    expect(result.savingType).toBe('monthly')
+    expect(result.breakEvenMonths).toBeLessThan(36)
+    expect(result.isWorthIt).toBe(true)
+  })
+
+  it('H.3 — no saving at all is not worth it', () => {
+    const existing: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 3.5, periodMonths: 240 }]
+    const worse: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 4.5, periodMonths: 240 }]
+    const result = calculateRefinanceSavings(existing, worse, 15000)
+    expect(result.savingType).toBe('none')
+    expect(result.isWorthIt).toBe(false)
+  })
+
+  it('H.3 — a monthly saving that never pays back the fee is not worth it', () => {
+    const existing: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 5, periodMonths: 240 }]
+    const cheaper: TrackInput[] = [{ type: 'קל"צ', amount: 600000, interestRate: 4.95, periodMonths: 240 }]
+    const result = calculateRefinanceSavings(existing, cheaper, 200000)
+    expect(result.monthlySaving).toBeGreaterThan(0)
+    expect(result.isWorthIt).toBe(false)
+  })
+})
+
+describe('PR-J — calculation and display fixes', () => {
+  it('J.1 — total cost charges the grace payment for the grace months', () => {
+    const track: TrackInput = {
+      type: 'קל"צ', amount: 500000, interestRate: 4, periodMonths: 240,
+      graceMonths: 24, graceType: 'חלקי',
+    }
+    const { duringGrace, afterGrace } = calculateGracePayments(500000, 4, 240, 24, 'חלקי')
+    const expected = duringGrace * 24 + afterGrace * 216
+    expect(trackTotalCost(track)).toBeCloseTo(expected, 0)
+    // The old formula charged the after-grace payment for all 240 months.
+    expect(trackTotalCost(track)).toBeLessThan(afterGrace * 240)
+  })
+
+  it('J.1 — a track without grace is unaffected', () => {
+    const track: TrackInput = { type: 'קל"צ', amount: 500000, interestRate: 4, periodMonths: 240 }
+    expect(trackTotalCost(track)).toBeCloseTo(calculateTotalPayment(500000, 4, 240), 6)
+  })
+
+  it('J.2 — each check carries the unit its value is measured in', () => {
+    const tracks: TrackInput[] = [
+      { type: 'קל"צ', amount: 400000, interestRate: 4.5, periodMonths: 300 },
+      { type: 'פריים', amount: 300000, interestRate: 5, periodMonths: 240 },
+      { type: 'קל"ב', amount: 300000, interestRate: 3.8, periodMonths: 300 },
+    ]
+    const born = new Date()
+    born.setFullYear(born.getFullYear() - 62)
+    const result = checkCompliance(tracks, 2000000, 'דירה_ראשונה', 30000, 0, null, [born.toISOString()])
+
+    const period = result.checks.find(c => c.name.includes('תקופה'))!
+    expect(period.unit).toBe('months')
+    expect(formatCheckValue(period)).toBe('300 חודשים')
+
+    const age = result.checks.find(c => c.name.includes('גיל'))!
+    expect(age.unit).toBe('years')
+    expect(formatCheckValue(age)).not.toContain('%')
+
+    const ltv = result.checks.find(c => c.name.includes('LTV'))!
+    expect(ltv.unit).toBe('%')
+    expect(formatCheckValue(ltv)).toContain('%')
+  })
+
+  it('J.3 — the fixed-rate floor is a minimum, every other check a maximum', () => {
+    const tracks: TrackInput[] = [
+      { type: 'קל"צ', amount: 400000, interestRate: 4.5, periodMonths: 300 },
+      { type: 'פריים', amount: 600000, interestRate: 5, periodMonths: 240 },
+    ]
+    const result = checkCompliance(tracks, 2000000, 'דירה_ראשונה', 30000)
+    const fixed = result.checks.find(c => c.name.includes('קבועה'))!
+    expect(fixed.direction).toBe('min')
+    expect(result.checks.filter(c => c !== fixed).every(c => c.direction === 'max')).toBe(true)
+    // 40% against a 33.3% floor is met, so the bar is full.
+    expect(checkBarWidth(fixed)).toBe(100)
+  })
+
+  it('J.6 — a track ending exactly at the year checked no longer pays', () => {
+    const tracks: TrackInput[] = [
+      { type: 'קל"צ', amount: 300000, interestRate: 4, periodMonths: 60 },
+      { type: 'קל"צ', amount: 300000, interestRate: 4, periodMonths: 240 },
+    ]
+    const atFive = mixMonthlyPaymentAfterYears(tracks, 0, 5)
+    expect(atFive).toBeCloseTo(calculateMonthlyPayment(300000, 4, 240), 6)
   })
 })
 
@@ -350,18 +585,46 @@ describe('generateRecommendedMixes', () => {
 
   it('uses live rates when provided', () => {
     const mixes = generateRecommendedMixes(1000000, 300, 6.0, {
-      fixed_linked: 5.0,
-      fixed_unlinked: 4.2,
+      fixed_kalatz: 5.0,
+      fixed_kalab: 4.2,
     })
     const conservative = mixes[0]
-    const fixedLinked = conservative.tracks.find(t => t.type === 'קל"צ')!
-    expect(fixedLinked.interestRate).toBe(5.0)
+    const kalatz = conservative.tracks.find(t => t.type === 'קל"צ')!
+    expect(kalatz.interestRate).toBe(5.0)
   })
 
   it('falls back to defaults without live rates', () => {
     const mixes = generateRecommendedMixes(1000000, 300, 6.0)
     const conservative = mixes[0]
-    const fixedLinked = conservative.tracks.find(t => t.type === 'קל"צ')!
-    expect(fixedLinked.interestRate).toBe(4.5)
+    const kalatz = conservative.tracks.find(t => t.type === 'קל"צ')!
+    expect(kalatz.interestRate).toBe(4.5)
+  })
+
+  // Regression (PR-B): קל"צ is fixed *unlinked* and קל"ב is fixed *linked*.
+  // The two rates used to be handed to the wrong tracks, so every recommended
+  // mix was priced backwards on screen.
+  it('קל"צ מקבל ריבית לא צמודה וקל"ב ריבית צמודה', () => {
+    const mixes = generateRecommendedMixes(1_000_000, 300, 6, {
+      fixed_kalatz: 3.8,
+      fixed_kalab: 4.5,
+    })
+    for (const mix of mixes) {
+      const kalatz = mix.tracks.find(t => t.type === 'קל"צ')
+      const kalab = mix.tracks.find(t => t.type === 'קל"ב')
+      if (kalatz) expect(kalatz.interestRate).toBe(3.8)
+      if (kalab) expect(kalab.interestRate).toBe(4.5)
+    }
+  })
+
+  it('prices קל"צ above קל"ב under real market rates', () => {
+    const mixes = generateRecommendedMixes(1_000_000, 300, 6, {
+      fixed_kalatz: 4.9,
+      fixed_kalab: 3.4,
+    })
+    for (const mix of mixes) {
+      const kalatz = mix.tracks.find(t => t.type === 'קל"צ')
+      const kalab = mix.tracks.find(t => t.type === 'קל"ב')
+      if (kalatz && kalab) expect(kalatz.interestRate).toBeGreaterThan(kalab.interestRate)
+    }
   })
 })

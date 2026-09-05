@@ -14,7 +14,7 @@ import {
   type QueryConstraint,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { fromDoc, fromDocs, awaitUserId, toError, type FirestoreError } from '@/services/_firestoreHelpers'
+import { fromDoc, fromDocs, awaitUserId, loadRelated, toError, type FirestoreError } from '@/services/_firestoreHelpers'
 import type { Task, Customer } from '@/types/database'
 
 const COL = 'tasks'
@@ -27,11 +27,8 @@ async function attachCustomerNames(tasks: Task[]): Promise<TaskWithCustomer[]> {
   const customerMap = new Map<string, { first_name: string; last_name: string }>()
   await Promise.all(
     customerIds.map(async (cid) => {
-      const snap = await getDoc(doc(db, 'customers', cid))
-      if (snap.exists()) {
-        const c = fromDoc<Customer>(snap)
-        customerMap.set(cid, { first_name: c.first_name, last_name: c.last_name })
-      }
+      const c = await loadRelated<Customer>('customers', cid)
+      if (c) customerMap.set(cid, { first_name: c.first_name, last_name: c.last_name })
     })
   )
   return tasks.map((t) => ({

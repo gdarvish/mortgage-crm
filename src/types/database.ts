@@ -132,6 +132,10 @@ export interface AdvisorSettings {
   whatsapp_templates: Json | null
   alert_window_months: number
   dti_obligation_months_threshold?: number
+  /** Amber above this, still fundable. Verify against הוראת ניהול בנקאי תקין. */
+  dti_warn_threshold?: number
+  /** Red above this — the case is outside what the banks will approve. */
+  dti_hard_threshold?: number
   expected_annual_cpi?: number
   refinance_gap_threshold?: number
   created_at: string
@@ -257,7 +261,39 @@ export interface Mortgage {
   life_insurance_status?: 'נדרש' | 'בתהליך' | 'הופק' | null
   property_insurance_status?: 'נדרש' | 'בתהליך' | 'הופק' | null
   insurance_referral_partner_id?: string | null
+
+  // ── Versioning (S2) ──
+  /** 1 for the first mix on a case, incrementing per derived version. */
+  version?: number
+  /** What this version is, in the advisor's words: 'אחרי מו"מ מזרחי'. */
+  version_label?: string | null
+  /** The version this one was derived from, if any. */
+  parent_mortgage_id?: string | null
+  /** Where it came from: the advisor, a bank's offer, or the signed deal. */
+  source?: MortgageSource
+  /**
+   * The numbers as they stood when this version was saved.
+   *
+   * Frozen deliberately: a version is a record of what was on the table at a
+   * moment in the negotiation, and it must not silently re-price itself when
+   * market rates move.
+   */
+  snapshot?: MortgageVersionSnapshot | null
+
   created_at: string
+}
+
+export type MortgageSource = 'advisor' | 'bank_offer' | 'signed'
+
+export interface MortgageVersionSnapshot {
+  dti: number
+  ltv: number
+  monthly_payment: number
+  total_cost: number
+  /** ComplianceResult, stored as data. */
+  compliance: Json | null
+  /** The bank whose offer this version came from, when source is bank_offer. */
+  bank_name?: string | null
 }
 
 export interface Disbursement {
@@ -428,7 +464,17 @@ export interface Obligation {
   monthly_payment: number            // monthly repayment — this is what enters DTI
   balance: number | null             // outstanding balance (display only)
   end_date: string | null            // ISO — loan end date
-  include_in_dti: boolean            // auto-computed, manually overridable
+  /**
+   * Legacy: a snapshot of the 18-month rule taken when the record was written.
+   * Kept for backwards compatibility but no longer the source of truth — it
+   * goes stale as the end date approaches. Read `isCountedInDti` instead.
+   */
+  include_in_dti: boolean
+  /**
+   * null/undefined = decide automatically by the 18-month rule at read time.
+   * true/false = the advisor decided explicitly; leave it alone.
+   */
+  dti_override?: boolean | null
   notes: string | null
   created_at: string
 }
@@ -495,6 +541,14 @@ export interface MortgageWithTracks extends Mortgage {
 export interface AlertWithCustomer extends Alert {
   customer?: Customer
   loan_track?: LoanTrack
+  /**
+   * Days left recomputed at read time from the alert's target date, rather
+   * than the `days_until_end` snapshot frozen when the alert was created.
+   * null when the alert has no date to count down to.
+   */
+  live_days_left: number | null
+  /** Urgency derived from live_days_left — use this for display and sorting. */
+  live_urgency: NonNullable<Alert['urgency']>
 }
 
 export type ActivityEventType =

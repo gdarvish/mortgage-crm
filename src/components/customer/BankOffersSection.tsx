@@ -3,6 +3,7 @@ import { Plus, Trash2, Loader2, Award, Download, History, Copy, ArrowDown } from
 import { formatCurrency } from '@/lib/utils'
 import { toast, ConfirmDialog } from '@/components/ui'
 import { bankOfferService, offerTotals, latestOffersPerBank } from '@/services/bankOfferService'
+import { calculateMonthlyPayment } from '@/utils/mortgageCalculations'
 import { mortgageService } from '@/services/mortgageService'
 import { exportBankComparisonPdf } from '@/utils/pdfExport'
 import type { BankOffer, BankOfferTrack, LoanTrackType, MortgageWithTracks } from '@/types/database'
@@ -101,17 +102,51 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
         .filter(o => o.id !== choosing.id && o.status !== 'נדחתה')
         .map(o => bankOfferService.update(o.id, { status: 'נדחתה' }))
     )
-    // Push the chosen rates onto the mortgage's loan tracks, matched by type.
-    const mixTracks = mortgage.loan_tracks ?? []
-    await Promise.all(
-      mixTracks.map(lt => {
-        const match = choosing.tracks.find(t => t.type === lt.type)
-        return match ? mortgageService.updateTrack(lt.id, { interest_rate: match.interest_rate }) : Promise.resolve()
-      })
-    )
+    // The offer becomes a version of its own rather than overwriting the mix:
+    // what the advisor asked for and what the bank came back with are both
+    // part of the negotiation, and the client should be able to see each.
+    const tracks = choosing.tracks.map(t => ({
+      type: t.type,
+      amount: t.amount,
+      interest_rate: t.interest_rate,
+      period_months: t.period_months,
+      monthly_payment: Math.round(
+        calculateMonthlyPayment(t.amount, t.interest_rate, t.period_months),
+      ),
+      is_existing: false,
+      start_date: null,
+      end_date: null,
+    }))
+    const loanAmount = choosing.tracks.reduce((sum, t) => sum + t.amount, 0)
+    const { monthly, total } = offerTotals(choosing)
+
+    const { error } = await mortgageService.createVersion({
+      customerId,
+      parent: mortgage,
+      label: `הצעת ${choosing.bank_name}${choosing.round > 1 ? ` — סבב ${choosing.round}` : ''}`,
+      source: 'bank_offer',
+      propertyPrice: mortgage.property_price,
+      propertyType: mortgage.property_type,
+      ownCapital: mortgage.own_capital,
+      loanAmount,
+      snapshot: {
+        dti: 0,
+        ltv: mortgage.property_price ? Math.round((loanAmount / mortgage.property_price) * 1000) / 10 : 0,
+        monthly_payment: monthly,
+        total_cost: total,
+        compliance: null,
+        bank_name: choosing.bank_name,
+      },
+      tracks,
+    })
+
     setApplying(false)
     setChoosing(null)
-    toast.success('ההצעה נבחרה והתמהיל עודכן')
+    if (error) {
+      toast.error('ההצעה נבחרה אך יצירת הגרסה נכשלה', error.message)
+    } else {
+      toast.success('ההצעה נבחרה ונוצרה גרסת תמהיל חדשה')
+    }
     load()
     onChosen()
   }
@@ -326,7 +361,7 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
       <ConfirmDialog
         open={!!choosing}
         title="בחירת הצעה"
-        message={choosing ? `לבחור את ההצעה של ${choosing.bank_name} (סבב ${choosing.round})? התמהיל יעודכן לריביות ההצעה ושאר ההצעות יידחו.` : ''}
+        message={choosing ? `לבחור את ההצעה של ${choosing.bank_name} (סבב ${choosing.round})? תיווצר גרסת תמהיל חדשה מההצעה, הגרסה הנוכחית תישמר כפי שהיא, ושאר ההצעות יידחו.` : ''}
         confirmText="בחר ועדכן תמהיל"
         loading={applying}
         onConfirm={confirmChoose}

@@ -4,6 +4,7 @@ import { defineSecret } from 'firebase-functions/params'
 import { FieldValue } from 'firebase-admin/firestore'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { db, REGION } from './common'
+import { requireAuth } from './guards'
 
 // Configure with: firebase functions:secrets:set WHATSAPP_TOKEN  (etc.)
 const WHATSAPP_TOKEN = defineSecret('WHATSAPP_TOKEN')
@@ -58,7 +59,7 @@ function verifyMetaSignature(rawBody: Buffer, signature: string | undefined, sec
 export const sendWhatsAppMessage = onCall(
   { region: REGION, cors: true, secrets: [WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID] },
   async (request) => {
-    if (!request.auth) throw new HttpsError('unauthenticated', 'נדרשת התחברות')
+    const uid = requireAuth(request)
     const customerId = request.data?.customer_id
     const text = request.data?.text
     if (!customerId || typeof customerId !== 'string') {
@@ -71,7 +72,7 @@ export const sendWhatsAppMessage = onCall(
     const custSnap = await db.collection('customers').doc(customerId).get()
     if (!custSnap.exists) throw new HttpsError('not-found', 'הלקוח לא נמצא')
     const customer = custSnap.data()!
-    if (customer.user_id !== request.auth.uid) {
+    if (customer.user_id !== uid) {
       throw new HttpsError('permission-denied', 'אין הרשאה ללקוח זה')
     }
     const phone = customer.phone
@@ -90,7 +91,7 @@ export const sendWhatsAppMessage = onCall(
     }
 
     const msgRef = await db.collection('messages').add({
-      user_id: request.auth.uid,
+      user_id: uid,
       customer_id: customerId,
       channel: 'וואטסאפ',
       direction: 'נשלח',

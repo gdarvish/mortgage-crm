@@ -9,12 +9,12 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer,
 } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
-import { useDashboardData, useCompleteTask } from '@/hooks/queries/useDashboard'
+import { useDashboardData, useCompleteTask, PIPELINE_STATUSES } from '@/hooks/queries/useDashboard'
 import TodayMeetingsWidget from '@/components/TodayMeetingsWidget'
 import RefinanceOpportunitiesWidget from '@/components/RefinanceOpportunitiesWidget'
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
 
-const statusOrder = ['ליד', 'פגישה', 'מסמכים', 'הגשה', 'אישור', 'ביצוע', 'סגירה']
+const statusOrder = PIPELINE_STATUSES
 const hebrewMonths = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ']
 const hebrewDays = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת']
 
@@ -132,6 +132,8 @@ export default function DashboardPage() {
 
   const advisorName = data?.advisorName ?? ''
   const customers = data?.customers ?? []
+  const customersTruncated = data?.customersTruncated ?? false
+  const totals = data?.totals
   const tasks = data?.tasks ?? []
   const alerts = data?.alerts ?? []
   const commissionTotal = data?.commissionTotal ?? 0
@@ -149,11 +151,12 @@ export default function DashboardPage() {
 
   const now = new Date()
   const todayStr = `${hebrewDays[now.getDay()]}, ${now.getDate()} ב${['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'][now.getMonth()]} ${now.getFullYear()}`
-  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-  const activeCustomers = customers.length
-  const dealsThisMonth = customers.filter(c => c.status === 'סגירה' && c.created_at >= thisMonthStart).length
-  const newLeads = customers.filter(c => c.status === 'ליד' && c.created_at >= thisMonthStart).length
+  // Counted server-side, so these stay exact however large the book grows —
+  // only the charts below read documents, and they are capped.
+  const activeCustomers = totals?.customers ?? 0
+  const dealsThisMonth = totals?.dealsThisMonth ?? 0
+  const newLeads = totals?.newLeadsThisMonth ?? 0
 
   const kpiCards = [
     { label: 'לקוחות פעילים', value: activeCustomers, icon: Users,      color: '#059669', trend: '+12%' },
@@ -165,7 +168,7 @@ export default function DashboardPage() {
   // Pipeline
   const pipelineCounts = statusOrder.map(s => ({
     status: s,
-    count: customers.filter(c => c.status === s).length,
+    count: totals?.pipeline[s] ?? 0,
   }))
   const totalPipeline = pipelineCounts.reduce((sum, s) => sum + s.count, 0) || 1
 
@@ -303,7 +306,9 @@ export default function DashboardPage() {
             {alerts.length === 0 ? (
               <div className="py-10 text-center text-[13px]" style={{ color: '#a8a29e' }}>אין התראות פתוחות</div>
             ) : alerts.map((alert, i) => {
-              const days = alert.days_until_end || 999
+              // Live, recomputed on read — the stored days_until_end is a
+              // snapshot from when the alert was created.
+              const days = alert.live_days_left ?? 999
               const isUrgent = days < 60
               const isSoon = days < 120
               const color = isUrgent ? '#dc2626' : isSoon ? '#d97706' : '#059669'
@@ -427,6 +432,12 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts */}
+      {customersTruncated && (
+        <p className="text-[12px]" style={{ color: '#a8a29e' }}>
+          הגרפים מחושבים על {customers.length} הלקוחות האחרונים. מספרי ה-KPI והצינור מלאים ומדויקים.
+        </p>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div
           style={{

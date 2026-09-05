@@ -55,8 +55,27 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    // Node by default — most tests are pure. Component tests opt into jsdom
+    // with a `// @vitest-environment jsdom` pragma, so the fast majority is
+    // not slowed down by a DOM they never touch.
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    // tests/unit holds checks that are about the project rather than a module
+    // — index coverage, for one. tests/emulator runs under its own config.
+    include: [
+      'src/**/*.test.ts',
+      'src/**/*.test.tsx',
+      'tests/unit/**/*.test.ts',
+      'tests/unit/**/*.test.tsx',
+    ],
+    setupFiles: ['./tests/setup.ts'],
+    // `vitest run --coverage` needs @vitest/coverage-v8 installed alongside;
+    // it is not a dependency here because its peer graph currently conflicts
+    // with this vitest version. See CONTRIBUTING.md.
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.*', 'src/main.tsx', 'src/vite-env.d.ts'],
+    },
   },
   build: {
     rollupOptions: {
