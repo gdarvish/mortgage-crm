@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, UserPlus, FileText, Calculator,
   Bell, DollarSign, Settings, Menu, X, Share2,
-  RefreshCw, Layers, TrendingUp, Heart, MessageSquare, History,
+  RefreshCw, Layers, TrendingUp, Heart, MessageSquare, History, CalendarDays,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GlobalSearch } from '@/components/GlobalSearch'
@@ -12,25 +12,29 @@ interface HeaderProps {
   sidebarCollapsed?: boolean
 }
 
+/**
+ * Every page in the app, in one list. The desktop strip used to show eight
+ * of these and hide the rest behind the mobile-only menu, which left seven
+ * routes — rates, refinance, consolidation, communication, referrals,
+ * family economics, audit log — with no way to reach them on a desktop.
+ */
 const navItems = [
-  { label: 'דשבורד',   path: '/dashboard',   icon: LayoutDashboard },
-  { label: 'לקוחות',   path: '/customers',   icon: Users },
-  { label: 'לידים',    path: '/leads',        icon: UserPlus },
-  { label: 'מסמכים',   path: '/documents',   icon: FileText },
-  { label: 'מחשבון',   path: '/calculator',  icon: Calculator },
-  { label: 'התראות',   path: '/alerts',      icon: Bell },
-  { label: 'עמלות',    path: '/commissions', icon: DollarSign },
-  { label: 'הגדרות',   path: '/settings',    icon: Settings },
-]
-
-const mobileExtraItems = [
-  { label: 'יומן שינויים', path: '/audit-log',     icon: History },
-  { label: 'תקשורת',       path: '/communication', icon: MessageSquare },
-  { label: 'שותפי הפניה', path: '/referrals',     icon: Share2 },
-  { label: 'ריביות',       path: '/interest-rates',  icon: TrendingUp },
-  { label: 'מחזור',        path: '/refinance',      icon: RefreshCw },
-  { label: 'איחוד הלוואות', path: '/consolidation', icon: Layers },
-  { label: 'כלכלת משפחה', path: '/family-economics', icon: Heart },
+  { label: 'דשבורד',   path: '/dashboard',        icon: LayoutDashboard },
+  { label: 'לקוחות',   path: '/customers',        icon: Users },
+  { label: 'לידים',    path: '/leads',            icon: UserPlus },
+  { label: 'מסמכים',   path: '/documents',        icon: FileText },
+  { label: 'מחשבון',   path: '/calculator',       icon: Calculator },
+  { label: 'מחזור',    path: '/refinance',        icon: RefreshCw },
+  { label: 'איחוד',    path: '/consolidation',    icon: Layers },
+  { label: 'התראות',   path: '/alerts',           icon: Bell },
+  { label: 'פגישות',   path: '/meetings',         icon: CalendarDays },
+  { label: 'תקשורת',   path: '/communication',    icon: MessageSquare },
+  { label: 'עמלות',    path: '/commissions',      icon: DollarSign },
+  { label: 'מפנים',    path: '/referrals',        icon: Share2 },
+  { label: 'ריביות',   path: '/interest-rates',   icon: TrendingUp },
+  { label: 'כלכלה',    path: '/family-economics', icon: Heart },
+  { label: 'יומן',     path: '/audit-log',        icon: History },
+  { label: 'הגדרות',   path: '/settings',         icon: Settings },
 ]
 
 export default function Header(_props: HeaderProps) {
@@ -49,8 +53,6 @@ export default function Header(_props: HeaderProps) {
     navigate(path)
     setMenuOpen(false)
   }
-
-  const allMobileItems = [...navItems, ...mobileExtraItems]
 
   return (
     <>
@@ -80,7 +82,7 @@ export default function Header(_props: HeaderProps) {
         <div className="w-px self-stretch my-3 shrink-0" style={{ background: 'var(--color-nav-active)' }} />
 
         {/* Nav links — desktop only */}
-        <nav className="hidden lg:flex items-stretch flex-1 h-full overflow-x-auto">
+        <nav className="hidden lg:flex items-stretch flex-1 h-full overflow-x-auto crm-nav-scroll">
           {navItems.map((item) => {
             const active = isActive(item.path)
             return (
@@ -97,7 +99,7 @@ export default function Header(_props: HeaderProps) {
                   borderBottom: active ? '2px solid var(--color-primary)' : '2px solid transparent',
                 }}
               >
-                <item.icon size={14} />
+                <item.icon size={14} color={active ? 'var(--color-primary)' : 'currentColor'} />
                 {item.label}
               </button>
             )
@@ -163,7 +165,7 @@ export default function Header(_props: HeaderProps) {
             onClick={e => e.stopPropagation()}
           >
             <div className="py-3">
-              {allMobileItems.map((item) => {
+              {navItems.map((item) => {
                 const active = isActive(item.path)
                 return (
                   <button

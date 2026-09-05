@@ -169,7 +169,7 @@ export default function CustomersPage() {
       {/* Bulk actions bar */}
       {selectedIds.size > 0 && (
         <div
-          className="sticky top-2 z-20 flex items-center gap-2 px-4 py-2.5 text-white"
+          className="crm-btn-primary sticky top-2 z-20 flex items-center gap-2 px-4 py-2.5 text-white"
           style={{ borderRadius: 12, background: 'var(--color-primary)', boxShadow: '0 4px 14px color-mix(in srgb, var(--color-primary) 27%, transparent)' }}
         >
           <span className="text-[13px] font-bold">{selectedIds.size} נבחרו</span>
@@ -204,7 +204,7 @@ export default function CustomersPage() {
         </div>
         <button
           onClick={() => setShowNewModal(true)}
-          className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.96] shrink-0"
+          className="crm-btn-primary flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.96] shrink-0"
           style={{ borderRadius: 12, background: 'var(--color-primary)', boxShadow: '0 4px 14px color-mix(in srgb, var(--color-primary) 27%, transparent)' }}
         >
           <Plus size={15} />

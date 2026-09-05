@@ -685,7 +685,7 @@ export default function MortgageCalculatorPage() {
               onClick={handleSaveMix}
               disabled={!customerId || savingMix || caseLoading}
               title={customerId ? undefined : 'פתח את המחשבון מתוך תיק לקוח כדי לשמור תמהיל'}
-              className="w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="crm-btn-primary w-full flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ borderRadius: 12, background: 'var(--color-primary)', boxShadow: '0 4px 14px color-mix(in srgb, var(--color-primary) 27%, transparent)' }}
             >
               {savingMix ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}

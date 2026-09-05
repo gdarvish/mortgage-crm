@@ -25,9 +25,9 @@ const cardStyle = {
 }
 
 function getUrgency(days: number) {
-  if (days < 60)  return { label: 'דחוף', bg: '#fee2e2', color: '#dc2626', dot: '#dc2626' }
-  if (days < 120) return { label: 'אזהרה', bg: '#fef3c7', color: '#d97706', dot: '#d97706' }
-  return                { label: 'תקין',   bg: '#d1fae5', color: '#065f46', dot: '#059669' }
+  if (days < 60)  return { label: 'דחוף', bg: 'var(--color-danger-bg)', color: 'var(--color-danger)', dot: 'var(--color-danger)', urgent: true }
+  if (days < 120) return { label: 'אזהרה', bg: 'var(--color-accent-bg)', color: 'var(--color-accent)', dot: 'var(--color-accent)', urgent: false }
+  return                { label: 'תקין',   bg: 'var(--color-success-bg)', color: '#065f46', dot: 'var(--color-primary)', urgent: false }
 }
 
 export default function AlertsPage() {
@@ -141,7 +141,10 @@ export default function AlertsPage() {
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: urgency.dot, flexShrink: 0 }} />
+                    <div
+                      className={urgency.urgent ? 'crm-urgent' : undefined}
+                      style={{ width: 10, height: 10, borderRadius: '50%', background: urgency.dot, flexShrink: 0 }}
+                    />
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-[14px] font-bold" style={{ color: 'var(--color-text)' }}>{alert.customerName}</h3>

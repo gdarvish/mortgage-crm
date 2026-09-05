@@ -265,7 +265,7 @@ export default function FamilyEconomicsPage() {
             type="button"
             onClick={() => void downloadPdf()}
             disabled={exporting}
-            className="w-full flex items-center justify-center gap-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60"
+            className="crm-btn-primary w-full flex items-center justify-center gap-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60"
             style={{ borderRadius: 12, background: 'var(--color-primary)', padding: '10px 0', boxShadow: '0 4px 14px color-mix(in srgb, var(--color-primary) 27%, transparent)' }}
           >
             {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}

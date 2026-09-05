@@ -49,17 +49,10 @@ function KpiCard({
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="animate-fade-up"
+      className="crm-card crm-card-lift animate-fade-up"
       style={{
         animationDelay: `${index * 80}ms`,
-        background: 'var(--color-card)',
-        borderRadius: 20,
         padding: '24px 26px',
-        boxShadow: hovered
-          ? '0 4px 24px rgba(28,25,23,0.14)'
-          : '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
-        transition: 'box-shadow 0.2s ease, transform 0.2s ease',
       }}
     >
       <div className="flex items-start justify-between gap-3">
@@ -188,7 +181,7 @@ export default function DashboardPage() {
         </div>
         <button
           onClick={() => navigate('/customers')}
-          className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all duration-150 hover:opacity-90 active:scale-[0.96] shrink-0"
+          className="crm-btn-primary flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all duration-150 hover:opacity-90 active:scale-[0.96] shrink-0"
           style={{
             borderRadius: 12,
             background: 'var(--color-primary)',
