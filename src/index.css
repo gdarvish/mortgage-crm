@@ -56,67 +56,77 @@
   --shadow-card-hover: 0 4px 24px rgba(28,25,23,0.14);
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/*
+ * The element reset lives inside @layer base on purpose. Tailwind 4 puts its
+ * utilities in @layer utilities, and *unlayered CSS beats every layer* — an
+ * unlayered `* { padding: 0 }` silently wins over p-8, px-4 and every other
+ * spacing utility in the app. Same for the input font-size and the heading
+ * font-family below.
+ */
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 
-html {
-  direction: rtl;
-  overflow-x: hidden;
-  max-width: 100vw;
-}
+  html {
+    direction: rtl;
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
 
-body {
-  font-family: var(--font-heebo);
-  background-color: #faf9f7;
-  color: #1c1917;
-  min-height: 100vh;
-  overflow-x: hidden;
-  max-width: 100vw;
-}
+  body {
+    font-family: var(--font-heebo);
+    background-color: #faf9f7;
+    color: #1c1917;
+    min-height: 100vh;
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
 
-#root {
-  overflow-x: hidden;
-  max-width: 100vw;
+  #root {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  /* 16px keeps iOS Safari from zooming the page on focus. */
+  input, select, textarea {
+    font-size: 16px;
+  }
+
+  @media (min-width: 640px) {
+    input, select, textarea {
+      font-size: 14px;
+    }
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heebo);
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--color-border-light);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #d6d3d1;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
+  }
 }
 
 .table-responsive {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-}
-
-input, select, textarea {
-  font-size: 16px;
-}
-
-@media (min-width: 640px) {
-  input, select, textarea {
-    font-size: 14px;
-  }
-}
-
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-heebo);
-}
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f5f4f2;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #d6d3d1;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #a8a29e;
 }
 
 @keyframes fadeUp {
