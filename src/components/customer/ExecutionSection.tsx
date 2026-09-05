@@ -6,7 +6,7 @@ import { disbursementService } from '@/services/disbursementService'
 import type { Disbursement } from '@/types/database'
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
 
 interface Props {
   customerId: string
@@ -61,17 +61,17 @@ export default function ExecutionSection({ customerId, mortgageId }: Props) {
   const pct = totalPlanned > 0 ? Math.round((totalReleased / totalPlanned) * 100) : 0
 
   if (loading) {
-    return <div className="flex items-center justify-center py-6"><Loader2 size={22} className="text-[#059669] animate-spin" /></div>
+    return <div className="flex items-center justify-center py-6"><Loader2 size={22} className="text-[var(--color-primary)] animate-spin" /></div>
   }
 
   return (
     <div className="border border-gray-200 rounded-xl p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h4 className="font-medium text-gray-900 flex items-center gap-2">
-          <Banknote size={16} className="text-[#059669]" /> ביצוע — שחרור כספים
+          <Banknote size={16} className="text-[var(--color-primary)]" /> ביצוע — שחרור כספים
         </h4>
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="inline-flex items-center gap-1.5 text-sm text-[#059669] hover:text-[#047857] transition-colors">
+          <button onClick={() => setShowForm(true)} className="inline-flex items-center gap-1.5 text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition-colors">
             <Plus size={15} /> הוסף שחרור
           </button>
         )}
@@ -84,7 +84,7 @@ export default function ExecutionSection({ customerId, mortgageId }: Props) {
             <span>{pct}%</span>
           </div>
           <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-            <div className="h-full bg-[#059669] rounded-full transition-all" style={{ width: `${pct}%` }} />
+            <div className="h-full bg-[var(--color-primary)] rounded-full transition-all" style={{ width: `${pct}%` }} />
           </div>
         </div>
       )}
@@ -95,7 +95,7 @@ export default function ExecutionSection({ customerId, mortgageId }: Props) {
           <input className={inputClass} type="number" dir="ltr" placeholder="סכום" value={form.amount || ''} onChange={e => setForm({ ...form, amount: +e.target.value })} />
           <input className={inputClass} type="date" dir="ltr" value={form.due_date} onChange={e => setForm({ ...form, due_date: e.target.value })} />
           <div className="flex gap-2">
-            <button onClick={save} disabled={saving} className="flex-1 inline-flex items-center justify-center gap-1 bg-[#059669] text-white rounded-lg text-sm hover:bg-[#047857] disabled:opacity-50">
+            <button onClick={save} disabled={saving} className="flex-1 inline-flex items-center justify-center gap-1 bg-[var(--color-primary)] text-white rounded-lg text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
             </button>
             <button onClick={() => setShowForm(false)} className="px-3 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200">ביטול</button>
@@ -129,7 +129,7 @@ export default function ExecutionSection({ customerId, mortgageId }: Props) {
                   <td className="py-2">
                     <div className="flex items-center gap-2 justify-end">
                       {d.status === 'מתוכנן' && (
-                        <button onClick={() => release(d)} className="inline-flex items-center gap-1 text-xs bg-[#059669] text-white px-2 py-1 rounded-lg hover:bg-[#047857]">
+                        <button onClick={() => release(d)} className="inline-flex items-center gap-1 text-xs bg-[var(--color-primary)] text-white px-2 py-1 rounded-lg hover:bg-[var(--color-primary-hover)]">
                           <Check size={12} /> שוחרר
                         </button>
                       )}

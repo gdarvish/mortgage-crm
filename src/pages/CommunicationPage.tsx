@@ -30,20 +30,20 @@ const channelColors: Record<string, { bg: string; color: string }> = {
 }
 
 const cardStyle = {
-  background: '#ffffff',
+  background: 'var(--color-card)',
   borderRadius: 20,
-  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-  border: '1px solid #e7e5e4',
+  boxShadow: 'var(--shadow-card)',
+  border: '1px solid var(--color-border)',
 }
 
 const inputStyle = {
   width: '100%',
   padding: '10px 12px',
-  border: '1.5px solid #e7e5e4',
+  border: '1.5px solid var(--color-border)',
   borderRadius: 10,
   fontSize: 13,
-  color: '#1c1917',
-  background: '#ffffff',
+  color: 'var(--color-text)',
+  background: 'var(--color-card)',
   outline: 'none',
   fontFamily: 'var(--font-heebo)',
 }
@@ -137,22 +137,22 @@ export default function CommunicationPage() {
   }
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
+    <div className="crm-page animate-fade-in space-y-5">
       <div>
-        <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
-          <MessageSquare size={22} style={{ color: '#059669' }} />
+        <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: 'var(--color-text)', fontFamily: 'var(--font-heebo)' }}>
+          <MessageSquare size={22} style={{ color: 'var(--color-primary)' }} />
           תקשורת
         </h1>
-        <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>שליחת הודעות והיסטוריית תקשורת עם לקוחות</p>
+        <p className="mt-1 text-[13px]" style={{ color: 'var(--color-text-muted)' }}>שליחת הודעות והיסטוריית תקשורת עם לקוחות</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Send panel */}
         <div style={{ ...cardStyle, padding: 24 }}>
-          <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>שלח הודעה</h2>
+          <h2 className="text-[15px] font-bold mb-4" style={{ color: 'var(--color-text)' }}>שלח הודעה</h2>
           <div className="space-y-3">
             <div>
-              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }} htmlFor="message-customer">לקוח</label>
+              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }} htmlFor="message-customer">לקוח</label>
               <select
                 id="message-customer"
                 value={selectedCustomerId}
@@ -167,7 +167,7 @@ export default function CommunicationPage() {
             </div>
 
             <div>
-              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>ערוץ</label>
+              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>ערוץ</label>
               <div className="flex gap-2">
                 {(['וואטסאפ', 'אימייל', 'SMS'] as Message['channel'][]).map(ch => {
                   const cc = channelColors[ch]
@@ -179,8 +179,8 @@ export default function CommunicationPage() {
                       className="flex-1 py-2 text-[12px] font-semibold transition-all"
                       style={{
                         borderRadius: 10,
-                        background: active ? cc.bg : '#f5f4f2',
-                        color: active ? cc.color : '#a8a29e',
+                        background: active ? cc.bg : 'var(--color-border-light)',
+                        color: active ? cc.color : 'var(--color-text-muted)',
                         border: active ? `1.5px solid ${cc.color}30` : '1.5px solid transparent',
                       }}
                     >{ch}</button>
@@ -190,7 +190,7 @@ export default function CommunicationPage() {
             </div>
 
             <div>
-              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }} htmlFor="message-template">תבנית</label>
+              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }} htmlFor="message-template">תבנית</label>
               <select
                 id="message-template"
                 defaultValue=""
@@ -203,7 +203,7 @@ export default function CommunicationPage() {
             </div>
 
             <div>
-              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }} htmlFor="message-text">הודעה</label>
+              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }} htmlFor="message-text">הודעה</label>
               <textarea
                 id="message-text"
                 value={messageText}
@@ -217,7 +217,7 @@ export default function CommunicationPage() {
               onClick={handleSend}
               disabled={sending || !messageText.trim() || !selectedCustomerId}
               className="w-full flex items-center justify-center gap-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
-              style={{ borderRadius: 12, background: '#059669', padding: '10px 0', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
+              style={{ borderRadius: 12, background: 'var(--color-primary)', padding: '10px 0', boxShadow: '0 4px 14px color-mix(in srgb, var(--color-primary) 27%, transparent)' }}
             >
               {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
               שלח
@@ -227,10 +227,10 @@ export default function CommunicationPage() {
 
         {/* History panel */}
         <div className="lg:col-span-2" style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-          <div className="px-6 py-4" style={{ borderBottom: '1px solid #f5f4f2' }}>
-            <h2 className="text-[15px] font-bold" style={{ color: '#1c1917' }}>היסטוריית הודעות</h2>
+          <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--color-border-light)' }}>
+            <h2 className="text-[15px] font-bold" style={{ color: 'var(--color-text)' }}>היסטוריית הודעות</h2>
             {selectedCustomerId && (
-              <p className="text-[12px] mt-0.5" style={{ color: '#a8a29e' }}>
+              <p className="text-[12px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
                 {customers.find(c => c.id === selectedCustomerId)?.first_name} {customers.find(c => c.id === selectedCustomerId)?.last_name}
               </p>
             )}
@@ -238,25 +238,25 @@ export default function CommunicationPage() {
 
           {loadingMessages ? (
             <div className="flex items-center justify-center h-48">
-              <Loader2 size={24} style={{ color: '#059669' }} className="animate-spin" />
+              <Loader2 size={24} style={{ color: 'var(--color-primary)' }} className="animate-spin" />
             </div>
           ) : !selectedCustomerId ? (
             <div className="flex flex-col items-center justify-center h-48">
               <MessageSquare size={32} style={{ color: '#d6d3d1' }} className="mb-2" />
-              <p className="text-[13px]" style={{ color: '#a8a29e' }}>בחר לקוח כדי לראות היסטוריית הודעות</p>
+              <p className="text-[13px]" style={{ color: 'var(--color-text-muted)' }}>בחר לקוח כדי לראות היסטוריית הודעות</p>
             </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48">
               <MessageSquare size={32} style={{ color: '#d6d3d1' }} className="mb-2" />
-              <p className="text-[13px]" style={{ color: '#a8a29e' }}>אין הודעות עדיין עם לקוח זה</p>
+              <p className="text-[13px]" style={{ color: 'var(--color-text-muted)' }}>אין הודעות עדיין עם לקוח זה</p>
             </div>
           ) : (
-            <div className="divide-y" style={{ borderColor: '#f5f4f2' }}>
+            <div className="divide-y" style={{ borderColor: 'var(--color-border-light)' }}>
               {messages.map(msg => {
                 const Icon = channelIcons[msg.channel] ?? MessageSquare
-                const cc = channelColors[msg.channel] ?? { bg: '#f5f4f2', color: '#57534e' }
+                const cc = channelColors[msg.channel] ?? { bg: 'var(--color-border-light)', color: 'var(--color-text-sub)' }
                 return (
-                  <div key={msg.id} className="flex gap-3 px-6 py-4 transition-colors hover:bg-[#faf9f7]">
+                  <div key={msg.id} className="flex gap-3 px-6 py-4 transition-colors hover:bg-[var(--color-bg)]">
                     <div
                       className="flex items-center justify-center shrink-0"
                       style={{ width: 40, height: 40, borderRadius: 12, background: cc.bg }}
@@ -271,16 +271,16 @@ export default function CommunicationPage() {
                         >{msg.channel}</span>
                         <span
                           className="text-[11px] font-semibold"
-                          style={{ color: msg.direction === 'נשלח' ? '#059669' : '#d97706' }}
+                          style={{ color: msg.direction === 'נשלח' ? 'var(--color-primary)' : 'var(--color-accent)' }}
                         >{msg.direction}</span>
                         {msg.delivery_status === 'manual' && (
-                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: '#f5f4f2', color: '#a8a29e' }}>
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: 'var(--color-border-light)', color: 'var(--color-text-muted)' }}>
                             נפתח באפליקציה
                           </span>
                         )}
                       </div>
-                      <p className="text-[13px] mt-1" style={{ color: '#57534e' }}>{msg.content}</p>
-                      <p className="text-[11px] mt-1 flex items-center gap-1" style={{ color: '#a8a29e' }}>
+                      <p className="text-[13px] mt-1" style={{ color: 'var(--color-text-sub)' }}>{msg.content}</p>
+                      <p className="text-[11px] mt-1 flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
                         <Clock size={10} />{formatDate(msg.sent_at)}
                       </p>
                     </div>

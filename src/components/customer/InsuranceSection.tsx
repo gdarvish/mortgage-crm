@@ -9,7 +9,7 @@ type InsuranceStatus = 'נדרש' | 'בתהליך' | 'הופק'
 const STATUSES: InsuranceStatus[] = ['נדרש', 'בתהליך', 'הופק']
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none text-sm bg-white'
+  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm bg-white'
 
 interface Props {
   mortgage: MortgageWithTracks
@@ -38,7 +38,7 @@ export default function InsuranceSection({ mortgage, onUpdated }: Props) {
   return (
     <div className="px-4 py-3 border-t border-gray-100">
       <h5 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-        <ShieldCheck size={15} className="text-[#059669]" /> ביטוח
+        <ShieldCheck size={15} className="text-[var(--color-primary)]" /> ביטוח
         {saving && <Loader2 size={13} className="animate-spin text-gray-400" />}
       </h5>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

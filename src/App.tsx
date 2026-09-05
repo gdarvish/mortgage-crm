@@ -33,7 +33,7 @@ function AuthLoadingScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
       <div className="text-center">
-        <div className="w-12 h-12 border-4 border-[#059669] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <div className="w-12 h-12 border-4 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
         <p className="text-gray-500">טוען...</p>
       </div>
     </div>

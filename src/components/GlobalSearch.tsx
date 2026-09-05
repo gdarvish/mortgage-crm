@@ -69,7 +69,7 @@ export function GlobalSearch() {
       <button
         onClick={() => setOpen(true)}
         className="flex items-center justify-center transition-colors hover:text-[#fafaf9]"
-        style={{ width: 36, height: 36, borderRadius: 10, color: '#a8a29e' }}
+        style={{ width: 36, height: 36, borderRadius: 10, color: 'var(--color-text-muted)' }}
         aria-label="חיפוש (Ctrl+K)"
         title="חיפוש (Ctrl+K)"
       >
@@ -88,25 +88,25 @@ export function GlobalSearch() {
             style={{ borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2 px-4 border-b" style={{ borderColor: '#f5f4f2' }}>
-              <Search size={18} style={{ color: '#a8a29e' }} />
+            <div className="flex items-center gap-2 px-4 border-b" style={{ borderColor: 'var(--color-border-light)' }}>
+              <Search size={18} style={{ color: 'var(--color-text-muted)' }} />
               <input
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="חפש לקוח, ליד, ת.ז, טלפון..."
                 className="w-full py-4 text-[15px] outline-none"
-                style={{ color: '#1c1917' }}
+                style={{ color: 'var(--color-text)' }}
               />
             </div>
             <div className="max-h-96 overflow-y-auto">
               {trimmed.length < 2 && (
-                <p className="px-4 py-6 text-center text-[13px]" style={{ color: '#a8a29e' }}>
+                <p className="px-4 py-6 text-center text-[13px]" style={{ color: 'var(--color-text-muted)' }}>
                   הקלד לפחות 2 תווים לחיפוש
                 </p>
               )}
               {trimmed.length >= 2 && results.length === 0 && (
-                <p className="px-4 py-6 text-center text-[13px]" style={{ color: '#a8a29e' }}>
+                <p className="px-4 py-6 text-center text-[13px]" style={{ color: 'var(--color-text-muted)' }}>
                   לא נמצאו תוצאות
                 </p>
               )}
@@ -114,11 +114,11 @@ export function GlobalSearch() {
                 <button
                   key={`${item.type}-${item.id}`}
                   onClick={() => go(item)}
-                  className="w-full px-4 py-3 text-right border-b transition-colors hover:bg-[#faf9f7]"
-                  style={{ borderColor: '#f5f4f2' }}
+                  className="w-full px-4 py-3 text-right border-b transition-colors hover:bg-[var(--color-bg)]"
+                  style={{ borderColor: 'var(--color-border-light)' }}
                 >
-                  <div className="text-[14px] font-semibold" style={{ color: '#1c1917' }}>{item.name || '—'}</div>
-                  <div className="text-[12px]" style={{ color: '#a8a29e' }}>
+                  <div className="text-[14px] font-semibold" style={{ color: 'var(--color-text)' }}>{item.name || '—'}</div>
+                  <div className="text-[12px]" style={{ color: 'var(--color-text-muted)' }}>
                     {[item.phone, item.type === 'customer' ? 'לקוח' : 'ליד'].filter(Boolean).join(' · ')}
                   </div>
                 </button>

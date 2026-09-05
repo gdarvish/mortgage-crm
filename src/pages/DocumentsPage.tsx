@@ -12,20 +12,20 @@ const DocumentPreview = lazy(() =>
 )
 
 const statusIcons: Record<string, { icon: typeof CheckCircle; color: string }> = {
-  'תקין':    { icon: CheckCircle,  color: '#059669' },
+  'תקין':    { icon: CheckCircle,  color: 'var(--color-primary)' },
   'ממתין':   { icon: Clock,        color: '#d97706' },
   'חסר':     { icon: XCircle,      color: '#dc2626' },
-  'פג תוקף': { icon: AlertCircle,  color: '#a8a29e' },
+  'פג תוקף': { icon: AlertCircle,  color: 'var(--color-text-muted)' },
 }
 
 const categories = ['הכל', 'זיהוי', 'הכנסות', 'חשבון בנק', 'נכס', 'כללי']
 const docTypes = ['תעודת זהות + ספח', '3 תלושי שכר', 'הסכם רכישה', 'נסח טאבו', 'דוח פלאש BDI', 'אחר']
 
 const cardStyle = {
-  background: '#ffffff',
+  background: 'var(--color-card)',
   borderRadius: 20,
-  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-  border: '1px solid #e7e5e4',
+  boxShadow: 'var(--shadow-card)',
+  border: '1px solid var(--color-border)',
 }
 
 type DocRow = DocumentWithCustomer
@@ -112,24 +112,24 @@ export default function DocumentsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} style={{ color: '#059669' }} className="animate-spin" />
+        <Loader2 size={32} style={{ color: 'var(--color-primary)' }} className="animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
+    <div className="crm-page animate-fade-in space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>מסמכים</h1>
-          <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>{docs.length} מסמכים</p>
+          <h1 className="font-black" style={{ fontSize: 24, color: 'var(--color-text)', fontFamily: 'var(--font-heebo)' }}>מסמכים</h1>
+          <p className="mt-1 text-[13px]" style={{ color: 'var(--color-text-muted)' }}>{docs.length} מסמכים</p>
         </div>
         <div className="flex gap-2 shrink-0 items-center flex-wrap justify-end">
           <select
             value={selectedCustomerId}
             onChange={e => setSelectedCustomerId(e.target.value)}
             className="text-[12px] px-3 py-2 outline-none"
-            style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, color: selectedCustomerId ? '#1c1917' : '#a8a29e', background: '#fff' }}
+            style={{ border: '1.5px solid var(--color-border)', borderRadius: 10, color: selectedCustomerId ? 'var(--color-text)' : 'var(--color-text-muted)', background: 'var(--color-card)' }}
           >
             <option value="">בחר לקוח...</option>
             {customers.map(c => (
@@ -140,7 +140,7 @@ export default function DocumentsPage() {
             value={uploadType}
             onChange={e => setUploadType(e.target.value)}
             className="text-[12px] px-3 py-2 outline-none"
-            style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, color: '#57534e', background: '#fff' }}
+            style={{ border: '1.5px solid var(--color-border)', borderRadius: 10, color: 'var(--color-text-sub)', background: 'var(--color-card)' }}
           >
             {docTypes.map(t => <option key={t}>{t}</option>)}
           </select>
@@ -152,7 +152,7 @@ export default function DocumentsPage() {
             }}
             disabled={uploadDocument.isPending}
             className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
-            style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
+            style={{ borderRadius: 12, background: 'var(--color-primary)', boxShadow: '0 4px 14px color-mix(in srgb, var(--color-primary) 27%, transparent)' }}
           >
             {uploadDocument.isPending ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
             העלה מסמך
@@ -163,11 +163,11 @@ export default function DocumentsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {[
-          { label: 'סה"כ', value: stats.total, color: '#059669' },
-          { label: 'תקין', value: stats.ok, color: '#059669' },
+          { label: 'סה"כ', value: stats.total, color: 'var(--color-primary)' },
+          { label: 'תקין', value: stats.ok, color: 'var(--color-primary)' },
           { label: 'ממתין', value: stats.pending, color: '#d97706' },
           { label: 'חסר', value: stats.missing, color: '#dc2626' },
-          { label: 'פג תוקף', value: stats.expired, color: '#a8a29e' },
+          { label: 'פג תוקף', value: stats.expired, color: 'var(--color-text-muted)' },
         ].map(s => (
           <div
             key={s.label}
@@ -176,7 +176,7 @@ export default function DocumentsPage() {
             style={{ ...cardStyle, padding: '14px 12px' }}
           >
             <p className="font-black tabular-nums" style={{ fontSize: 22, color: s.color }}>{s.value}</p>
-            <p className="text-[13px]" style={{ color: '#57534e' }}>{s.label}</p>
+            <p className="text-[13px]" style={{ color: 'var(--color-text-sub)' }}>{s.label}</p>
           </div>
         ))}
       </div>
@@ -185,13 +185,13 @@ export default function DocumentsPage() {
       <div style={{ ...cardStyle, padding: 16 }}>
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search size={16} className="absolute" style={{ right: 12, top: '50%', transform: 'translateY(-50%)', color: '#a8a29e' }} />
+            <Search size={16} className="absolute" style={{ right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="חפש לפי לקוח או סוג מסמך..."
               className="w-full pr-10 pl-4 py-2 outline-none text-[13px]"
-              style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, color: '#1c1917' }}
+              style={{ border: '1.5px solid var(--color-border)', borderRadius: 10, color: 'var(--color-text)' }}
             />
           </div>
           <div className="flex gap-1 flex-wrap">
@@ -202,8 +202,8 @@ export default function DocumentsPage() {
                 className="px-3 py-1.5 text-[12px] font-semibold transition-all"
                 style={{
                   borderRadius: 20,
-                  background: categoryFilter === c ? '#059669' : '#f5f4f2',
-                  color: categoryFilter === c ? '#fff' : '#57534e',
+                  background: categoryFilter === c ? 'var(--color-primary)' : 'var(--color-border-light)',
+                  color: categoryFilter === c ? 'var(--color-primary-text)' : 'var(--color-text-sub)',
                 }}
               >{c}</button>
             ))}
@@ -216,40 +216,40 @@ export default function DocumentsPage() {
         {filtered.length === 0 ? (
           <div className="py-16 text-center">
             <FileText size={40} style={{ color: '#d6d3d1', margin: '0 auto 12px' }} />
-            <p className="text-[15px] font-semibold" style={{ color: '#57534e' }}>לא נמצאו מסמכים</p>
-            <p className="text-[13px] mt-1" style={{ color: '#a8a29e' }}>העלה מסמך ראשון באמצעות הכפתור למעלה</p>
+            <p className="text-[15px] font-semibold" style={{ color: 'var(--color-text-sub)' }}>לא נמצאו מסמכים</p>
+            <p className="text-[13px] mt-1" style={{ color: 'var(--color-text-muted)' }}>העלה מסמך ראשון באמצעות הכפתור למעלה</p>
           </div>
         ) : (
           <table className="w-full">
             <thead>
-              <tr style={{ background: '#faf9f7', borderBottom: '1px solid #f5f4f2' }}>
+              <tr style={{ background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border-light)' }}>
                 {['לקוח', 'סוג מסמך', 'קטגוריה', 'סטטוס', 'תאריך', 'פעולות'].map(h => (
-                  <th key={h} className="text-right p-3 text-[11px] font-bold uppercase" style={{ color: '#a8a29e' }}>{h}</th>
+                  <th key={h} className="text-right p-3 text-[11px] font-bold uppercase" style={{ color: 'var(--color-text-muted)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map(d => {
-                const si = statusIcons[d.status ?? ''] ?? { icon: FileText, color: '#a8a29e' }
+                const si = statusIcons[d.status ?? ''] ?? { icon: FileText, color: 'var(--color-text-muted)' }
                 return (
-                  <tr key={d.id} className="border-b transition-colors hover:bg-[#faf9f7]" style={{ borderColor: '#f5f4f2' }}>
-                    <td className="p-3 text-[13px] font-semibold" style={{ color: '#1c1917' }}>{d.customerName || '—'}</td>
-                    <td className="p-3 text-[13px]" style={{ color: '#57534e' }}>{d.type || '—'}</td>
-                    <td className="p-3 text-[12px]" style={{ color: '#a8a29e' }}>{d.category || '—'}</td>
+                  <tr key={d.id} className="border-b transition-colors hover:bg-[var(--color-bg)]" style={{ borderColor: 'var(--color-border-light)' }}>
+                    <td className="p-3 text-[13px] font-semibold" style={{ color: 'var(--color-text)' }}>{d.customerName || '—'}</td>
+                    <td className="p-3 text-[13px]" style={{ color: 'var(--color-text-sub)' }}>{d.type || '—'}</td>
+                    <td className="p-3 text-[12px]" style={{ color: 'var(--color-text-muted)' }}>{d.category || '—'}</td>
                     <td className="p-3">
                       <span className="inline-flex items-center gap-1 text-[12px] font-semibold">
                         <si.icon size={13} style={{ color: si.color }} />
                         <span style={{ color: si.color }}>{d.status || '—'}</span>
                       </span>
                     </td>
-                    <td className="p-3 text-[12px]" style={{ color: '#a8a29e' }}>{d.uploaded_at ? formatDate(d.uploaded_at) : '—'}</td>
+                    <td className="p-3 text-[12px]" style={{ color: 'var(--color-text-muted)' }}>{d.uploaded_at ? formatDate(d.uploaded_at) : '—'}</td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => openPreview(d)}
                           disabled={busyDocId === d.id}
                           className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-lg disabled:opacity-50"
-                          style={{ background: '#f5f4f2', color: '#57534e' }}
+                          style={{ background: 'var(--color-border-light)', color: 'var(--color-text-sub)' }}
                         >
                           <Eye size={12} /> תצוגה
                         </button>
@@ -257,7 +257,7 @@ export default function DocumentsPage() {
                           onClick={() => openInNewTab(d)}
                           disabled={busyDocId === d.id}
                           className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-lg disabled:opacity-50"
-                          style={{ background: '#d1fae5', color: '#065f46' }}
+                          style={{ background: 'var(--color-success-bg)', color: '#065f46' }}
                         >
                           <Download size={12} /> הורד
                         </button>

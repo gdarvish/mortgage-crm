@@ -11,7 +11,7 @@ import type { BankOffer, BankOfferTrack, LoanTrackType, MortgageWithTracks } fro
 const TRACK_TYPES: LoanTrackType[] = ['פריים', 'קל"צ', 'קל"ב', 'משתנה_צמודה', 'משתנה_לא_צמודה', 'זכאות']
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
 
 interface Props {
   customerId: string
@@ -175,7 +175,7 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center py-8"><Loader2 size={24} className="text-[#059669] animate-spin" /></div>
+    return <div className="flex items-center justify-center py-8"><Loader2 size={24} className="text-[var(--color-primary)] animate-spin" /></div>
   }
 
   const latest = latestOffersPerBank(offers)
@@ -196,14 +196,14 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
                 <History size={15} /> {showHistory ? 'הסתר סבבים' : 'הצג היסטוריית סבבים'}
               </button>
               <button onClick={exportPdf}
-                className="inline-flex items-center gap-1.5 text-sm text-[#059669] hover:text-[#047857] transition-colors">
+                className="inline-flex items-center gap-1.5 text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition-colors">
                 <Download size={15} /> ייצא השוואה
               </button>
             </>
           )}
           {!showForm && (
             <button onClick={() => setShowForm(true)}
-              className="inline-flex items-center gap-1.5 bg-[#059669] text-white px-3 py-1.5 rounded-lg text-sm hover:bg-[#047857] transition-colors">
+              className="inline-flex items-center gap-1.5 bg-[var(--color-primary)] text-white px-3 py-1.5 rounded-lg text-sm hover:bg-[var(--color-primary-hover)] transition-colors">
               <Plus size={15} /> הצעה
             </button>
           )}
@@ -230,7 +230,7 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
 
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-gray-600">מסלולים</span>
-            <button onClick={copyFromMix} className="inline-flex items-center gap-1 text-xs text-[#059669] hover:underline">
+            <button onClick={copyFromMix} className="inline-flex items-center gap-1 text-xs text-[var(--color-primary)] hover:underline">
               <Copy size={13} /> העתק מהתמהיל
             </button>
           </div>
@@ -251,12 +251,12 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
               </button>
             </div>
           ))}
-          <button onClick={() => setTracks([...tracks, emptyTrack()])} className="text-xs text-[#059669] hover:underline">+ הוסף מסלול</button>
+          <button onClick={() => setTracks([...tracks, emptyTrack()])} className="text-xs text-[var(--color-primary)] hover:underline">+ הוסף מסלול</button>
 
           <div className="flex gap-2 justify-end">
             <button onClick={resetForm} className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">ביטול</button>
             <button onClick={save} disabled={saving}
-              className="inline-flex items-center gap-2 bg-[#059669] text-white px-4 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
+              className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm disabled:opacity-50">
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} שמור הצעה
             </button>
           </div>
@@ -299,14 +299,14 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
                 <td className="p-2 font-bold text-gray-900">החזר חודשי</td>
                 {latest.map(o => {
                   const m = totalsByBank.get(o.id)!.monthly
-                  return <td key={o.id} className={`p-2 text-center font-bold ${m === bestMonthly ? 'bg-emerald-100 text-[#059669]' : 'text-gray-900'}`}>{formatCurrency(m)}</td>
+                  return <td key={o.id} className={`p-2 text-center font-bold ${m === bestMonthly ? 'bg-emerald-100 text-[var(--color-primary)]' : 'text-gray-900'}`}>{formatCurrency(m)}</td>
                 })}
               </tr>
               <tr className="bg-gray-50">
                 <td className="p-2 font-bold text-gray-900">עלות כוללת</td>
                 {latest.map(o => {
                   const tot = totalsByBank.get(o.id)!.total
-                  return <td key={o.id} className={`p-2 text-center font-bold ${tot === bestTotal ? 'bg-emerald-100 text-[#059669]' : 'text-gray-900'}`}>{formatCurrency(tot)}</td>
+                  return <td key={o.id} className={`p-2 text-center font-bold ${tot === bestTotal ? 'bg-emerald-100 text-[var(--color-primary)]' : 'text-gray-900'}`}>{formatCurrency(tot)}</td>
                 })}
               </tr>
               <tr>
@@ -316,7 +316,7 @@ export default function BankOffersSection({ customerId, mortgage, customerName, 
                     <div className="flex items-center justify-center gap-1">
                       {o.status !== 'נבחרה' && (
                         <button onClick={() => setChoosing(o)}
-                          className="inline-flex items-center gap-1 text-xs bg-[#059669] text-white px-2 py-1 rounded-lg hover:bg-[#047857] transition-colors">
+                          className="inline-flex items-center gap-1 text-xs bg-[var(--color-primary)] text-white px-2 py-1 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors">
                           <Award size={12} /> בחר
                         </button>
                       )}

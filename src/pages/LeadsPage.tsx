@@ -27,20 +27,20 @@ const columns: { key: LeadStatus; label: string; color: string; bg: string }[] =
 ]
 
 const cardStyle = {
-  background: '#ffffff',
+  background: 'var(--color-card)',
   borderRadius: 16,
   boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 4px 14px rgba(28,25,23,0.07)',
-  border: '1px solid #e7e5e4',
+  border: '1px solid var(--color-border)',
 }
 
 const inputStyle = {
   width: '100%',
   padding: '10px 12px',
-  border: '1.5px solid #e7e5e4',
+  border: '1.5px solid var(--color-border)',
   borderRadius: 10,
   fontSize: 14,
-  color: '#1c1917',
-  background: '#ffffff',
+  color: 'var(--color-text)',
+  background: 'var(--color-card)',
   outline: 'none',
   fontFamily: 'var(--font-heebo)',
 }
@@ -56,7 +56,7 @@ function KanbanColumn({ col, count, children }: { col: ColumnMeta; count: number
           className="inline-block text-[12px] font-bold px-3 py-1 rounded-full"
           style={{ background: col.bg, color: col.color }}
         >{col.label}</span>
-        <span className="text-[12px] font-semibold" style={{ color: '#a8a29e' }}>{count}</span>
+        <span className="text-[12px] font-semibold" style={{ color: 'var(--color-text-muted)' }}>{count}</span>
       </div>
       <div
         ref={setNodeRef}
@@ -105,7 +105,7 @@ function KanbanCard({ lead, col, index, onUpdateStatus, onConvert, onOpenCase }:
       }}
     >
       <div className="flex items-start justify-between mb-2">
-        <h3 className="text-[13px] font-bold" style={{ color: '#1c1917' }}>{lead.name || '—'}</h3>
+        <h3 className="text-[13px] font-bold" style={{ color: 'var(--color-text)' }}>{lead.name || '—'}</h3>
         <div className="flex items-center gap-0.5">
           {Array.from({ length: 10 }).map((_, idx) => (
             <div
@@ -123,25 +123,25 @@ function KanbanCard({ lead, col, index, onUpdateStatus, onConvert, onOpenCase }:
       </div>
 
       {lead.phone && (
-        <div className="flex items-center gap-1.5 text-[12px] mb-1" style={{ color: '#57534e' }} dir="ltr">
-          <Phone size={11} style={{ color: '#a8a29e' }} />
+        <div className="flex items-center gap-1.5 text-[12px] mb-1" style={{ color: 'var(--color-text-sub)' }} dir="ltr">
+          <Phone size={11} style={{ color: 'var(--color-text-muted)' }} />
           {lead.phone}
         </div>
       )}
       {lead.email && (
-        <div className="flex items-center gap-1.5 text-[12px] mb-1" style={{ color: '#57534e' }} dir="ltr">
-          <Mail size={11} style={{ color: '#a8a29e' }} />
+        <div className="flex items-center gap-1.5 text-[12px] mb-1" style={{ color: 'var(--color-text-sub)' }} dir="ltr">
+          <Mail size={11} style={{ color: 'var(--color-text-muted)' }} />
           {lead.email}
         </div>
       )}
       {lead.source && (
-        <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full mt-1" style={{ background: '#f5f4f2', color: '#a8a29e' }}>
+        <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full mt-1" style={{ background: 'var(--color-border-light)', color: 'var(--color-text-muted)' }}>
           {lead.source}
         </span>
       )}
 
-      <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid #f5f4f2' }}>
-        <p className="text-[11px]" style={{ color: '#a8a29e' }}>{formatDate(lead.created_at)}</p>
+      <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid var(--color-border-light)' }}>
+        <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>{formatDate(lead.created_at)}</p>
         <div className="flex items-center gap-1">
           <select
             value={lead.status}
@@ -160,7 +160,7 @@ function KanbanCard({ lead, col, index, onUpdateStatus, onConvert, onOpenCase }:
               onClick={() => onOpenCase(lead.converted_to_customer_id!)}
               onPointerDown={e => e.stopPropagation()}
               className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg"
-              style={{ background: '#d1fae5', color: '#065f46' }}
+              style={{ background: 'var(--color-success-bg)', color: '#065f46' }}
             >
               <ArrowLeftRight size={10} /> לתיק הלקוח
             </button>
@@ -169,7 +169,7 @@ function KanbanCard({ lead, col, index, onUpdateStatus, onConvert, onOpenCase }:
               onClick={() => onConvert(lead)}
               onPointerDown={e => e.stopPropagation()}
               className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ background: '#d1fae5', color: '#065f46' }}
+              style={{ background: 'var(--color-success-bg)', color: '#065f46' }}
             >
               <ArrowLeftRight size={10} /> המר
             </button>
@@ -276,17 +276,17 @@ export default function LeadsPage() {
   })
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
+    <div className="crm-page animate-fade-in space-y-5">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>לידים</h1>
-          <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>{leads.length} לידים</p>
+          <h1 className="font-black" style={{ fontSize: 24, color: 'var(--color-text)', fontFamily: 'var(--font-heebo)' }}>לידים</h1>
+          <p className="mt-1 text-[13px]" style={{ color: 'var(--color-text-muted)' }}>{leads.length} לידים</p>
         </div>
         <button
           onClick={() => setShowNewModal(true)}
           className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.96] shrink-0"
-          style={{ borderRadius: 12, background: '#059669', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
+          style={{ borderRadius: 12, background: 'var(--color-primary)', boxShadow: '0 4px 14px color-mix(in srgb, var(--color-primary) 27%, transparent)' }}
         >
           <UserPlus size={15} />
           ליד חדש
@@ -294,16 +294,16 @@ export default function LeadsPage() {
       </div>
 
       {/* Filters */}
-      <div style={{ background: '#ffffff', borderRadius: 16, border: '1px solid #e7e5e4', padding: 14 }}>
+      <div style={{ background: 'var(--color-card)', borderRadius: 16, border: '1px solid var(--color-border)', padding: 14 }}>
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search size={16} className="absolute" style={{ right: 12, top: '50%', transform: 'translateY(-50%)', color: '#a8a29e' }} />
+            <Search size={16} className="absolute" style={{ right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="חפש לפי שם או טלפון..."
               className="w-full pr-10 pl-4 py-2 outline-none text-[13px]"
-              style={{ border: '1.5px solid #e7e5e4', borderRadius: 10, color: '#1c1917' }}
+              style={{ border: '1.5px solid var(--color-border)', borderRadius: 10, color: 'var(--color-text)' }}
             />
           </div>
           <div className="flex gap-1 flex-wrap">
@@ -314,8 +314,8 @@ export default function LeadsPage() {
                 className="px-3 py-1.5 text-[12px] font-semibold transition-all"
                 style={{
                   borderRadius: 20,
-                  background: sourceFilter === s ? '#059669' : '#f5f4f2',
-                  color: sourceFilter === s ? '#fff' : '#57534e',
+                  background: sourceFilter === s ? 'var(--color-primary)' : 'var(--color-border-light)',
+                  color: sourceFilter === s ? 'var(--color-primary-text)' : 'var(--color-text-sub)',
                 }}
               >{s}</button>
             ))}
@@ -326,7 +326,7 @@ export default function LeadsPage() {
       {/* Kanban board */}
       {loading ? (
         <div className="flex items-center justify-center h-48">
-          <Loader2 size={28} style={{ color: '#059669' }} className="animate-spin" />
+          <Loader2 size={28} style={{ color: 'var(--color-primary)' }} className="animate-spin" />
         </div>
       ) : (
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
@@ -338,7 +338,7 @@ export default function LeadsPage() {
                   {colLeads.length === 0 ? (
                     <div
                       className="py-8 text-center text-[13px]"
-                      style={{ ...cardStyle, border: '1.5px dashed #e7e5e4', background: '#faf9f7', color: '#a8a29e' }}
+                      style={{ ...cardStyle, border: '1.5px dashed var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-muted)' }}
                     >
                       אין לידים
                     </div>
@@ -369,12 +369,12 @@ export default function LeadsPage() {
         >
           <div
             className="w-full max-w-md animate-fade-in"
-            style={{ background: '#ffffff', borderRadius: 20, border: '1px solid #e7e5e4', padding: 28 }}
+            style={{ background: 'var(--color-card)', borderRadius: 20, border: '1px solid var(--color-border)', padding: 28 }}
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[17px] font-bold" style={{ color: '#1c1917' }}>ליד חדש</h2>
-              <button onClick={() => setShowNewModal(false)} style={{ color: '#a8a29e' }}><X size={18} /></button>
+              <h2 className="text-[17px] font-bold" style={{ color: 'var(--color-text)' }}>ליד חדש</h2>
+              <button onClick={() => setShowNewModal(false)} style={{ color: 'var(--color-text-muted)' }}><X size={18} /></button>
             </div>
             <form onSubmit={handleCreateLead} className="space-y-3">
               {[
@@ -383,28 +383,28 @@ export default function LeadsPage() {
                 { label: 'אימייל', field: 'email' as const, dir: 'ltr', type: 'email' },
               ].map(({ label, field, required, dir, type }) => (
                 <div key={field}>
-                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>{label}</label>
+                  <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>{label}</label>
                   <input
                     required={required}
                     type={type as 'text' | 'email' | undefined}
                     dir={dir as 'ltr' | undefined}
                     value={newLead[field]}
                     onChange={e => setNewLead(p => ({ ...p, [field]: e.target.value }))}
-                    style={{ ...inputStyle, borderColor: leadErrors[field] ? '#dc2626' : '#e7e5e4' }}
+                    style={{ ...inputStyle, borderColor: leadErrors[field] ? 'var(--color-danger)' : 'var(--color-border)' }}
                   />
                   {leadErrors[field] && (
-                    <p className="text-[11px] mt-1" style={{ color: '#dc2626' }}>{leadErrors[field]}</p>
+                    <p className="text-[11px] mt-1" style={{ color: 'var(--color-danger)' }}>{leadErrors[field]}</p>
                   )}
                 </div>
               ))}
               <div>
-                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>מקור</label>
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>מקור</label>
                 <select value={newLead.source} onChange={e => setNewLead(p => ({ ...p, source: e.target.value }))} style={{ ...inputStyle }}>
                   {sources.filter(s => s !== 'הכל').map(s => <option key={s}>{s}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>ציון (1-10)</label>
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>ציון (1-10)</label>
                 <input
                   type="number" min={1} max={10}
                   value={newLead.score}
@@ -413,7 +413,7 @@ export default function LeadsPage() {
                 />
               </div>
               <div>
-                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }}>הערות</label>
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>הערות</label>
                 <textarea
                   value={newLead.notes}
                   onChange={e => setNewLead(p => ({ ...p, notes: e.target.value }))}
@@ -425,7 +425,7 @@ export default function LeadsPage() {
                   type="submit"
                   disabled={createLead.isPending}
                   className="flex-1 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
-                  style={{ borderRadius: 12, background: '#059669' }}
+                  style={{ borderRadius: 12, background: 'var(--color-primary)' }}
                 >
                   {createLead.isPending && <Loader2 size={15} className="animate-spin" />}
                   שמור
@@ -434,7 +434,7 @@ export default function LeadsPage() {
                   type="button"
                   onClick={() => setShowNewModal(false)}
                   className="flex-1 py-2.5 text-[13px] font-semibold transition-all hover:opacity-80"
-                  style={{ borderRadius: 12, background: '#f5f4f2', color: '#57534e' }}
+                  style={{ borderRadius: 12, background: 'var(--color-border-light)', color: 'var(--color-text-sub)' }}
                 >
                   ביטול
                 </button>

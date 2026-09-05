@@ -20,10 +20,10 @@ const fallbackHistory = [
 ]
 
 const cardStyle = {
-  background: '#ffffff',
+  background: 'var(--color-card)',
   borderRadius: 20,
-  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-  border: '1px solid #e7e5e4',
+  boxShadow: 'var(--shadow-card)',
+  border: '1px solid var(--color-border)',
 }
 
 interface BOIReading {
@@ -154,14 +154,14 @@ export default function InterestRatesPage() {
     : 'לא נשמר עדיין'
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
+    <div className="crm-page animate-fade-in space-y-5">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
-            <TrendingUp size={22} style={{ color: '#059669' }} />
+          <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: 'var(--color-text)', fontFamily: 'var(--font-heebo)' }}>
+            <TrendingUp size={22} style={{ color: 'var(--color-primary)' }} />
             שוק הריביות
           </h1>
-          <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>נתוני ריבית עדכניים מבנק ישראל</p>
+          <p className="mt-1 text-[13px]" style={{ color: 'var(--color-text-muted)' }}>נתוני ריבית עדכניים מבנק ישראל</p>
           {stale && (
             <div
               className="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold"
@@ -173,8 +173,8 @@ export default function InterestRatesPage() {
           )}
         </div>
         <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-          <div className="flex items-center gap-1.5 text-[12px]" style={{ color: '#a8a29e' }}>
-            {loading || boiLoading ? <Loader2 size={13} className="animate-spin" style={{ color: '#059669' }} /> : <RefreshCw size={13} />}
+          <div className="flex items-center gap-1.5 text-[12px]" style={{ color: 'var(--color-text-muted)' }}>
+            {loading || boiLoading ? <Loader2 size={13} className="animate-spin" style={{ color: 'var(--color-primary)' }} /> : <RefreshCw size={13} />}
             {loading ? 'טוען...' : `עודכן: ${updatedAtLabel}`}
           </div>
           <button
@@ -191,19 +191,19 @@ export default function InterestRatesPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div style={{ ...cardStyle, padding: 20, textAlign: 'center', borderRight: '4px solid #059669' }}>
-          <p className="text-[13px] mb-1" style={{ color: '#a8a29e' }}>ריבית פריים</p>
-          {loading ? <Loader2 size={24} className="mx-auto animate-spin" style={{ color: '#059669' }} /> : (
-            <p className="text-[32px] font-black" style={{ color: '#059669' }}>{rates.prime.toFixed(2)}%</p>
+        <div style={{ ...cardStyle, padding: 20, textAlign: 'center', borderRight: '4px solid var(--color-primary)' }}>
+          <p className="text-[13px] mb-1" style={{ color: 'var(--color-text-muted)' }}>ריבית פריים</p>
+          {loading ? <Loader2 size={24} className="mx-auto animate-spin" style={{ color: 'var(--color-primary)' }} /> : (
+            <p className="text-[32px] font-black" style={{ color: 'var(--color-primary)' }}>{rates.prime.toFixed(2)}%</p>
           )}
         </div>
         <div style={{ ...cardStyle, padding: 20, textAlign: 'center', borderRight: '4px solid #f59e0b' }}>
-          <p className="text-[13px] mb-1" style={{ color: '#a8a29e' }}>מדד אחרון</p>
+          <p className="text-[13px] mb-1" style={{ color: 'var(--color-text-muted)' }}>מדד אחרון</p>
           <p className="text-[32px] font-black" style={{ color: '#f59e0b' }}>{rates.lastCpi}%</p>
         </div>
         <div style={{ ...cardStyle, padding: 20, textAlign: 'center', borderRight: '4px solid #22c55e' }}>
-          <p className="text-[13px] mb-1" style={{ color: '#a8a29e' }}>ריבית בנק ישראל</p>
-          {loading ? <Loader2 size={24} className="mx-auto animate-spin" style={{ color: '#059669' }} /> : (
+          <p className="text-[13px] mb-1" style={{ color: 'var(--color-text-muted)' }}>ריבית בנק ישראל</p>
+          {loading ? <Loader2 size={24} className="mx-auto animate-spin" style={{ color: 'var(--color-primary)' }} /> : (
             <p className="text-[32px] font-black" style={{ color: '#22c55e' }}>{rates.boiRate.toFixed(2)}%</p>
           )}
         </div>
@@ -212,7 +212,7 @@ export default function InterestRatesPage() {
       <AdminLiveRatesSection />
 
       <div style={{ ...cardStyle, padding: 20 }}>
-        <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>מגמת ריבית פריים</h2>
+        <h2 className="text-[15px] font-bold mb-4" style={{ color: 'var(--color-text)' }}>מגמת ריבית פריים</h2>
         <ResponsiveContainer width="100%" height={280}>
           <LineChart data={history}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
@@ -225,8 +225,8 @@ export default function InterestRatesPage() {
       </div>
 
       <div style={{ ...cardStyle, overflow: 'hidden' }}>
-        <div className="flex items-center justify-between gap-3 p-5" style={{ borderBottom: '1px solid #f5f4f2' }}>
-          <h2 className="text-[15px] font-bold" style={{ color: '#1c1917' }}>ריביות לפי בנק</h2>
+        <div className="flex items-center justify-between gap-3 p-5" style={{ borderBottom: '1px solid var(--color-border-light)' }}>
+          <h2 className="text-[15px] font-bold" style={{ color: 'var(--color-text)' }}>ריביות לפי בנק</h2>
           <button
             type="button"
             onClick={() => setEditOpen(true)}
@@ -240,21 +240,21 @@ export default function InterestRatesPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
             <thead>
-              <tr style={{ background: '#faf9f7' }}>
+              <tr style={{ background: 'var(--color-bg)' }}>
                 {['בנק', 'פריים', 'קל"צ', 'קל"ב', 'מ"צ (משתנה צמודה)', 'מ"ל (משתנה לא צמודה)'].map(h => (
-                  <th key={h} className="text-right p-3 font-semibold whitespace-nowrap" style={{ color: '#a8a29e' }}>{h}</th>
+                  <th key={h} className="text-right p-3 font-semibold whitespace-nowrap" style={{ color: 'var(--color-text-muted)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {displayedBankRates.map(bank => (
-                <tr key={bank.bank} style={{ borderTop: '1px solid #f5f4f2' }} className="transition-colors hover:bg-[#faf9f7]">
-                  <td className="p-3 font-semibold" style={{ color: '#1c1917' }}>{bank.bank}</td>
-                  <td className="p-3 font-semibold" style={{ color: '#059669' }}>{bank.prime.toFixed(2)}%</td>
-                  <td className="p-3" style={{ color: '#57534e' }}>{bank.fixedNonLinked.toFixed(2)}%</td>
-                  <td className="p-3" style={{ color: '#57534e' }}>{bank.fixedLinked.toFixed(2)}%</td>
-                  <td className="p-3" style={{ color: '#57534e' }}>{bank.variableLinked.toFixed(2)}%</td>
-                  <td className="p-3" style={{ color: '#57534e' }}>{bank.variableNotLinked.toFixed(2)}%</td>
+                <tr key={bank.bank} style={{ borderTop: '1px solid var(--color-border-light)' }} className="transition-colors hover:bg-[var(--color-bg)]">
+                  <td className="p-3 font-semibold" style={{ color: 'var(--color-text)' }}>{bank.bank}</td>
+                  <td className="p-3 font-semibold" style={{ color: 'var(--color-primary)' }}>{bank.prime.toFixed(2)}%</td>
+                  <td className="p-3" style={{ color: 'var(--color-text-sub)' }}>{bank.fixedNonLinked.toFixed(2)}%</td>
+                  <td className="p-3" style={{ color: 'var(--color-text-sub)' }}>{bank.fixedLinked.toFixed(2)}%</td>
+                  <td className="p-3" style={{ color: 'var(--color-text-sub)' }}>{bank.variableLinked.toFixed(2)}%</td>
+                  <td className="p-3" style={{ color: 'var(--color-text-sub)' }}>{bank.variableNotLinked.toFixed(2)}%</td>
                 </tr>
               ))}
             </tbody>
@@ -525,34 +525,34 @@ function AdminLiveRatesSection() {
 
   return (
     <div style={{ ...cardStyle, overflow: 'hidden' }}>
-      <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid #f5f4f2' }}>
-        <h2 className="text-[15px] font-bold" style={{ color: '#1c1917' }}>ריביות מערכת (מחשבון ומנוע מחזור)</h2>
-        {isAdmin && <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: '#d1fae5', color: '#065f46' }}>מנהל</span>}
+      <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid var(--color-border-light)' }}>
+        <h2 className="text-[15px] font-bold" style={{ color: 'var(--color-text)' }}>ריביות מערכת (מחשבון ומנוע מחזור)</h2>
+        {isAdmin && <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: 'var(--color-success-bg)', color: '#065f46' }}>מנהל</span>}
       </div>
-      <div className="divide-y" style={{ borderColor: '#f5f4f2' }}>
+      <div className="divide-y" style={{ borderColor: 'var(--color-border-light)' }}>
         {LIVE_TRACK_TYPES.map(t => (
           <div key={t.key} className="flex items-center justify-between px-5 py-3">
-            <span className="text-[13px] font-medium" style={{ color: '#1c1917' }}>{t.label}</span>
+            <span className="text-[13px] font-medium" style={{ color: 'var(--color-text)' }}>{t.label}</span>
             {editing === t.key ? (
               <div className="flex items-center gap-2">
                 <input
                   type="number" step="0.01" dir="ltr" autoFocus value={draft}
                   onChange={e => setDraft(e.target.value)}
                   className="w-24 px-2 py-1 text-[13px] outline-none rounded-lg"
-                  style={{ border: '1.5px solid #e7e5e4' }}
+                  style={{ border: '1.5px solid var(--color-border)' }}
                 />
-                <button onClick={() => save(t.key)} disabled={saving} className="p-1.5 rounded-lg text-white disabled:opacity-50" style={{ background: '#059669' }}>
+                <button onClick={() => save(t.key)} disabled={saving} className="p-1.5 rounded-lg text-white disabled:opacity-50" style={{ background: 'var(--color-primary)' }}>
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                 </button>
-                <button onClick={() => setEditing(null)} className="p-1.5 rounded-lg" style={{ background: '#f5f4f2', color: '#57534e' }}><X size={14} /></button>
+                <button onClick={() => setEditing(null)} className="p-1.5 rounded-lg" style={{ background: 'var(--color-border-light)', color: 'var(--color-text-sub)' }}><X size={14} /></button>
               </div>
             ) : (
               <div className="flex items-center gap-3">
-                <span className="text-[15px] font-black tabular-nums" style={{ color: rates[t.key] != null ? '#059669' : '#d6d3d1' }} dir="ltr">
+                <span className="text-[15px] font-black tabular-nums" style={{ color: rates[t.key] != null ? 'var(--color-primary)' : '#d6d3d1' }} dir="ltr">
                   {loading ? '…' : rates[t.key] != null ? `${rates[t.key].toFixed(2)}%` : '—'}
                 </span>
                 {isAdmin && (
-                  <button onClick={() => startEdit(t.key)} className="p-1.5 rounded-lg hover:bg-gray-100" style={{ color: '#a8a29e' }} aria-label="עדכן ריבית">
+                  <button onClick={() => startEdit(t.key)} className="p-1.5 rounded-lg hover:bg-gray-100" style={{ color: 'var(--color-text-muted)' }} aria-label="עדכן ריבית">
                     <Pencil size={14} />
                   </button>
                 )}
@@ -562,7 +562,7 @@ function AdminLiveRatesSection() {
         ))}
       </div>
       {!isAdmin && (
-        <p className="px-5 py-3 text-[11px]" style={{ color: '#a8a29e', borderTop: '1px solid #f5f4f2' }}>
+        <p className="px-5 py-3 text-[11px]" style={{ color: 'var(--color-text-muted)', borderTop: '1px solid var(--color-border-light)' }}>
           עדכון ריביות מתאפשר למנהלי מערכת בלבד.
         </p>
       )}

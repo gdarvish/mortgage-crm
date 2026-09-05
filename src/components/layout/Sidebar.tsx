@@ -81,16 +81,16 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }: 
         <div className="flex h-16 items-center justify-between border-b border-gray-100 px-4">
           {!collapsed && (
             <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#059669] text-white font-bold text-sm font-[var(--font-heebo)]">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white font-bold text-sm font-[var(--font-heebo)]">
                 מ
               </div>
-              <span className="text-lg font-bold text-[#059669] font-[var(--font-heebo)]">
+              <span className="text-lg font-bold text-[var(--color-primary)] font-[var(--font-heebo)]">
                 משכנתא CRM
               </span>
             </div>
           )}
           {collapsed && (
-            <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg bg-[#059669] text-white font-bold text-sm font-[var(--font-heebo)]">
+            <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white font-bold text-sm font-[var(--font-heebo)]">
               מ
             </div>
           )}
@@ -136,7 +136,7 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }: 
                       'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                       collapsed && 'justify-center px-2',
                       isActive
-                        ? 'bg-[#e8f0fe] text-[#059669]'
+                        ? 'bg-[#e8f0fe] text-[var(--color-primary)]'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     )
                   }
@@ -154,7 +154,7 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }: 
         <div className="border-t border-gray-100 p-3">
           {!collapsed ? (
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8f0fe] text-[#059669] text-sm font-bold">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8f0fe] text-[var(--color-primary)] text-sm font-bold">
                 {user?.email?.charAt(0).toUpperCase() ?? 'U'}
               </div>
               <div className="min-w-0 flex-1">

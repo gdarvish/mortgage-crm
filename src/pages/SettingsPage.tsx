@@ -117,9 +117,9 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="animate-fade-in space-y-6">
-      <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
-        <Settings style={{ color: '#059669' }} size={24} />
+    <div className="crm-page-narrow animate-fade-in space-y-6">
+      <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: 'var(--color-text)', fontFamily: 'var(--font-heebo)' }}>
+        <Settings style={{ color: 'var(--color-primary)' }} size={24} />
         הגדרות
       </h1>
 
@@ -129,11 +129,11 @@ export default function SettingsPage() {
           <h2 className="font-semibold text-gray-900 mb-4">לוגו</h2>
           <input ref={logoInputRef} type="file" accept="image/*" hidden onChange={handleLogoUpload} />
           <div
-            className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-[#059669] transition-colors cursor-pointer"
+            className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-[var(--color-primary)] transition-colors cursor-pointer"
             onClick={() => logoInputRef.current?.click()}
           >
             {uploadingLogo ? (
-              <Loader2 size={32} className="mx-auto text-[#059669] animate-spin mb-2" />
+              <Loader2 size={32} className="mx-auto text-[var(--color-primary)] animate-spin mb-2" />
             ) : settings.logo_url ? (
               <img src={settings.logo_url} alt="לוגו" className="h-16 mx-auto mb-2 object-contain" />
             ) : (
@@ -218,16 +218,16 @@ export default function SettingsPage() {
                   aria-pressed={active}
                   className={`flex items-center gap-3 w-full px-3.5 py-3 rounded-xl border text-right transition-all ${
                     active
-                      ? 'border-[#059669] ring-2 ring-[#059669]/15 bg-[#059669]/[0.06]'
+                      ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/15 bg-[var(--color-primary)]/[0.06]'
                       : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
                   }`}
                 >
                   <span
                     className="w-5.5 h-5.5 rounded-full shrink-0 border-2 border-white"
-                    style={{ width: 22, height: 22, background: th.primary, boxShadow: '0 0 0 1px #e7e5e4' }}
+                    style={{ width: 22, height: 22, background: th.primary, boxShadow: '0 0 0 1px var(--color-border)' }}
                   />
                   <span className="flex-1 text-sm font-semibold text-gray-900">{th.name}</span>
-                  {active && <Check size={16} strokeWidth={3} className="text-[#059669]" />}
+                  {active && <Check size={16} strokeWidth={3} className="text-[var(--color-primary)]" />}
                 </button>
               )
             })}
@@ -283,7 +283,7 @@ export default function SettingsPage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 bg-[#059669] text-white px-6 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+          className="flex items-center gap-2 bg-[var(--color-primary)] text-white px-6 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
           {saving ? <Loader2 size={18} className="animate-spin" /> : saved ? <CheckCircle size={18} /> : <Save size={18} />}
           {saved ? 'נשמר!' : 'שמור הגדרות'}

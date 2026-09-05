@@ -6,7 +6,7 @@ import { customerService } from '@/services/customerService'
 import type { CustomerStatus } from '@/types/database'
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
 
 interface Props {
   customerId: string
@@ -94,7 +94,7 @@ export default function ScheduleMeetingButton({ customerId, customerName, curren
             <div className="flex gap-2 justify-end pt-2">
               <button onClick={() => setOpen(false)} className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">ביטול</button>
               <button onClick={save} disabled={saving}
-                className="inline-flex items-center gap-2 bg-[#059669] text-white px-4 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
+                className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm disabled:opacity-50">
                 {saving ? <Loader2 size={15} className="animate-spin" /> : <CalendarPlus size={15} />} קבע
               </button>
             </div>

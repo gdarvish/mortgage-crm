@@ -8,7 +8,7 @@ import { getChecklist } from '@/utils/documentChecklist'
 import type { Borrower } from '@/types/database'
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
 
 const EMPLOYMENT_TYPES = ['שכיר', 'עצמאי', 'שכיר + עצמאי'] as const
 
@@ -111,18 +111,18 @@ export function BorrowersSection({ customerId, primaryIncome, partnerIncome }: S
   const hasCoBorrowers = borrowers.some(b => b.role === 'לווה שני')
 
   if (loading) {
-    return <div className="flex items-center justify-center py-6"><Loader2 size={22} className="text-[#059669] animate-spin" /></div>
+    return <div className="flex items-center justify-center py-6"><Loader2 size={22} className="text-[var(--color-primary)] animate-spin" /></div>
   }
 
   return (
     <div className="border border-gray-200 rounded-xl p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h4 className="font-medium text-gray-900 flex items-center gap-2">
-          <Users size={16} className="text-[#059669]" /> לווים נוספים וערבים
+          <Users size={16} className="text-[var(--color-primary)]" /> לווים נוספים וערבים
         </h4>
         {!showForm && (
           <button onClick={() => { setForm(emptyForm); setShowForm(true) }}
-            className="inline-flex items-center gap-1.5 text-sm text-[#059669] hover:text-[#047857] transition-colors">
+            className="inline-flex items-center gap-1.5 text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition-colors">
             <Plus size={15} /> הוסף
           </button>
         )}
@@ -187,7 +187,7 @@ export function BorrowersSection({ customerId, primaryIncome, partnerIncome }: S
           <div className="flex gap-2 justify-end">
             <button onClick={resetForm} className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">ביטול</button>
             <button onClick={save} disabled={saving}
-              className="inline-flex items-center gap-2 bg-[#059669] text-white px-4 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
+              className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm disabled:opacity-50">
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} {editingId ? 'עדכן' : 'הוסף'}
             </button>
           </div>
@@ -207,7 +207,7 @@ export function BorrowersSection({ customerId, primaryIncome, partnerIncome }: S
                 <span className="text-sm font-medium text-gray-900">{b.first_name} {b.last_name}</span>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => startEdit(b)} className="text-gray-300 hover:text-[#059669]"><Pencil size={14} /></button>
+                <button onClick={() => startEdit(b)} className="text-gray-300 hover:text-[var(--color-primary)]"><Pencil size={14} /></button>
                 <button onClick={() => remove(b.id)} className="text-gray-300 hover:text-red-500"><Trash2 size={14} /></button>
               </div>
             </div>

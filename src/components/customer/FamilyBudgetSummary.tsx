@@ -14,13 +14,13 @@ export function FamilyBudgetSummary({ customer }: { customer: Customer }) {
 
   if (!saved) {
     return (
-      <div className="rounded-xl border border-[#e7e5e4] bg-[#faf9f7] p-4">
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-sm font-medium text-[#57534e]">
-            <PieChart size={16} className="text-[#059669]" />
+          <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-sub)]">
+            <PieChart size={16} className="text-[var(--color-primary)]" />
             טרם נשמרה כלכלת משפחה ללקוח זה
           </div>
-          <Link to={openHref} className="inline-flex items-center gap-1 text-sm font-semibold text-[#059669] hover:underline">
+          <Link to={openHref} className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--color-primary)] hover:underline">
             פתח את המחשבון
             <ArrowLeft size={14} />
           </Link>
@@ -34,14 +34,14 @@ export function FamilyBudgetSummary({ customer }: { customer: Customer }) {
   const savedAt = customer.financial_data?.updated_at
 
   return (
-    <div className="rounded-xl border border-[#e7e5e4] bg-white p-4">
+    <div className="rounded-xl border border-[var(--color-border)] bg-white p-4">
       <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-[#1c1917]">
-          <PieChart size={16} className="text-[#059669]" />
+        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-text)]">
+          <PieChart size={16} className="text-[var(--color-primary)]" />
           נתונים מכלכלת המשפחה
-          {savedAt && <span className="text-xs font-normal text-[#a8a29e]">· עודכן {formatDate(savedAt)}</span>}
+          {savedAt && <span className="text-xs font-normal text-[var(--color-text-muted)]">· עודכן {formatDate(savedAt)}</span>}
         </div>
-        <Link to={openHref} className="inline-flex items-center gap-1 text-sm font-semibold text-[#059669] hover:underline">
+        <Link to={openHref} className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--color-primary)] hover:underline">
           ערוך במחשבון
           <ArrowLeft size={14} />
         </Link>
@@ -54,18 +54,18 @@ export function FamilyBudgetSummary({ customer }: { customer: Customer }) {
           { label: 'החזר משכנתא', value: formatCurrency(budget.mortgagePayment) },
           { label: 'נשאר פנוי', value: formatCurrency(summary.remaining) },
         ].map(item => (
-          <div key={item.label} className="rounded-lg bg-[#faf9f7] p-3">
-            <p className="text-xs text-[#a8a29e]">{item.label}</p>
-            <p className="text-sm font-bold text-[#1c1917] mt-0.5">{item.value}</p>
+          <div key={item.label} className="rounded-lg bg-[var(--color-bg)] p-3">
+            <p className="text-xs text-[var(--color-text-muted)]">{item.label}</p>
+            <p className="text-sm font-bold text-[var(--color-text)] mt-0.5">{item.value}</p>
           </div>
         ))}
       </div>
 
       <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
         {budget.expenses.map(e => (
-          <li key={e.category} className="flex justify-between py-1 text-[13px] border-b border-[#f5f4f2]">
-            <span className="text-[#57534e]">{CATEGORY_LABELS[e.category]}</span>
-            <span className="text-[#1c1917]">{formatCurrency(e.amount)}</span>
+          <li key={e.category} className="flex justify-between py-1 text-[13px] border-b border-[var(--color-border-light)]">
+            <span className="text-[var(--color-text-sub)]">{CATEGORY_LABELS[e.category]}</span>
+            <span className="text-[var(--color-text)]">{formatCurrency(e.amount)}</span>
           </li>
         ))}
       </ul>

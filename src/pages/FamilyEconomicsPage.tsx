@@ -23,13 +23,13 @@ import type { Customer } from '@/types/database'
 const COLORS = ['#059669', '#34d399', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#6b7280']
 
 const cardStyle = {
-  background: '#ffffff',
+  background: 'var(--color-card)',
   borderRadius: 20,
-  boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-  border: '1px solid #e7e5e4',
+  boxShadow: 'var(--shadow-card)',
+  border: '1px solid var(--color-border)',
 }
 
-const inputClass = 'w-full px-3 py-2 border border-[#e7e5e4] rounded-lg text-[13px] text-[#1c1917] outline-none focus:border-[#059669] bg-white'
+const inputClass = 'w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] bg-white'
 
 export default function FamilyEconomicsPage() {
   const qc = useQueryClient()
@@ -131,13 +131,13 @@ export default function FamilyEconomicsPage() {
       : { background: '#d1fae5', color: '#065f46' }
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
+    <div className="crm-page animate-fade-in space-y-5">
       <div>
-        <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
-          <PieChartIcon size={22} style={{ color: '#059669' }} />
+        <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: 'var(--color-text)', fontFamily: 'var(--font-heebo)' }}>
+          <PieChartIcon size={22} style={{ color: 'var(--color-primary)' }} />
           מחשבון כלכלת משפחה
         </h1>
-        <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>ניתוח הכנסות, הוצאות ויכולת עמידה במשכנתא</p>
+        <p className="mt-1 text-[13px]" style={{ color: 'var(--color-text-muted)' }}>ניתוח הכנסות, הוצאות ויכולת עמידה במשכנתא</p>
       </div>
 
       <div style={{ ...cardStyle, padding: 20 }}>
@@ -151,14 +151,14 @@ export default function FamilyEconomicsPage() {
             onClick={() => void saveToCustomer()}
             disabled={saving}
             className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
-            style={{ background: '#059669' }}
+            style={{ background: 'var(--color-primary)' }}
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             שמור ללקוח
           </button>
         </CustomerPicker>
         {!customerId && (
-          <p className="mt-2 text-[12px]" style={{ color: '#a8a29e' }}>
+          <p className="mt-2 text-[12px]" style={{ color: 'var(--color-text-muted)' }}>
             בחירת לקוח טוענת את הנתונים השמורים בתיק ומאפשרת לשמור אותם בחזרה.
           </p>
         )}
@@ -168,29 +168,29 @@ export default function FamilyEconomicsPage() {
         {/* Input */}
         <div className="lg:col-span-2 space-y-4">
           <div style={{ ...cardStyle, padding: 20 }}>
-            <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>הכנסות</h2>
+            <h2 className="text-[15px] font-bold mb-4" style={{ color: 'var(--color-text)' }}>הכנסות</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }} htmlFor="income1">הכנסה לווה 1</label>
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }} htmlFor="income1">הכנסה לווה 1</label>
                 <input id="income1" type="number" min="0" value={budget.income1} onChange={e => setBudget(p => ({ ...p, income1: Math.max(0, +e.target.value) }))} className={inputClass} dir="ltr" />
               </div>
               <div>
-                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }} htmlFor="income2">הכנסה לווה 2</label>
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }} htmlFor="income2">הכנסה לווה 2</label>
                 <input id="income2" type="number" min="0" value={budget.income2} onChange={e => setBudget(p => ({ ...p, income2: Math.max(0, +e.target.value) }))} className={inputClass} dir="ltr" />
               </div>
             </div>
             <div className="mt-3">
-              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: '#a8a29e' }} htmlFor="mortgage-payment">החזר משכנתא מבוקש</label>
+              <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }} htmlFor="mortgage-payment">החזר משכנתא מבוקש</label>
               <input id="mortgage-payment" type="number" min="0" value={budget.mortgagePayment} onChange={e => setBudget(p => ({ ...p, mortgagePayment: Math.max(0, +e.target.value) }))} className={inputClass} dir="ltr" />
             </div>
           </div>
 
           <div style={{ ...cardStyle, padding: 20 }}>
-            <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>הוצאות חודשיות</h2>
+            <h2 className="text-[15px] font-bold mb-4" style={{ color: 'var(--color-text)' }}>הוצאות חודשיות</h2>
             <div className="space-y-3">
               {budget.expenses.map((expense, idx) => (
                 <div key={expense.category} className="flex items-center gap-3">
-                  <label className="text-[13px] flex-1 min-w-0" style={{ color: '#57534e' }} htmlFor={`expense-${expense.category}`}>
+                  <label className="text-[13px] flex-1 min-w-0" style={{ color: 'var(--color-text-sub)' }} htmlFor={`expense-${expense.category}`}>
                     {CATEGORY_LABELS[expense.category]}
                   </label>
                   <input
@@ -200,7 +200,7 @@ export default function FamilyEconomicsPage() {
                     onChange={e => updateExpense(idx, Math.max(0, +e.target.value))}
                     className={`${inputClass} w-28 shrink-0`}
                   />
-                  <span className="text-[12px] w-24 shrink-0 text-left" style={{ color: '#a8a29e' }}>{formatCurrency(expense.amount)}</span>
+                  <span className="text-[12px] w-24 shrink-0 text-left" style={{ color: 'var(--color-text-muted)' }}>{formatCurrency(expense.amount)}</span>
                 </div>
               ))}
             </div>
@@ -210,27 +210,27 @@ export default function FamilyEconomicsPage() {
         {/* Results */}
         <div className="space-y-4">
           <div style={{ ...cardStyle, padding: 20 }}>
-            <h2 className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>סיכום</h2>
+            <h2 className="text-[15px] font-bold mb-4" style={{ color: 'var(--color-text)' }}>סיכום</h2>
             <div className="space-y-1">
-              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid #f5f4f2' }}><span className="text-[13px]" style={{ color: '#57534e' }}>סה"כ הכנסות</span><span className="text-[13px] font-semibold" style={{ color: '#059669' }}>{formatCurrency(summary.totalIncome)}</span></div>
-              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid #f5f4f2' }}><span className="text-[13px]" style={{ color: '#57534e' }}>סה"כ הוצאות</span><span className="text-[13px] font-semibold" style={{ color: '#1c1917' }}>{formatCurrency(summary.totalExpenses)}</span></div>
-              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid #f5f4f2' }}><span className="text-[13px]" style={{ color: '#57534e' }}>משכנתא</span><span className="text-[13px] font-semibold" style={{ color: '#059669' }}>{formatCurrency(budget.mortgagePayment)}</span></div>
-              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid #f5f4f2' }}><span className="text-[13px]" style={{ color: '#57534e' }}>סה"כ הוצאות + משכנתא</span><span className="text-[13px] font-bold" style={{ color: '#1c1917' }}>{formatCurrency(summary.totalWithMortgage)}</span></div>
+              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid var(--color-border-light)' }}><span className="text-[13px]" style={{ color: 'var(--color-text-sub)' }}>סה"כ הכנסות</span><span className="text-[13px] font-semibold" style={{ color: 'var(--color-primary)' }}>{formatCurrency(summary.totalIncome)}</span></div>
+              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid var(--color-border-light)' }}><span className="text-[13px]" style={{ color: 'var(--color-text-sub)' }}>סה"כ הוצאות</span><span className="text-[13px] font-semibold" style={{ color: 'var(--color-text)' }}>{formatCurrency(summary.totalExpenses)}</span></div>
+              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid var(--color-border-light)' }}><span className="text-[13px]" style={{ color: 'var(--color-text-sub)' }}>משכנתא</span><span className="text-[13px] font-semibold" style={{ color: 'var(--color-primary)' }}>{formatCurrency(budget.mortgagePayment)}</span></div>
+              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid var(--color-border-light)' }}><span className="text-[13px]" style={{ color: 'var(--color-text-sub)' }}>סה"כ הוצאות + משכנתא</span><span className="text-[13px] font-bold" style={{ color: 'var(--color-text)' }}>{formatCurrency(summary.totalWithMortgage)}</span></div>
               <div className="flex justify-between py-2">
-                <span className="text-[13px]" style={{ color: '#57534e' }}>נשאר</span>
+                <span className="text-[13px]" style={{ color: 'var(--color-text-sub)' }}>נשאר</span>
                 <span className="text-[18px] font-black" style={{ color: remainingColor }}>{formatCurrency(summary.remaining)}</span>
               </div>
             </div>
 
             {/* Visual Bar */}
             <div className="mt-4">
-              <div className="h-3 rounded-full overflow-hidden" style={{ background: '#f5f4f2' }}>
+              <div className="h-3 rounded-full overflow-hidden" style={{ background: 'var(--color-border-light)' }}>
                 <div className="h-full flex">
-                  <div className="h-full" style={{ width: `${Math.min(summary.expensePct, 100)}%`, background: '#a8a29e' }} />
-                  <div className="h-full" style={{ width: `${Math.min(summary.dti, 100)}%`, background: '#059669' }} />
+                  <div className="h-full" style={{ width: `${Math.min(summary.expensePct, 100)}%`, background: 'var(--color-text-muted)' }} />
+                  <div className="h-full" style={{ width: `${Math.min(summary.dti, 100)}%`, background: 'var(--color-primary)' }} />
                 </div>
               </div>
-              <div className="flex justify-between text-[11px] mt-1" style={{ color: '#a8a29e' }}>
+              <div className="flex justify-between text-[11px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
                 <span>הוצאות: {summary.expensePct.toFixed(0)}%</span>
                 <span>משכנתא: {summary.dti.toFixed(0)}%</span>
                 <span>מרווח: {summary.remainingPct.toFixed(0)}%</span>
@@ -242,7 +242,7 @@ export default function FamilyEconomicsPage() {
             </div>
 
             {summary.status === 'tight' && (
-              <div className="mt-2 p-3 rounded-xl text-[13px]" style={{ background: '#fef3c7', color: '#d97706' }}>
+              <div className="mt-2 p-3 rounded-xl text-[13px]" style={{ background: 'var(--color-accent-bg)', color: 'var(--color-accent)' }}>
                 המרווח פחות מ-3,000 ₪ - מומלץ לבחון הפחתת ההחזר או צמצום הוצאות
               </div>
             )}
@@ -250,7 +250,7 @@ export default function FamilyEconomicsPage() {
 
           {/* Pie Chart */}
           <div style={{ ...cardStyle, padding: 20 }}>
-            <h2 className="text-[15px] font-bold mb-3" style={{ color: '#1c1917' }}>חלוקת הוצאות</h2>
+            <h2 className="text-[15px] font-bold mb-3" style={{ color: 'var(--color-text)' }}>חלוקת הוצאות</h2>
             <ResponsiveContainer width="100%" height={230}>
               <PieChart>
                 <Pie data={chartData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false}>
@@ -266,7 +266,7 @@ export default function FamilyEconomicsPage() {
             onClick={() => void downloadPdf()}
             disabled={exporting}
             className="w-full flex items-center justify-center gap-2 text-[13px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60"
-            style={{ borderRadius: 12, background: '#059669', padding: '10px 0', boxShadow: '0 4px 14px rgba(5,150,105,0.27)' }}
+            style={{ borderRadius: 12, background: 'var(--color-primary)', padding: '10px 0', boxShadow: '0 4px 14px color-mix(in srgb, var(--color-primary) 27%, transparent)' }}
           >
             {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
             הורד PDF

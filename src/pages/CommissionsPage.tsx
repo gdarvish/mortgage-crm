@@ -49,26 +49,26 @@ export default function CommissionsPage() {
   })
 
   const cardStyle = {
-    background: '#ffffff',
+    background: 'var(--color-card)',
     borderRadius: 20,
-    boxShadow: '0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07)',
-    border: '1px solid #e7e5e4',
+    boxShadow: 'var(--shadow-card)',
+    border: '1px solid var(--color-border)',
     padding: '22px 24px',
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} style={{ color: '#059669' }} className="animate-spin" />
+        <Loader2 size={32} style={{ color: 'var(--color-primary)' }} className="animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
+    <div className="crm-page animate-fade-in space-y-5">
       <div>
-        <h1 className="font-black" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>עמלות</h1>
-        <p className="mt-1 text-[13px]" style={{ color: '#a8a29e' }}>{commissions.length} עמלות במערכת</p>
+        <h1 className="font-black" style={{ fontSize: 24, color: 'var(--color-text)', fontFamily: 'var(--font-heebo)' }}>עמלות</h1>
+        <p className="mt-1 text-[13px]" style={{ color: 'var(--color-text-muted)' }}>{commissions.length} עמלות במערכת</p>
       </div>
 
       {/* KPI cards */}
@@ -83,8 +83,8 @@ export default function CommissionsPage() {
               <card.icon size={20} style={{ color: card.color }} />
             </div>
             <div>
-              <p className="font-black tabular-nums" style={{ fontSize: 22, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>{formatCurrency(card.value)}</p>
-              <p className="text-[13px]" style={{ color: '#a8a29e' }}>{card.label}</p>
+              <p className="font-black tabular-nums" style={{ fontSize: 22, color: 'var(--color-text)', fontFamily: 'var(--font-heebo)' }}>{formatCurrency(card.value)}</p>
+              <p className="text-[13px]" style={{ color: 'var(--color-text-muted)' }}>{card.label}</p>
             </div>
           </div>
         ))}
@@ -93,7 +93,7 @@ export default function CommissionsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Chart */}
         <div style={cardStyle}>
-          <p className="text-[15px] font-bold mb-4" style={{ color: '#1c1917' }}>הכנסות לפי חודש</p>
+          <p className="text-[15px] font-bold mb-4" style={{ color: 'var(--color-text)' }}>הכנסות לפי חודש</p>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f5f4f2" />
@@ -107,9 +107,9 @@ export default function CommissionsPage() {
 
         {/* List */}
         <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-          <div className="flex items-center gap-2 px-6 py-4 border-b" style={{ borderColor: '#f5f4f2' }}>
-            <DollarSign size={16} style={{ color: '#059669' }} />
-            <h2 className="text-[15px] font-bold" style={{ color: '#1c1917' }}>רשימת עמלות</h2>
+          <div className="flex items-center gap-2 px-6 py-4 border-b" style={{ borderColor: 'var(--color-border-light)' }}>
+            <DollarSign size={16} style={{ color: 'var(--color-primary)' }} />
+            <h2 className="text-[15px] font-bold" style={{ color: 'var(--color-text)' }}>רשימת עמלות</h2>
             <div className="flex gap-1 mr-auto">
               {['הכל', 'שולם', 'ממתין'].map(s => (
                 <button
@@ -118,33 +118,33 @@ export default function CommissionsPage() {
                   className="px-3 py-1 text-[12px] font-semibold transition-all"
                   style={{
                     borderRadius: 20,
-                    background: statusFilter === s ? '#059669' : '#f5f4f2',
-                    color: statusFilter === s ? '#fff' : '#57534e',
+                    background: statusFilter === s ? 'var(--color-primary)' : 'var(--color-border-light)',
+                    color: statusFilter === s ? 'var(--color-primary-text)' : 'var(--color-text-sub)',
                   }}
                 >{s}</button>
               ))}
             </div>
           </div>
           {filtered.length === 0 ? (
-            <div className="py-12 text-center text-[13px]" style={{ color: '#a8a29e' }}>אין עמלות</div>
+            <div className="py-12 text-center text-[13px]" style={{ color: 'var(--color-text-muted)' }}>אין עמלות</div>
           ) : (
-            <div className="divide-y" style={{ borderColor: '#f5f4f2' }}>
+            <div className="divide-y" style={{ borderColor: 'var(--color-border-light)' }}>
               {filtered.map(c => (
                 <div key={c.id} className="flex items-center justify-between px-6 py-3">
                   <div>
-                    <p className="text-[13px] font-semibold" style={{ color: '#1c1917' }}>{c.customerName}</p>
-                    {c.loanAmount > 0 && <p className="text-[12px]" style={{ color: '#a8a29e' }}>הלוואה: {formatCurrency(c.loanAmount)}</p>}
+                    <p className="text-[13px] font-semibold" style={{ color: 'var(--color-text)' }}>{c.customerName}</p>
+                    {c.loanAmount > 0 && <p className="text-[12px]" style={{ color: 'var(--color-text-muted)' }}>הלוואה: {formatCurrency(c.loanAmount)}</p>}
                   </div>
                   <div className="text-left flex flex-col items-end gap-1">
-                    <p className="font-black tabular-nums text-[15px]" style={{ color: '#059669' }}>{formatCurrency(c.amount)}</p>
+                    <p className="font-black tabular-nums text-[15px]" style={{ color: 'var(--color-primary)' }}>{formatCurrency(c.amount)}</p>
                     <span
                       className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
                       style={{
-                        background: c.status === 'שולם' ? '#d1fae5' : '#fef3c7',
+                        background: c.status === 'שולם' ? 'var(--color-success-bg)' : 'var(--color-accent-bg)',
                         color: c.status === 'שולם' ? '#065f46' : '#b45309',
                       }}
                     >{c.status}</span>
-                    {c.paymentDate && <p className="text-[11px]" style={{ color: '#a8a29e' }}>{formatDate(c.paymentDate)}</p>}
+                    {c.paymentDate && <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>{formatDate(c.paymentDate)}</p>}
                   </div>
                 </div>
               ))}

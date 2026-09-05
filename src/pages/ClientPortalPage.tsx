@@ -65,7 +65,7 @@ export default function ClientPortalPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Loader2 size={32} className="text-[#059669] animate-spin" />
+        <Loader2 size={32} className="text-[var(--color-primary)] animate-spin" />
       </div>
     )
   }
@@ -85,7 +85,7 @@ export default function ClientPortalPage() {
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
       {/* Header */}
-      <div className="bg-[#059669] text-white py-6 px-4">
+      <div className="bg-[var(--color-primary)] text-white py-6 px-4">
         <div className="max-w-2xl mx-auto text-center">
           <div className="w-12 h-12 bg-white/20 rounded-xl mx-auto mb-3 flex items-center justify-center">
             <Home size={24} />
@@ -122,7 +122,7 @@ export default function ClientPortalPage() {
           {data.advisor.phone && (
             <a
               href={`tel:${data.advisor.phone}`}
-              className="inline-flex items-center gap-2 mt-3 text-sm text-[#059669] hover:underline"
+              className="inline-flex items-center gap-2 mt-3 text-sm text-[var(--color-primary)] hover:underline"
             >
               <Phone size={14} />
               צור קשר עם היועץ
@@ -133,7 +133,7 @@ export default function ClientPortalPage() {
         {/* Documents Checklist */}
         <div className="bg-white rounded-xl shadow-sm p-5">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <FileText size={18} className="text-[#059669]" />
+            <FileText size={18} className="text-[var(--color-primary)]" />
             צ'קליסט מסמכים
           </h2>
           <div className="space-y-3">
@@ -164,7 +164,7 @@ export default function ClientPortalPage() {
         {data.pending_signatures.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm p-5">
             <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <PenTool size={18} className="text-[#059669]" />
+              <PenTool size={18} className="text-[var(--color-primary)]" />
               ממתין לחתימה
             </h2>
             {data.pending_signatures.map((sig, idx) => (
@@ -173,7 +173,7 @@ export default function ClientPortalPage() {
                 {sig.sign_url_token && (
                   <a
                     href={`/sign/${sig.sign_url_token}`}
-                    className="text-xs bg-[#059669] text-white px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-[#047857] transition-colors"
+                    className="text-xs bg-[var(--color-primary)] text-white px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-[var(--color-primary-hover)] transition-colors"
                   >
                     <PenTool size={12} /> חתום
                   </a>

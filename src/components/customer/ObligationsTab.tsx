@@ -18,7 +18,7 @@ const OBLIGATION_TYPES: ObligationType[] = [
 ]
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
 
 interface Props {
   customerId: string
@@ -146,7 +146,7 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 size={28} className="text-[#059669] animate-spin" />
+        <Loader2 size={28} className="text-[var(--color-primary)] animate-spin" />
       </div>
     )
   }
@@ -219,7 +219,7 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
               ביטול
             </button>
             <button onClick={save} disabled={saving}
-              className="inline-flex items-center gap-2 bg-[#059669] text-white px-4 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
+              className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm disabled:opacity-50">
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
               {editingId ? 'עדכן' : 'הוסף'}
             </button>
@@ -227,7 +227,7 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
         </div>
       ) : (
         <button onClick={() => { setForm(emptyForm); setShowForm(true) }}
-          className="inline-flex items-center gap-2 bg-[#059669] text-white px-4 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm">
+          className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm">
           <Plus size={16} /> הוסף התחייבות
         </button>
       )}
@@ -282,7 +282,7 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
                         {overridden ? (
                           <button
                             onClick={() => setOverride(o, null)}
-                            className="text-[11px] text-gray-400 hover:text-[#059669] transition-colors"
+                            className="text-[11px] text-gray-400 hover:text-[var(--color-primary)] transition-colors"
                           >
                             החזר לחישוב אוטומטי
                           </button>
@@ -295,7 +295,7 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
                     </td>
                     <td className="py-2">
                       <div className="flex items-center gap-2 justify-end">
-                        <button onClick={() => startEdit(o)} className="text-gray-300 hover:text-[#059669] transition-colors">
+                        <button onClick={() => startEdit(o)} className="text-gray-300 hover:text-[var(--color-primary)] transition-colors">
                           <Pencil size={14} />
                         </button>
                         <button onClick={() => remove(o.id)} className="text-gray-300 hover:text-red-500 transition-colors">
@@ -310,7 +310,7 @@ export default function ObligationsTab({ customerId, existingObligationsFromQues
             <tfoot>
               <tr className="bg-emerald-50">
                 <td colSpan={2} className="py-2 font-bold text-gray-900">סה"כ החזרים חודשיים הנכללים</td>
-                <td className="py-2 font-bold text-[#059669]">{formatCurrency(total)}</td>
+                <td className="py-2 font-bold text-[var(--color-primary)]">{formatCurrency(total)}</td>
                 <td colSpan={4} />
               </tr>
             </tfoot>

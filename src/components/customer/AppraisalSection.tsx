@@ -16,7 +16,7 @@ const statusColors: Record<AppraisalStatus, string> = {
 }
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
 
 interface Props {
   customerId: string
@@ -155,7 +155,7 @@ export default function AppraisalSection({ customerId, mortgageId, loanAmount, p
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 size={24} className="text-[#059669] animate-spin" />
+        <Loader2 size={24} className="text-[var(--color-primary)] animate-spin" />
       </div>
     )
   }
@@ -165,11 +165,11 @@ export default function AppraisalSection({ customerId, mortgageId, loanAmount, p
       <input ref={fileRef} type="file" hidden accept="image/*,application/pdf" onChange={handleFile} />
       <div className="flex items-center justify-between">
         <h4 className="font-medium text-gray-900 flex items-center gap-2">
-          <Home size={16} className="text-[#059669]" /> שמאות
+          <Home size={16} className="text-[var(--color-primary)]" /> שמאות
         </h4>
         {!showForm && (
           <button onClick={() => { setForm(emptyForm); setShowForm(true) }}
-            className="inline-flex items-center gap-1.5 text-sm text-[#059669] hover:text-[#047857] transition-colors">
+            className="inline-flex items-center gap-1.5 text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition-colors">
             <Plus size={15} /> הזמן שמאות
           </button>
         )}
@@ -233,7 +233,7 @@ export default function AppraisalSection({ customerId, mortgageId, loanAmount, p
           <div className="flex gap-2 justify-end">
             <button onClick={resetForm} className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">ביטול</button>
             <button onClick={save} disabled={saving}
-              className="inline-flex items-center gap-2 bg-[#059669] text-white px-4 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
+              className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm disabled:opacity-50">
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
               {editingId ? 'עדכן' : 'הוסף'}
             </button>
@@ -260,7 +260,7 @@ export default function AppraisalSection({ customerId, mortgageId, loanAmount, p
                 {a.property_address && <span className="text-xs text-gray-400">· {a.property_address}</span>}
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => startEdit(a)} className="text-gray-300 hover:text-[#059669] transition-colors"><Pencil size={14} /></button>
+                <button onClick={() => startEdit(a)} className="text-gray-300 hover:text-[var(--color-primary)] transition-colors"><Pencil size={14} /></button>
                 <button onClick={() => remove(a.id)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
               </div>
             </div>
@@ -288,7 +288,7 @@ export default function AppraisalSection({ customerId, mortgageId, loanAmount, p
                 </span>
               ) : (
                 <button onClick={() => triggerUpload(a.id)} disabled={uploadingFor === a.id}
-                  className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#059669] transition-colors disabled:opacity-50">
+                  className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-[var(--color-primary)] transition-colors disabled:opacity-50">
                   {uploadingFor === a.id ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
                   העלה דוח שמאות
                 </button>

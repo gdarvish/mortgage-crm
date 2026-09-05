@@ -15,7 +15,7 @@ const statusColors: Record<string, string> = {
 }
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
 
 function startOfWeek(d: Date): Date {
   const date = new Date(d)
@@ -95,13 +95,13 @@ export default function MeetingsPage() {
   const remove = async (id: string) => { await meetingService.delete(id); load() }
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-[1360px] mx-auto">
+    <div className="crm-page animate-fade-in space-y-5">
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: '#1c1917', fontFamily: 'var(--font-heebo)' }}>
-          <Calendar size={22} style={{ color: '#059669' }} /> פגישות
+        <h1 className="font-black flex items-center gap-2" style={{ fontSize: 24, color: 'var(--color-text)', fontFamily: 'var(--font-heebo)' }}>
+          <Calendar size={22} style={{ color: 'var(--color-primary)' }} /> פגישות
         </h1>
         <button onClick={() => setShowForm(true)}
-          className="inline-flex items-center gap-2 bg-[#059669] text-white px-4 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm">
+          className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm">
           <Plus size={16} /> קבע פגישה
         </button>
       </div>
@@ -112,14 +112,14 @@ export default function MeetingsPage() {
           className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"><ChevronRight size={18} /></button>
         <div className="text-sm font-medium text-gray-700">
           {weekStart.toLocaleDateString('he-IL')} – {new Date(weekEnd.getTime() - 1).toLocaleDateString('he-IL')}
-          <button onClick={() => setWeekStart(startOfWeek(new Date()))} className="mr-3 text-xs text-[#059669] hover:underline">היום</button>
+          <button onClick={() => setWeekStart(startOfWeek(new Date()))} className="mr-3 text-xs text-[var(--color-primary)] hover:underline">היום</button>
         </div>
         <button onClick={() => setWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })}
           className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"><ChevronLeft size={18} /></button>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-48"><Loader2 size={28} className="text-[#059669] animate-spin" /></div>
+        <div className="flex items-center justify-center h-48"><Loader2 size={28} className="text-[var(--color-primary)] animate-spin" /></div>
       ) : (
         <div className="space-y-3">
           {weekDays.map(day => {
@@ -130,7 +130,7 @@ export default function MeetingsPage() {
                 <div className={`px-4 py-2 border-b border-gray-100 flex items-center gap-2 ${isToday ? 'bg-emerald-50' : 'bg-gray-50'}`}>
                   <span className="text-sm font-bold text-gray-900">יום {DAY_NAMES[day.getDay()]}</span>
                   <span className="text-xs text-gray-400">{day.toLocaleDateString('he-IL')}</span>
-                  {isToday && <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#059669] text-white">היום</span>}
+                  {isToday && <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-primary)] text-white">היום</span>}
                 </div>
                 {dayMeetings.length === 0 ? (
                   <p className="text-xs text-gray-300 px-4 py-3">אין פגישות</p>
@@ -139,7 +139,7 @@ export default function MeetingsPage() {
                     {dayMeetings.map(m => (
                       <div key={m.id} className="flex items-center justify-between px-4 py-3 gap-3">
                         <div className="flex items-start gap-3 min-w-0">
-                          <span className="text-sm font-bold text-[#059669] tabular-nums shrink-0" dir="ltr">{timeStr(m.starts_at)}</span>
+                          <span className="text-sm font-bold text-[var(--color-primary)] tabular-nums shrink-0" dir="ltr">{timeStr(m.starts_at)}</span>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-sm font-medium text-gray-900">{m.title}</span>
@@ -147,7 +147,7 @@ export default function MeetingsPage() {
                             </div>
                             <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5 flex-wrap">
                               {m.customer && (
-                                <Link to={`/customers/${m.customer_id}`} className="inline-flex items-center gap-1 hover:text-[#059669]">
+                                <Link to={`/customers/${m.customer_id}`} className="inline-flex items-center gap-1 hover:text-[var(--color-primary)]">
                                   <User size={11} /> {m.customer.first_name} {m.customer.last_name}
                                 </Link>
                               )}
@@ -217,7 +217,7 @@ export default function MeetingsPage() {
             <div className="flex gap-2 justify-end pt-2">
               <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">ביטול</button>
               <button onClick={save} disabled={saving}
-                className="inline-flex items-center gap-2 bg-[#059669] text-white px-4 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
+                className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm disabled:opacity-50">
                 {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} קבע פגישה
               </button>
             </div>

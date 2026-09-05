@@ -103,7 +103,7 @@ const docStatusIcon = (status: string) => {
 }
 
 const inputClass =
-  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#059669] focus:border-transparent outline-none text-sm'
+  'w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none text-sm'
 
 // ---------------------------------------------------------------------------
 // Component
@@ -604,7 +604,7 @@ export default function CustomerDetailPage() {
   if (isLoading || (full && !customer)) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="text-[#059669] animate-spin" />
+        <Loader2 size={32} className="text-[var(--color-primary)] animate-spin" />
       </div>
     )
   }
@@ -614,7 +614,7 @@ export default function CustomerDetailPage() {
       <div className="text-center py-16 text-gray-500">
         לקוח לא נמצא
         {fetchError && <p className="text-xs text-red-400 mt-2">{fetchError}</p>}
-        <button onClick={() => navigate('/customers')} className="block mx-auto mt-4 text-[#059669] hover:underline text-sm">
+        <button onClick={() => navigate('/customers')} className="block mx-auto mt-4 text-[var(--color-primary)] hover:underline text-sm">
           חזרה לרשימת לקוחות
         </button>
       </div>
@@ -707,7 +707,7 @@ export default function CustomerDetailPage() {
         </div>
         <div className="md:col-span-2 flex justify-end pt-2">
           <button onClick={savePersonal} disabled={saving}
-            className="inline-flex items-center gap-2 bg-[#059669] text-white px-6 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
+            className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-6 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm disabled:opacity-50">
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             שמור שינויים
           </button>
@@ -718,7 +718,7 @@ export default function CustomerDetailPage() {
       {(customer.mortgage_purpose || customer.requested_amount || customer.employment_type || customer.has_existing_property != null || customer.credit_card_frames != null) && (
         <div className="mt-6 pt-4 border-t border-gray-100">
           <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-            <ClipboardList size={16} className="text-[#059669]" />
+            <ClipboardList size={16} className="text-[var(--color-primary)]" />
             נתוני שאלון
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -816,7 +816,7 @@ export default function CustomerDetailPage() {
       </div>
       <div className="md:col-span-2 flex justify-end pt-2">
         <button onClick={saveFinancial} disabled={saving}
-          className="inline-flex items-center gap-2 bg-[#059669] text-white px-6 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
+          className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-6 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm disabled:opacity-50">
           {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
           שמור שינויים
         </button>
@@ -878,7 +878,7 @@ export default function CustomerDetailPage() {
           <button
             onClick={() => docFileInputRef.current?.click()}
             disabled={uploadingDoc}
-            className="inline-flex items-center gap-1 text-xs bg-[#059669] text-white px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="inline-flex items-center gap-1 text-xs bg-[var(--color-primary)] text-white px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             {uploadingDoc ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
             העלאה
@@ -909,14 +909,14 @@ export default function CustomerDetailPage() {
             <button
               onClick={() => openDocument(doc.id)}
               disabled={openingDocId === doc.id}
-              className="text-xs text-[#059669] hover:underline disabled:opacity-50"
+              className="text-xs text-[var(--color-primary)] hover:underline disabled:opacity-50"
             >
               {openingDocId === doc.id ? 'פותח...' : 'צפה'}
             </button>
             <button
               onClick={() => handleOcr(doc.id)}
               disabled={ocrDocId === doc.id}
-              className="inline-flex items-center gap-1 text-xs text-[#059669] hover:underline disabled:opacity-50"
+              className="inline-flex items-center gap-1 text-xs text-[var(--color-primary)] hover:underline disabled:opacity-50"
             >
               {ocrDocId === doc.id
                 ? <Loader2 size={12} className="animate-spin" />
@@ -926,7 +926,7 @@ export default function CustomerDetailPage() {
             <button
               onClick={() => handleValidateDoc(doc.id)}
               disabled={validateDocId === doc.id}
-              className="inline-flex items-center gap-1 text-xs text-[#059669] hover:underline disabled:opacity-50"
+              className="inline-flex items-center gap-1 text-xs text-[var(--color-primary)] hover:underline disabled:opacity-50"
             >
               {validateDocId === doc.id
                 ? <Loader2 size={12} className="animate-spin" />
@@ -954,7 +954,7 @@ export default function CustomerDetailPage() {
           <p className="text-sm text-gray-400 mb-4">אין תמהילים עדיין</p>
           <button
             onClick={() => navigate(`/calculator?customerId=${customer.id}`)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#059669] text-white text-sm font-medium hover:bg-[#047857] transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:bg-[var(--color-primary-hover)] transition-colors"
           >
             <Calculator size={15} />
             בנה תמהיל חדש
@@ -965,7 +965,7 @@ export default function CustomerDetailPage() {
         <div className="flex justify-end">
           <button
             onClick={() => navigate(`/calculator?customerId=${customer.id}`)}
-            className="inline-flex items-center gap-1.5 text-sm text-[#059669] hover:text-[#047857] transition-colors font-medium"
+            className="inline-flex items-center gap-1.5 text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition-colors font-medium"
           >
             <Plus size={15} />
             בנה תמהיל חדש
@@ -1007,7 +1007,7 @@ export default function CustomerDetailPage() {
                 </p>
               </div>
               <button onClick={() => navigate(`/calculator?customerId=${customer.id}&mortgageId=${mortgage.id}`)}
-                className="inline-flex items-center gap-1 text-sm text-[#059669] hover:text-[#047857] transition-colors">
+                className="inline-flex items-center gap-1 text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition-colors">
                 <ExternalLink size={14} />ערוך / שכפל כגרסה
               </button>
             </div>
@@ -1122,7 +1122,7 @@ export default function CustomerDetailPage() {
           </select>
           <button onClick={handleCompose} disabled={composing}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-            style={{ background: '#fef3c7', color: '#d97706' }}>
+            style={{ background: 'var(--color-accent-bg)', color: 'var(--color-accent)' }}>
             {composing ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
             נסח עם AI
           </button>
@@ -1148,7 +1148,7 @@ export default function CustomerDetailPage() {
         {messages.map(msg => (
           <div key={msg.id} className={`flex ${msg.direction === 'נשלח' ? 'justify-start' : 'justify-end'}`}>
             <div className={`max-w-[75%] rounded-xl p-3 ${
-              msg.direction === 'נשלח' ? 'bg-[#059669] text-white rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+              msg.direction === 'נשלח' ? 'bg-[var(--color-primary)] text-white rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-bl-sm'
             }`}>
               <span className={`text-xs font-medium ${msg.direction === 'נשלח' ? 'text-blue-200' : 'text-gray-500'}`}>
                 {msg.channel} · {msg.direction}
@@ -1187,7 +1187,7 @@ export default function CustomerDetailPage() {
               {['נמוכה', 'בינונית', 'גבוהה', 'דחופה'].map(p => <option key={p} value={p}>{p}</option>)}
             </select>
             <button onClick={addTask}
-              className="bg-[#059669] text-white px-3 py-2 rounded-lg hover:bg-[#047857] transition-colors">
+              className="bg-[var(--color-primary)] text-white px-3 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors">
               <Plus size={18} />
             </button>
           </div>
@@ -1205,7 +1205,7 @@ export default function CustomerDetailPage() {
             <div className="flex items-center gap-3">
               <button onClick={() => toggleTask(task)}
                 className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                  task.status === 'הושלמה' ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-[#059669]'
+                  task.status === 'הושלמה' ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-[var(--color-primary)]'
                 }`}>
                 {task.status === 'הושלמה' && <Check size={14} />}
               </button>
@@ -1280,7 +1280,7 @@ export default function CustomerDetailPage() {
         </div>
         <div className="flex justify-end">
           <button onClick={saveCommission} disabled={saving}
-            className="inline-flex items-center gap-2 bg-[#059669] text-white px-6 py-2 rounded-lg hover:bg-[#047857] transition-colors text-sm disabled:opacity-50">
+            className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-6 py-2 rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors text-sm disabled:opacity-50">
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             שמור שינויים
           </button>
@@ -1304,10 +1304,10 @@ export default function CustomerDetailPage() {
   // Main render
   // -------------------------------------------------------------------------
   return (
-    <div className="animate-fade-in space-y-4">
+    <div className="crm-page animate-fade-in space-y-4">
       {/* Back */}
       <button onClick={() => navigate('/customers')}
-        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#059669] transition-colors">
+        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[var(--color-primary)] transition-colors">
         <ArrowRight size={16} />חזרה לרשימת לקוחות
       </button>
 
@@ -1318,7 +1318,7 @@ export default function CustomerDetailPage() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-[#059669] text-white rounded-full flex items-center justify-center text-lg font-bold">
+            <div className="w-12 h-12 bg-[var(--color-primary)] text-white rounded-full flex items-center justify-center text-lg font-bold">
               {customer.first_name[0]}{customer.last_name[0]}
             </div>
             <div>
@@ -1381,7 +1381,7 @@ export default function CustomerDetailPage() {
             return (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
-                  isActive ? 'border-[#059669] text-[#059669]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  isActive ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}>
                 <Icon size={16} />{tab.label}
               </button>
