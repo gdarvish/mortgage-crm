@@ -56,7 +56,7 @@ export default function Header(_props: HeaderProps) {
     <>
       <header
         className="sticky top-0 z-[100] flex items-center w-full shrink-0"
-        style={{ height: 58, background: '#1c1917' }}
+        style={{ height: 58, background: 'var(--color-nav-bg)' }}
       >
         {/* Logo */}
         <div className="flex items-center px-4 shrink-0">
@@ -67,7 +67,7 @@ export default function Header(_props: HeaderProps) {
               width: 34,
               height: 34,
               borderRadius: 10,
-              background: '#059669',
+              background: 'var(--color-primary)',
               boxShadow: '0 4px 12px rgba(5,150,105,0.5)',
             }}
             aria-label="דשבורד"
@@ -77,7 +77,7 @@ export default function Header(_props: HeaderProps) {
         </div>
 
         {/* Divider */}
-        <div className="w-px self-stretch my-3 shrink-0" style={{ background: '#292524' }} />
+        <div className="w-px self-stretch my-3 shrink-0" style={{ background: 'var(--color-nav-active)' }} />
 
         {/* Nav links — desktop only */}
         <nav className="hidden lg:flex items-stretch flex-1 h-full overflow-x-auto">
@@ -89,12 +89,12 @@ export default function Header(_props: HeaderProps) {
                 onClick={() => navigate(item.path)}
                 className={cn(
                   'relative flex items-center gap-1.5 px-3 h-full text-[13px] transition-all duration-150 whitespace-nowrap shrink-0',
-                  active ? 'font-semibold' : 'hover:bg-[#292524]/50 font-medium'
+                  active ? 'font-semibold' : 'hover:bg-[var(--color-nav-active)]/50 font-medium'
                 )}
                 style={{
-                  color: active ? '#fafaf9' : '#a8a29e',
-                  background: active ? '#292524' : undefined,
-                  borderBottom: active ? '2px solid #059669' : '2px solid transparent',
+                  color: active ? 'var(--color-nav-text-active)' : 'var(--color-nav-text)',
+                  background: active ? 'var(--color-nav-active)' : undefined,
+                  borderBottom: active ? '2px solid var(--color-primary)' : '2px solid transparent',
                 }}
               >
                 <item.icon size={14} />
@@ -107,8 +107,8 @@ export default function Header(_props: HeaderProps) {
         {/* Mobile menu toggle */}
         <button
           onClick={() => setMenuOpen(o => !o)}
-          className="lg:hidden flex items-center justify-center mx-2 transition-colors hover:text-[#fafaf9]"
-          style={{ width: 36, height: 36, borderRadius: 10, color: '#a8a29e' }}
+          className="lg:hidden flex items-center justify-center mx-2 transition-colors hover:text-[var(--color-nav-text-active)]"
+          style={{ width: 36, height: 36, borderRadius: 10, color: 'var(--color-nav-text)' }}
           aria-label="פתח תפריט"
         >
           {menuOpen ? <X size={20} /> : <Menu size={20} />}
@@ -125,7 +125,7 @@ export default function Header(_props: HeaderProps) {
           {/* Bell */}
           <button
             className="relative flex items-center justify-center transition-all duration-200 hover:rotate-[-15deg] hover:scale-110"
-            style={{ width: 36, height: 36, borderRadius: 10, color: '#a8a29e' }}
+            style={{ width: 36, height: 36, borderRadius: 10, color: 'var(--color-nav-text)' }}
             aria-label="התראות"
             onClick={() => navigate('/alerts')}
           >
@@ -141,7 +141,7 @@ export default function Header(_props: HeaderProps) {
           {/* Avatar */}
           <button
             className="flex items-center justify-center text-white font-bold text-sm transition-transform duration-150 hover:scale-[1.08]"
-            style={{ width: 36, height: 36, borderRadius: 10, background: '#059669' }}
+            style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--color-primary)' }}
             aria-label="פרופיל"
             onClick={() => navigate('/settings')}
           >
@@ -159,7 +159,7 @@ export default function Header(_props: HeaderProps) {
         >
           <div
             className="absolute top-[58px] right-0 h-full overflow-y-auto animate-fade-in"
-            style={{ width: 260, background: '#1c1917' }}
+            style={{ width: 260, background: 'var(--color-nav-bg)' }}
             onClick={e => e.stopPropagation()}
           >
             <div className="py-3">
@@ -171,9 +171,9 @@ export default function Header(_props: HeaderProps) {
                     onClick={() => handleNav(item.path)}
                     className="w-full flex items-center gap-3 px-5 py-3 text-[14px] transition-colors text-right"
                     style={{
-                      color: active ? '#fafaf9' : '#a8a29e',
-                      background: active ? '#292524' : 'transparent',
-                      borderRight: active ? '3px solid #059669' : '3px solid transparent',
+                      color: active ? 'var(--color-nav-text-active)' : 'var(--color-nav-text)',
+                      background: active ? 'var(--color-nav-active)' : 'transparent',
+                      borderRight: active ? '3px solid var(--color-primary)' : '3px solid transparent',
                       fontWeight: active ? 600 : 400,
                     }}
                   >

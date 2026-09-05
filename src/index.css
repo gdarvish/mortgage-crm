@@ -29,10 +29,30 @@
   --color-danger-bg: #fee2e2;
   --color-success: #059669;
   --color-success-bg: #d1fae5;
+  --color-warning: #d97706;
+  --color-warning-bg: #fef3c7;
+  --color-info: #0ea5e9;
+  --color-info-bg: #e0f2fe;
+
+  /* Surfaces */
+  --color-input-bg: #faf9f7;
+  --color-pill-bg: #f5f4f2;
+  --color-pill-text: #57534e;
 
   /* Fonts */
   --font-heebo: "Heebo", sans-serif;
   --font-assistant: "Assistant", sans-serif;
+}
+
+/*
+ * These values are the "earth" theme, and ThemeProvider overwrites every one
+ * of them on :root at runtime when another theme is chosen — so anything
+ * styled with var(--color-*) follows the theme automatically. The literals
+ * above are the pre-paint default and must stay in step with THEMES.earth.
+ */
+:root {
+  --shadow-card: 0 1px 4px rgba(28,25,23,0.06), 0 6px 20px rgba(28,25,23,0.07);
+  --shadow-card-hover: 0 4px 24px rgba(28,25,23,0.14);
 }
 
 * {

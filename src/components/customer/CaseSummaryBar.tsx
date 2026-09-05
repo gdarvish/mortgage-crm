@@ -17,11 +17,12 @@ interface Chip {
   title?: string
 }
 
+// Theme tokens rather than literals, so the bar follows the chosen theme.
 const TONES: Record<Chip['tone'], { bg: string; fg: string }> = {
-  neutral: { bg: '#f5f4f2', fg: '#57534e' },
-  good: { bg: '#d1fae5', fg: '#065f46' },
-  warn: { bg: '#fef3c7', fg: '#b45309' },
-  bad: { bg: '#fee2e2', fg: '#b91c1c' },
+  neutral: { bg: 'var(--color-pill-bg)', fg: 'var(--color-pill-text)' },
+  good: { bg: 'var(--color-success-bg)', fg: 'var(--color-success)' },
+  warn: { bg: 'var(--color-warning-bg)', fg: 'var(--color-warning)' },
+  bad: { bg: 'var(--color-danger-bg)', fg: 'var(--color-danger)' },
 }
 
 /** A check's tone: green when clean, amber for a warning, red for a breach. */
@@ -93,20 +94,20 @@ export function CaseSummaryBar({ snapshot }: { snapshot: CaseSnapshot }) {
   return (
     <div
       className="sticky top-0 z-20 -mx-1 px-1 py-2 backdrop-blur"
-      style={{ background: 'rgba(250,249,247,0.92)' }}
+      style={{ background: 'color-mix(in srgb, var(--color-bg) 92%, transparent)' }}
     >
       <div
         className="flex items-center gap-2 flex-wrap rounded-xl border px-3 py-2"
-        style={{ borderColor: '#e7e5e4', background: '#ffffff' }}
+        style={{ borderColor: 'var(--color-border)', background: 'var(--color-card)' }}
       >
         <span
           className="inline-flex items-center gap-1.5 text-[12px] font-bold px-2 py-1 rounded-lg shrink-0"
           style={
             mortgage
               ? compliant
-                ? { background: '#d1fae5', color: '#065f46' }
-                : { background: '#fee2e2', color: '#b91c1c' }
-              : { background: '#f5f4f2', color: '#a8a29e' }
+                ? { background: 'var(--color-success-bg)', color: 'var(--color-success)' }
+                : { background: 'var(--color-danger-bg)', color: 'var(--color-danger)' }
+              : { background: 'var(--color-pill-bg)', color: 'var(--color-text-muted)' }
           }
           title={mortgage ? undefined : 'אין תמהיל בתיק'}
         >

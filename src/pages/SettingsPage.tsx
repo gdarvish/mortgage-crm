@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
-import { Settings, Upload, Save, Eye, Trash2, Loader2, CheckCircle } from 'lucide-react'
+import { Settings, Upload, Save, Eye, Trash2, Loader2, CheckCircle, Check } from 'lucide-react'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/lib/firebase'
 import { settingsService } from '@/services/settingsService'
 import { regulatoryService } from '@/services/regulatoryService'
+import { useThemeControls } from '@/theme/ThemeContext'
+import { THEMES } from '@/theme/themes'
 import { FALLBACK_REGULATORY_PARAMS } from '@/utils/regulatoryParams'
 import { toast } from '@/components/ui'
 
 export default function SettingsPage() {
+  const { themeId, setThemeId } = useThemeControls()
   const [settings, setSettings] = useState({
     name: '',
     title: 'יועץ משכנתאות',
@@ -199,6 +202,39 @@ export default function SettingsPage() {
             <label className="block text-sm text-gray-600 mb-1">טקסט תחתית</label>
             <input value={settings.footerText} onChange={e => updateField('footerText', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
           </div>
+        </div>
+
+        {/* Theme picker */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+          <h2 className="font-semibold text-gray-900 mb-4">ערכת נושא</h2>
+          <div className="flex flex-col gap-2.5">
+            {Object.values(THEMES).map(th => {
+              const active = themeId === th.id
+              return (
+                <button
+                  key={th.id}
+                  type="button"
+                  onClick={() => setThemeId(th.id)}
+                  aria-pressed={active}
+                  className={`flex items-center gap-3 w-full px-3.5 py-3 rounded-xl border text-right transition-all ${
+                    active
+                      ? 'border-[#059669] ring-2 ring-[#059669]/15 bg-[#059669]/[0.06]'
+                      : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+                  }`}
+                >
+                  <span
+                    className="w-5.5 h-5.5 rounded-full shrink-0 border-2 border-white"
+                    style={{ width: 22, height: 22, background: th.primary, boxShadow: '0 0 0 1px #e7e5e4' }}
+                  />
+                  <span className="flex-1 text-sm font-semibold text-gray-900">{th.name}</span>
+                  {active && <Check size={16} strokeWidth={3} className="text-[#059669]" />}
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-xs text-gray-400 mt-3">
+            ערכת הנושא נשמרת במכשיר זה ומשנה את מראה כל המערכת.
+          </p>
         </div>
 
         {/* Alert Settings */}

@@ -3,7 +3,11 @@ import Header from '@/components/layout/Header'
 
 export default function AppLayout() {
   return (
-    <div className="min-h-screen overflow-x-hidden" style={{ background: '#faf9f7' }} dir="rtl">
+    <div
+      className="min-h-screen overflow-x-hidden"
+      style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}
+      dir="rtl"
+    >
 
       {/* Full-width layout: TopNav + content */}
       <div className="flex flex-col min-h-screen">

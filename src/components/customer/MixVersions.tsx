@@ -218,13 +218,13 @@ export function MixVersions({ snapshot, customerName, onOpenVersion }: Props) {
     <div className="border border-gray-200 rounded-xl overflow-hidden">
       <div className="bg-gray-50 px-4 py-3 flex items-center justify-between gap-3">
         <h4 className="font-medium text-gray-900 flex items-center gap-2">
-          <GitBranch size={16} className="text-[#059669]" />
+          <GitBranch size={16} className="text-[var(--color-primary)]" />
           השוואת גרסאות תמהיל
         </h4>
         <button
           onClick={exportPdf}
           disabled={exporting}
-          className="inline-flex items-center gap-1.5 text-sm text-[#059669] hover:text-[#047857] transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition-colors disabled:opacity-50"
         >
           {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
           ייצוא PDF
@@ -240,7 +240,7 @@ export function MixVersions({ snapshot, customerName, onOpenVersion }: Props) {
                 <th key={c.mortgage.id} className="text-right p-3 font-medium text-gray-900 whitespace-nowrap">
                   <button
                     onClick={() => onOpenVersion(c.mortgage.id)}
-                    className="text-right hover:text-[#059669] transition-colors"
+                    className="text-right hover:text-[var(--color-primary)] transition-colors"
                   >
                     <span className="block">
                       v{c.mortgage.version ?? 1} {c.mortgage.version_label ?? ''}
@@ -265,13 +265,13 @@ export function MixVersions({ snapshot, customerName, onOpenVersion }: Props) {
                     return (
                       <td
                         key={c.mortgage.id}
-                        className={`p-3 whitespace-nowrap ${isBest ? 'font-bold text-[#047857]' : 'text-gray-900'}`}
+                        className={`p-3 whitespace-nowrap ${isBest ? 'font-bold text-[var(--color-primary-hover)]' : 'text-gray-900'}`}
                       >
                         {row.value(c)}
                         {delta && (
                           <span
                             className="block text-xs font-normal"
-                            style={{ color: delta.startsWith('+') ? '#b45309' : '#059669' }}
+                            style={{ color: delta.startsWith('+') ? 'var(--color-warning)' : 'var(--color-primary)' }}
                           >
                             {delta}
                           </span>
