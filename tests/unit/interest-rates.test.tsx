@@ -12,6 +12,11 @@ import type { RatesDoc } from '@/types/database'
 
 const saved = vi.hoisted(() => ({ calls: [] as RatesDoc[], error: null as { message: string } | null }))
 const stored = vi.hoisted(() => ({ data: null as RatesDoc | null }))
+const boi = vi.hoisted(() => ({
+  result: null as Record<string, unknown> | null,
+  error: null as Error | null,
+  calls: [] as unknown[],
+}))
 
 vi.mock('@/services/settingsService', () => ({
   settingsService: {
@@ -34,7 +39,16 @@ vi.mock('firebase/firestore', () => ({
   collection: vi.fn(), query: vi.fn(), orderBy: vi.fn(), limit: vi.fn(),
   getDocs: vi.fn(async () => ({ docs: [] })),
 }))
-vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn(() => vi.fn()) }))
+// The Bank of Israel reading comes from the fetchBoiRates callable, not from
+// a browser fetch — a fetch from the tab is blocked by CORS before it leaves.
+vi.mock('firebase/functions', () => ({
+  httpsCallable: vi.fn((_fns: unknown, name: string) => async (payload: unknown) => {
+    if (name !== 'fetchBoiRates') return { data: undefined }
+    boi.calls.push(payload)
+    if (boi.error) throw boi.error
+    return { data: boi.result }
+  }),
+}))
 
 // recharts needs a laid-out container, which jsdom never provides.
 vi.mock('recharts', () => {
@@ -46,6 +60,12 @@ vi.mock('recharts', () => {
 })
 
 const { default: InterestRatesPage } = await import('@/pages/InterestRatesPage')
+const { Toaster, useToastStore } = await import('@/components/ui')
+
+/** The page reports failures through toasts, so the Toaster has to be mounted. */
+function renderPage() {
+  return render(<><InterestRatesPage /><Toaster /></>)
+}
 
 const savedBoard: RatesDoc = {
   bankRates: [
@@ -61,9 +81,13 @@ beforeEach(() => {
   saved.calls = []
   saved.error = null
   stored.data = null
+  boi.result = null
+  boi.error = new Error('בנק ישראל לא זמין')
+  boi.calls = []
+  useToastStore.getState().toasts.forEach(t => useToastStore.getState().removeToast(t.id))
   localStorage.clear()
-  // Keep the page off the network — the BOI feed is not part of these cases.
-  vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
+  // The page must never reach the network itself.
+  vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('the page must not fetch directly') }))
 })
 
 afterEach(() => {
@@ -134,5 +158,73 @@ describe('InterestRatesPage', () => {
     render(<InterestRatesPage />)
     await screen.findByText('בנק אגוד')
     expect(screen.queryByText('הריביות לא עודכנו למעלה משבוע')).not.toBeInTheDocument()
+  })
+})
+
+describe('the Bank of Israel refresh', () => {
+  it('goes through the callable rather than fetching the feed directly', async () => {
+    const user = userEvent.setup()
+    const directFetch = vi.fn(async () => { throw new Error('blocked by CORS') })
+    vi.stubGlobal('fetch', directFetch)
+    stored.data = savedBoard
+    boi.error = null
+    boi.result = { prime: 5.75, boiRate: 4.25, lastUpdate: '2026-09' }
+    renderPage()
+    await screen.findByText('בנק אגוד')
+
+    await user.click(screen.getByRole('button', { name: /רענן מבנק ישראל/ }))
+
+    await waitFor(() => expect(saved.calls).toHaveLength(1))
+    expect(directFetch).not.toHaveBeenCalled()
+    // A manual refresh asks the server to bypass its cache.
+    expect(boi.calls.at(-1)).toEqual({ force: true })
+  })
+
+  it('applies the reading to the headline figures only', async () => {
+    const user = userEvent.setup()
+    stored.data = savedBoard
+    boi.error = null
+    boi.result = { prime: 5.75, boiRate: 4.25, lastUpdate: '2026-09' }
+    renderPage()
+    await screen.findByText('בנק אגוד')
+
+    await user.click(screen.getByRole('button', { name: /רענן מבנק ישראל/ }))
+
+    await waitFor(() => expect(saved.calls).toHaveLength(1))
+    const written = saved.calls[0]
+    expect(written.prime).toBe(5.75)
+    expect(written.boiRate).toBe(4.25)
+    // The advisor's own quotes are never overwritten by the feed.
+    expect(written.bankRates).toEqual(savedBoard.bankRates)
+    expect(await screen.findByText('4.25%')).toBeInTheDocument()
+  })
+
+  it('reports why the refresh failed instead of a generic error', async () => {
+    const user = userEvent.setup()
+    stored.data = savedBoard
+    boi.error = new Error('בנק ישראל החזיר שגיאה 404')
+    renderPage()
+    await screen.findByText('בנק אגוד')
+
+    await user.click(screen.getByRole('button', { name: /רענן מבנק ישראל/ }))
+
+    expect(await screen.findByText('בנק ישראל החזיר שגיאה 404')).toBeInTheDocument()
+    // The saved figures stay on screen and nothing is written.
+    expect(saved.calls).toHaveLength(0)
+    expect(screen.getByText('4.50%')).toBeInTheDocument()
+  })
+
+  it('keeps a stale reading but says it is stale', async () => {
+    const user = userEvent.setup()
+    stored.data = savedBoard
+    boi.error = null
+    boi.result = { prime: 6, boiRate: 4.5, lastUpdate: '2026-08', stale: true, error: 'תם הזמן הקצוב' }
+    renderPage()
+    await screen.findByText('בנק אגוד')
+
+    await user.click(screen.getByRole('button', { name: /רענן מבנק ישראל/ }))
+
+    expect(await screen.findByText('בנק ישראל לא זמין')).toBeInTheDocument()
+    expect(screen.getByText('תם הזמן הקצוב')).toBeInTheDocument()
   })
 })

@@ -31,28 +31,27 @@ interface BOIReading {
   prime: number
   boiRate: number
   lastUpdate: string
+  /** True when the server handed back a reading it could not refresh. */
+  stale?: boolean
+  /** Why the refresh failed, when it did. */
+  error?: string
 }
 
-async function fetchBOIRates(): Promise<BOIReading> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 5000)
-  try {
-    const res = await fetch('https://edge.boi.gov.il/FusionEdge/skewers/clients/json/en/page_1007.aspx', {
-      signal: controller.signal,
-    })
-    clearTimeout(timeout)
-    if (!res.ok) throw new Error('HTTP ' + res.status)
-    const json = await res.json()
-    const series = json?.resultSet?.series?.[0]?.points ?? json?.series?.[0]?.points ?? []
-    const latest = series[series.length - 1]
-    if (!latest) throw new Error('No data')
-    const boiRate = parseFloat(latest.value)
-    if (!Number.isFinite(boiRate)) throw new Error('No data')
-    return { prime: boiRate + 1.5, boiRate, lastUpdate: latest?.period ?? '' }
-  } catch {
-    clearTimeout(timeout)
-    throw new Error('BOI fetch failed')
+/**
+ * The reading comes from the fetchBoiRates Cloud Function, not from the
+ * browser. edge.boi.gov.il is another origin and grants no CORS, so a fetch
+ * from the tab was blocked before it left — which is why every refresh
+ * reported a failure. The function also has a real timeout and a shared
+ * cache, and reports why a fetch failed instead of an opaque error.
+ */
+async function fetchBOIRates(force = false): Promise<BOIReading> {
+  const fn = httpsCallable<{ force: boolean }, BOIReading>(functions, 'fetchBoiRates')
+  const res = await fn({ force })
+  const data = res.data
+  if (typeof data?.boiRate !== 'number' || typeof data?.prime !== 'number') {
+    throw new Error('לא התקבלה ריבית מהשרת')
   }
+  return data
 }
 
 function writeCache(rates: RatesDoc) {
@@ -120,7 +119,7 @@ export default function InterestRatesPage() {
   const refreshBOI = useCallback(async () => {
     setBoiLoading(true)
     try {
-      const boi = await fetchBOIRates()
+      const boi = await fetchBOIRates(true)
       const next = { ...applyBoiReading(rates, boi), updated_at: new Date().toISOString() }
       setRates(next)
       const { error } = await settingsService.saveRates(next)
@@ -128,10 +127,14 @@ export default function InterestRatesPage() {
         toast.warning('הריבית עודכנה אך לא נשמרה', error.message)
       } else {
         writeCache(next)
-        toast.success('ריבית בנק ישראל עודכנה')
+        // A stale reading is still worth keeping, but say that it is stale.
+        if (boi.stale) toast.warning('בנק ישראל לא זמין', boi.error ?? 'מוצג הנתון השמור האחרון')
+        else toast.success('ריבית בנק ישראל עודכנה')
       }
-    } catch {
-      toast.warning('לא הצלחנו לעדכן את ריבית בנק ישראל', 'מוצג הנתון השמור האחרון')
+    } catch (e) {
+      // The message now names the actual failure — a status code, a timeout,
+      // an unparseable body — rather than hiding it.
+      toast.warning('לא הצלחנו לעדכן את ריבית בנק ישראל', e instanceof Error ? e.message : undefined)
     } finally {
       setBoiLoading(false)
     }

@@ -20,6 +20,7 @@ export * from './audit'
 export * from './ocr'
 export * from './ai'
 export * from './whatsapp'
+export * from './boi'
 
 async function findCustomerByToken(token: string) {
   const snap = await db
